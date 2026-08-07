@@ -2,7 +2,7 @@
 
 Edición accesible de Bejeweled 3 con soporte total para lectores de pantalla (NVDA y SAPI), audio binaural espacial y control por teclado.
 
-Este repositorio solo publica **releases de binarios** listos para jugar, sin código fuente.
+Este repositorio contiene el **código fuente completo** (C#/.NET 4.5) y publica **releases de binarios** listos para jugar. Documentación técnica en [README_DEV.md](README_DEV.md).
 
 ## Descargar
 

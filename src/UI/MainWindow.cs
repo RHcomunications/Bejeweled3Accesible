@@ -1,0 +1,2582 @@
+using System;
+using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
+using System.Threading.Tasks;
+using System.Windows.Forms;
+using Bejeweled3Accessible.Accessibility;
+using Bejeweled3Accessible.Audio;
+using Bejeweled3Accessible.Engine;
+
+namespace Bejeweled3Accessible.UI
+{
+    public enum GameScreen { Loading, ProfileInput, ProfileSelectScreen, MainMenu, GameSelect, Options, BadgesScreen, RecordsScreen, TutorialScreen, ZenOptionsScreen, QuestRelicScreen, QuestChallengeScreen, Playing, PauseMenu, GameOver }
+
+    public class MainWindow : Form
+    {
+        private Board _board;
+        private readonly NvdaSpeech _speech;
+        private readonly SoundEngine _sound;
+        private readonly Timer _renderTimer;
+        private readonly Timer _lightningTimer;
+        private readonly Timer _loadingTimer;
+        private readonly ProfileManager _profileMgr;
+        private readonly GameOptions _options;
+        private BadgeManager _badgeMgr;
+        private ZenManager _zenMgr;
+
+        private GameScreen _screen = GameScreen.Loading;
+        private GameScreen _optionsOriginScreen = GameScreen.MainMenu;
+        private int _loadingProgress = 0;
+        private bool _loadingComplete = false;
+
+        private int _menuIdx = 0;
+        private int _optionsIdx = 0;
+        private int _pauseIdx = 0;
+        private int _badgeIdx = 0;
+        private int _recordsIdx = 0;
+        private int _tutorialIdx = 0;
+        private int _relicIdx = 0;
+        private int _questChallengeIdx = 0;
+        private int _profileSelectIdx = 0;
+        private int _zenOptionsIdx = 0;
+        private int _gameOverIdx = 0;
+        private int _cursorX = 3, _cursorY = 3;
+        private int _score = 0, _level = 1;
+        private int _cascadeChain = 0;
+        private bool _isSwapping = false;
+        private string _currentModeKey = "ModeClassic";
+
+        private string _profileInputBuffer = "";
+
+        private int _lightningTimeLeft = 60;
+        private int _lightningMultiplier = 1;
+        private int _lightningTankSeconds = 0;
+
+        private int[] _iceColumns = new int[8]; // Column heights from 0 to 8 (uniform front)
+        private int _iceRiseCounter = 0;
+        private int _iceRiseInterval = 4;
+        // Once a column's ice crests the board (height 8) a skull appears and an
+        // internal column rises; if it isn't melted within ICE_SKULL_GRACE_TICKS
+        // seconds the whole board freezes (authentic Ice Storm loss).
+        private const int ICE_SKULL_GRACE_TICKS = 6;
+        private int[] _iceSkullTicks = new int[8];
+        private int _diamondDepthMeters = 0;
+
+        private string _activeQuestName = "";
+        private Engine.QuestMission _activeQuest = null;
+        private int _activeQuestIndex = -1;
+        private int _questGemsCleared = 0;
+        private int _questButterfliesFreed = 0;
+        private int _questNuggets = 0;
+        private int _questGoldConverted = 0;
+        private int _questBombsDestroyed = 0;
+        private int _questMaxCascade = 0;
+        private int _questHandsScored = 0;
+        private int _questIceColumnsBroken = 0;
+        private int _pokerSkulls = 0;
+        private int _pokerSkullCharge = 0;
+        private int _shufflesRemaining = 3;
+        private List<GemColor> _pokerCards = new List<GemColor>();
+
+        private readonly Dictionary<GemColor, Color> _gemColors = new Dictionary<GemColor, Color>
+        {
+            { GemColor.Red, Color.Red },
+            { GemColor.Yellow, Color.Gold },
+            { GemColor.Green, Color.LimeGreen },
+            { GemColor.Blue, Color.DeepSkyBlue },
+            { GemColor.Purple, Color.Purple },
+            { GemColor.White, Color.Snow },
+            { GemColor.Orange, Color.Orange }
+        };
+
+        private GameProgress _progress
+        {
+            get { return _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.Progress : new GameProgress(); }
+        }
+
+        private string[] GetMainMenuItems()
+        {
+            string profName = _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.ProfileName : "";
+            return new string[]
+            {
+                Localization.Get("MenuPlay"),
+                Localization.Get("MenuBadges"),
+                Localization.Get("MenuRecords"),
+                Localization.Get("MenuTutorial"),
+                Localization.Get("MenuChangeUser", profName),
+                Localization.Get("MenuLanguage"),
+                Localization.Get("MenuOptions"),
+                Localization.Get("MenuExit")
+            };
+        }
+
+
+
+        private string[] GetGameModeKeys()
+        {
+            List<string> keys = new List<string>
+            {
+                "ModeClassic",
+                "ModeLightning",
+                "ModeZen",
+                "ModeQuest",
+                _progress.IsPokerUnlocked ? "ModePoker" : "ModePokerLocked",
+                _progress.IsButterfliesUnlocked ? "ModeButterflies" : "ModeButterfliesLocked",
+                _progress.IsIceStormUnlocked ? "ModeIceStorm" : "ModeIceStormLocked",
+                _progress.IsDiamondMineUnlocked ? "ModeDiamondMine" : "ModeDiamondMineLocked",
+                "BackToMain"
+            };
+            return keys.ToArray();
+        }
+
+        public MainWindow()
+        {
+            string baseDir = Path.GetDirectoryName(Application.ExecutablePath);
+            _speech = new NvdaSpeech();
+            _sound = new SoundEngine(baseDir);
+            // Warm the voice-duration cache off the UI thread so the first voice
+            // used does not decode its OGG synchronously on the form thread.
+            try { System.Threading.ThreadPool.QueueUserWorkItem(delegate { _sound.PreloadVoiceDurations(); }); }
+            catch { }
+
+            _options = GameOptions.Load();
+            _profileMgr = ProfileManager.Load();
+            string profileName = _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.ProfileName : "Jugador 1";
+            _badgeMgr = BadgeManager.Load(profileName);
+            _zenMgr = new ZenManager(baseDir, _speech, _sound);
+            _zenMgr.SelectedAmbient = (Engine.AmbientType)_options.ZenAmbient;
+            _zenMgr.AmbientEnabled = _zenMgr.SelectedAmbient != Engine.AmbientType.None;
+            _zenMgr.MantrasEnabled = _options.ZenMantras;
+            _zenMgr.BreathModulationEnabled = _options.ZenBreath;
+
+            _sound.MusicVol = _options.MusicVolume;
+            _sound.SfxVol = _options.SoundVolume;
+            _sound.VoiceVol = _options.VoiceVolume;
+            Localization.CurrentLanguage = _options.SelectedLanguage;
+
+            Text = Localization.Get("AppTitle");
+            Size = new Size(900, 700);
+            StartPosition = FormStartPosition.CenterScreen;
+            DoubleBuffered = true;
+
+            _board = new Board(new Random().Next());
+
+            _renderTimer = new Timer { Interval = 30 };
+            _renderTimer.Tick += (s, e) => Invalidate();
+            _renderTimer.Start();
+
+            _lightningTimer = new Timer { Interval = 1000 };
+            _lightningTimer.Tick += LightningTimer_Tick;
+
+            _loadingTimer = new Timer { Interval = 50 };
+            _loadingTimer.Tick += LoadingTimer_Tick;
+            _loadingTimer.Start();
+
+            KeyDown += MainWindow_KeyDown;
+            KeyPress += MainWindow_KeyPress;
+
+            // When the intro track has played through, the loading screen
+            // advances to the menu on its own (like the original game).
+            _sound.MusicRechained += Sound_MusicRechained;
+
+            _sound.PlayMusic("01 - Intro.mp3");
+            _speech.Speak(Localization.Get("LoadingTitle"), true);
+        }
+
+        // Runs on the music monitor's worker thread; hop to the UI thread.
+        private void Sound_MusicRechained(object sender, EventArgs e)
+        {
+            if (_screen != GameScreen.Loading) return;
+            try
+            {
+                BeginInvoke((MethodInvoker)delegate
+                {
+                    if (_screen == GameScreen.Loading)
+                    {
+                        TransitionToMainMenu(true);
+                    }
+                });
+            }
+            catch { }
+        }
+
+        private void SaveOptionsState()
+        {
+            _options.MusicVolume = _sound.MusicVol;
+            _options.SoundVolume = _sound.SfxVol;
+            _options.VoiceVolume = _sound.VoiceVol;
+            _options.SelectedLanguage = Localization.CurrentLanguage;
+            _options.ZenAmbient = (int)_zenMgr.SelectedAmbient;
+            _options.ZenMantras = _zenMgr.MantrasEnabled;
+            _options.ZenBreath = _zenMgr.BreathModulationEnabled;
+            _options.Save();
+        }
+
+        private void LoadingTimer_Tick(object sender, EventArgs e)
+        {
+            if (_screen != GameScreen.Loading)
+            {
+                _loadingTimer.Stop();
+                return;
+            }
+            _loadingProgress += 2;
+            if (_loadingProgress >= 100)
+            {
+                _loadingProgress = 100;
+                _loadingTimer.Stop();
+                _loadingComplete = true;
+                _speech.Speak(Localization.Get("LoadingPrompt"), false);
+            }
+        }
+
+        private void TransitionToMainMenu(bool speakWelcomeBack = false)
+        {
+            if (_zenMgr != null) _zenMgr.StopZenSession();
+
+            // Persist once when leaving gameplay, not on every turn.
+            _profileMgr.Save();
+
+            _sound.PlaySound("backtomain");
+            _sound.PlaySound("menuspin");
+
+            if (_profileMgr.Profiles.Count == 0)
+            {
+                _screen = GameScreen.ProfileInput;
+                _profileInputBuffer = "";
+                // First launch: the menu theme starts right when the
+                // "Welcome to Bejeweled 3" locution plays, like the original.
+                _sound.PlayMusic("02 - Bejeweled 3 Theme.mp3");
+                _sound.PlaySound("voice_welcometobejeweled");
+                _speech.Speak(Localization.Get("CreateProfileTitle") + ". " + Localization.Get("EnterNamePrompt"), true);
+            }
+            else
+            {
+                _screen = GameScreen.MainMenu;
+                // The menu theme is already chaining; just announce the return.
+                if (_sound.MusicNowPlaying != "02 - Bejeweled 3 Theme.mp3")
+                    _sound.PlayMusic("02 - Bejeweled 3 Theme.mp3");
+                if (speakWelcomeBack)
+                {
+                    _sound.PlaySound("voice_welcomeback");
+                    _speech.Speak(Localization.Get("Welcome"), true);
+                }
+                else
+                {
+                    _speech.Speak(Localization.Get("Welcome"), true);
+                }
+            }
+        }
+
+        // Which modes run on the periodic lightning/Ice clock:
+        // Lightning (countdown), Diamond Mine (screen timer), Ice Storm and
+        // Time Bomb (their threats tick every second).
+        private bool UsesClockTimer()
+        {
+            switch (_currentModeKey)
+            {
+                case "ModeLightning":
+                case "ModeIceStorm":
+                case "ModeDiamondMine":
+                    return true;
+                case "ModeQuest":
+                    return _activeQuest != null &&
+                           (_activeQuest.Type == Engine.QuestType.IceStorm ||
+                            _activeQuest.Type == Engine.QuestType.TimeBomb);
+                default:
+                    return false;
+            }
+        }
+
+        private void LightningTimer_Tick(object sender, EventArgs e)
+        {
+            if (_screen != GameScreen.Playing) return;
+
+            if (_currentModeKey == "ModeButterflies" || (_currentModeKey == "ModeQuest" && _activeQuest != null && _activeQuest.Type == Engine.QuestType.Butterflies))
+            {
+                // In authentic Butterflies mode, butterflies move up 1 row AFTER EACH TURN, not via periodic timer
+            }
+            else if (_currentModeKey == "ModeIceStorm" || (_currentModeKey == "ModeQuest" && _activeQuest != null && _activeQuest.Type == Engine.QuestType.IceStorm))
+            {
+                // Authentic Ice Storm: the cold front rises in ALL columns at once,
+                // faster as the level increases. Matches melt only their own column.
+                // When a column crests the board it does NOT lose the game instantly:
+                // a skull appears and an internal column rises; the player must melt
+                // it before the internal column reaches the top or the board freezes.
+                _iceRiseCounter++;
+                if (_iceRiseCounter >= _iceRiseInterval)
+                {
+                    _iceRiseCounter = 0;
+                    List<int> dangerCols = new List<int>();
+                    List<int> newSkullCols = new List<int>();
+                    for (int col = 0; col < 8; col++)
+                    {
+                        _iceColumns[col] = Math.Min(8, _iceColumns[col] + 1);
+                        if (_iceColumns[col] == 7) dangerCols.Add(col);
+                        if (_iceColumns[col] >= 8 && _iceSkullTicks[col] == 0)
+                        {
+                            // A fresh crest: arm the internal ice column with the
+                            // grace period instead of ending the game immediately.
+                            _iceSkullTicks[col] = ICE_SKULL_GRACE_TICKS;
+                            newSkullCols.Add(col);
+                        }
+                    }
+
+                    if (newSkullCols.Count > 0)
+                    {
+                        _sound.PlaySound("tower_hits_top1");
+                        _sound.PlaySound("ice_warning");
+                        _sound.PlaySound("Ice_Storm_Steam_Build_Up");
+                        _speech.Speak(Localization.Get("IceSkullColumns", FormatColumns(newSkullCols)), false);
+                    }
+
+                    if (dangerCols.Count > 0)
+                    {
+                        _sound.PlaySound("ice_warning");
+                        _sound.PlaySound("Ice_Storm_Steam_Build_Up");
+                        _speech.Speak(Localization.Get("IceDangerColumns", FormatColumns(dangerCols)), false);
+                    }
+                }
+
+                // The internal column claws its way up every second; if any column's
+                // grace expires while still iced to the top, the board freezes over.
+                bool frozen = false;
+                for (int col = 0; col < 8; col++)
+                {
+                    if (_iceColumns[col] >= 8 && _iceSkullTicks[col] > 0)
+                    {
+                        _iceSkullTicks[col]--;
+                        if (_iceSkullTicks[col] <= 0) frozen = true;
+                    }
+                }
+
+                if (frozen)
+                {
+                    _lightningTimer.Stop();
+                    _screen = GameScreen.GameOver;
+                    _sound.PlaySound("Ice_Storm_Final_Thud");
+                    _sound.PlaySound("Ice_Storm_GameOver");
+                    if (_currentModeKey == "ModeIceStorm" && _score > _progress.IceStormHighScore)
+                    {
+                        _progress.IceStormHighScore = _score;
+                        _sound.PlaySound("rankup");
+                        _profileMgr.Save();
+                    }
+                    CheckSecretRecordsBadge();
+                    _speech.Speak(Localization.Get("GameOver", _score), true);
+                    return;
+                }
+            }
+            else if (_currentModeKey == "ModeQuest" && _activeQuest != null && _activeQuest.Type == Engine.QuestType.TimeBomb)
+            {
+                // Time Bombs: countdown ticks down every second
+                int exploded = _board.TickBombs();
+                if (exploded > 0)
+                {
+                    _sound.PlaySound("skull_busted");
+                    _sound.PlaySound("gem_countdown_destroyed");
+                    _speech.Speak(Localization.Get("BombExploded"), true);
+                }
+            }
+            else if (_currentModeKey == "ModeLightning")
+            {
+                _lightningTimeLeft--;
+                if (_lightningTimeLeft == 30)
+                {
+                    _sound.PlaySound("voice_thirtyseconds");
+                }
+                else if (_lightningTimeLeft <= 10 && _lightningTimeLeft > 0)
+                {
+                    _sound.PlaySound("countdown_warning");
+                    _speech.Speak(_lightningTimeLeft.ToString(), false);
+                }
+
+                if (_lightningTimeLeft <= 0)
+                {
+                    if (_lightningTankSeconds > 0)
+                    {
+                        _lightningTimeLeft = _lightningTankSeconds;
+                        _lightningTankSeconds = 0;
+                        _lightningMultiplier++;
+                        _sound.PlaySound("lightning_tube_fill_10");
+                        _sound.PlaySound("multiplier_appears");
+                        _sound.PlaySound("multiplier_hurrahed");
+                        _sound.PlaySound("Ice_Storm_Multipler_Up");
+                        _speech.Speak(Localization.Get("TimeExtended", _lightningMultiplier), true);
+                    }
+                    else
+                    {
+                        _lightningTimer.Stop();
+                        _screen = GameScreen.GameOver;
+                        _sound.PlaySound("voice_timeup");
+                        _sound.PlaySound("voice_gameover");
+
+                        if (_score > _progress.LightningHighScore)
+                        {
+                            _progress.LightningHighScore = _score;
+                            _sound.PlaySound("rankup");
+                            _profileMgr.Save();
+                        }
+
+                        // Wait for "Time up!" and "Game over" voices before the TTS score announce
+                        _speech.Speak(Localization.Get("GameOver", _score), true);
+                    }
+                }
+            }
+            else if (_currentModeKey == "ModeDiamondMine")
+            {
+                // Diamond Mine: 60 seconds per screen, extended by 30s each time the screen is cleared
+                _lightningTimeLeft--;
+                if (_lightningTimeLeft == 30)
+                {
+                    _sound.PlaySound("voice_thirtyseconds");
+                }
+                else if (_lightningTimeLeft <= 10 && _lightningTimeLeft > 0)
+                {
+                    _sound.PlaySound("countdown_warning");
+                    _speech.Speak(_lightningTimeLeft.ToString(), false);
+                }
+
+                if (_lightningTimeLeft <= 0)
+                {
+                    _lightningTimer.Stop();
+                    _screen = GameScreen.GameOver;
+                    _sound.PlaySound("voice_timeup");
+                    _sound.PlaySound("voice_gameover");
+
+                    if (_score > _progress.DiamondMineHighScore)
+                    {
+                        _progress.DiamondMineHighScore = _score;
+                        _sound.PlaySound("rankup");
+                    }
+                    _profileMgr.Save();
+                    CheckSecretRecordsBadge();
+
+                    _speech.Speak(Localization.Get("GameOver", _score), true);
+                }
+            }
+        }
+
+        private void MainWindow_KeyPress(object sender, KeyPressEventArgs e)
+        {
+            if (_screen == GameScreen.ProfileInput)
+            {
+                if (e.KeyChar == '\r' || e.KeyChar == '\n')
+                {
+                    string name = _profileInputBuffer.Trim();
+                    if (string.IsNullOrEmpty(name))
+                    {
+                        _speech.Speak(Localization.Get("EnterNamePrompt"), true);
+                        return;
+                    }
+
+                    PlayerProfile newProfile = new PlayerProfile(name);
+                    _profileMgr.Profiles.Add(newProfile);
+                    _profileMgr.CurrentProfileIndex = _profileMgr.Profiles.Count - 1;
+                    _profileMgr.Save();
+
+                    _badgeMgr = BadgeManager.Load(newProfile.ProfileName);
+                    _profileInputBuffer = "";
+
+                    _sound.PlaySound("button_press");
+                    TransitionToMainMenu(false);
+                    return;
+                }
+                else if (e.KeyChar == '\b')
+                {
+                    if (_profileInputBuffer.Length > 0)
+                    {
+                        _profileInputBuffer = _profileInputBuffer.Substring(0, _profileInputBuffer.Length - 1);
+                        _sound.PlaySound("select");
+                        _speech.Speak(_profileInputBuffer.Length > 0 ? _profileInputBuffer : Localization.Get("Empty"), true);
+                    }
+                }
+                else if (!char.IsControl(e.KeyChar))
+                {
+                    _profileInputBuffer += e.KeyChar;
+                    _sound.PlaySound("select");
+                    _speech.Speak(e.KeyChar.ToString(), true);
+                }
+            }
+        }
+
+        private void MainWindow_KeyDown(object sender, KeyEventArgs e)
+        {
+            if (_screen == GameScreen.ProfileInput)
+            {
+                if (e.KeyCode == Keys.Escape)
+                {
+                    if (_profileMgr.Profiles.Count > 0)
+                    {
+                        _screen = GameScreen.ProfileSelectScreen;
+                        _profileSelectIdx = 0;
+                        _sound.PlaySound("button_press");
+                        _speech.Speak(Localization.Get("ProfileSelectTitle") + ". " + GetProfileSelectItems()[0], true);
+                    }
+                    else
+                    {
+                        _sound.PlaySound("button_mouseover");
+                        _speech.Speak(Localization.Get("EnterNamePrompt"), true);
+                    }
+                }
+                return;
+            }
+            else if (_screen == GameScreen.Loading)
+            {
+                // Any key skips the intro track and opens the menu right away.
+                // If nothing is pressed, the intro plays through and the game
+                // advances on its own (Sound_MusicRechained).
+                TransitionToMainMenu(true);
+            }
+            else if (_screen == GameScreen.MainMenu) HandleMainMenuKeys(e);
+            else if (_screen == GameScreen.GameSelect) HandleGameSelectKeys(e);
+            else if (_screen == GameScreen.Options) HandleOptionsKeys(e);
+            else if (_screen == GameScreen.BadgesScreen) HandleBadgesKeys(e);
+            else if (_screen == GameScreen.RecordsScreen) HandleRecordsKeys(e);
+            else if (_screen == GameScreen.TutorialScreen) HandleTutorialKeys(e);
+            else if (_screen == GameScreen.QuestRelicScreen) HandleQuestRelicKeys(e);
+            else if (_screen == GameScreen.QuestChallengeScreen) HandleQuestChallengeKeys(e);
+            else if (_screen == GameScreen.ProfileSelectScreen) HandleProfileSelectKeys(e);
+            else if (_screen == GameScreen.ZenOptionsScreen) HandleZenOptionsKeys(e);
+            else if (_screen == GameScreen.Playing) HandlePlayingKeys(e);
+            else if (_screen == GameScreen.PauseMenu) HandlePauseMenuKeys(e);
+            else if (_screen == GameScreen.GameOver) HandleGameOverKeys(e);
+        }
+
+        private string[] GetGameOverItems()
+        {
+            return new string[]
+            {
+                Localization.Get("GameOverReplay"),
+                Localization.Get("GameOverMenu")
+            };
+        }
+
+        private void HandleGameOverKeys(KeyEventArgs e)
+        {
+            string[] items = GetGameOverItems();
+            if (_gameOverIdx >= items.Length) _gameOverIdx = 0;
+            if (e.KeyCode == Keys.Down)
+            {
+                _gameOverIdx = (_gameOverIdx + 1) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_gameOverIdx], true);
+            }
+            else if (e.KeyCode == Keys.Up)
+            {
+                _gameOverIdx = (_gameOverIdx - 1 + items.Length) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_gameOverIdx], true);
+            }
+            else if (e.KeyCode == Keys.Enter)
+            {
+                _sound.PlaySound("button_press");
+                if (_gameOverIdx == 0) StartNewGame(_currentModeKey);
+                else TransitionToMainMenu();
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                _sound.PlaySound("button_press");
+                TransitionToMainMenu();
+            }
+        }
+
+        private void HandleMainMenuKeys(KeyEventArgs e)
+        {
+            string[] items = GetMainMenuItems();
+            if (e.KeyCode == Keys.Down)
+            {
+                _menuIdx = (_menuIdx + 1) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_menuIdx], true);
+            }
+            else if (e.KeyCode == Keys.Up)
+            {
+                _menuIdx = (_menuIdx - 1 + items.Length) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_menuIdx], true);
+            }
+            else if (e.KeyCode == Keys.Enter)
+            {
+                _sound.PlaySound("button_press");
+                if (_menuIdx == 0) // Play
+                {
+                    _screen = GameScreen.GameSelect;
+                    _menuIdx = 0;
+                    _speech.Speak(Localization.Get("SelectMode") + Localization.Get(GetGameModeKeys()[0]), true);
+                }
+                else if (_menuIdx == 1) // Badges
+                {
+                    _screen = GameScreen.BadgesScreen;
+                    _badgeIdx = 0;
+                    _sound.PlaySound("button_press");
+                    _speech.Speak(Localization.Get("MenuBadges") + ". " + GetBadgeListItems()[0], true);
+                }
+                else if (_menuIdx == 2) // Records
+                {
+                    _screen = GameScreen.RecordsScreen;
+                    _recordsIdx = 0;
+                    _sound.PlaySound("button_press");
+                    _speech.Speak(Localization.Get("MenuRecords") + ". " + GetRecordsItems()[0], true);
+                }
+                else if (_menuIdx == 3) // Tutorial
+                {
+                    _screen = GameScreen.TutorialScreen;
+                    _tutorialIdx = 0;
+                    _sound.PlaySound("button_press");
+                    _speech.Speak(Localization.Get("TutorialTitle") + ". " + GetTutorialItems()[0], true);
+                }
+                else if (_menuIdx == 4) // Change User
+                {
+                    _screen = GameScreen.ProfileSelectScreen;
+                    _profileSelectIdx = 0;
+                    _sound.PlaySound("button_press");
+                    _speech.Speak(Localization.Get("ProfileSelectTitle") + ". " + GetProfileSelectItems()[0], true);
+                }
+                else if (_menuIdx == 5) // Language
+                {
+                    Localization.ToggleLanguage();
+                    Text = Localization.Get("AppTitle");
+                    SaveOptionsState();
+                    _speech.Speak(GetMainMenuItems()[5], true);
+                }
+                else if (_menuIdx == 6) // Options
+                {
+                    _screen = GameScreen.Options;
+                    _optionsOriginScreen = GameScreen.MainMenu;
+                    _optionsIdx = 0;
+                    _speech.Speak(Localization.Get("OptionsTitle") + ". " + GetOptionsMenuItems()[0], true);
+                }
+                else if (_menuIdx == 7) // Exit
+                {
+                    _sound.PlaySound("voice_goodbye");
+                    _speech.Speak(Localization.CurrentLanguage == Language.Spanish ? "¡Adiós!" : "Goodbye!", true);
+                    Task.Delay(1200).ContinueWith(_2 =>
+                    {
+                        try { Invoke(new Action(() => Close())); } catch { }
+                    });
+                }
+            }
+        }
+
+        private string[] GetOptionsMenuItems()
+        {
+            string spatialStr = _sound.SpatialBinauralEnabled ? Localization.Get("StateEnabled") : Localization.Get("StateDisabled");
+            return new string[]
+            {
+                Localization.Get("OptMusicVol", _sound.MusicVol),
+                Localization.Get("OptSoundVol", _sound.SfxVol),
+                Localization.Get("OptVoiceVol", _sound.VoiceVol),
+                Localization.Get("OptSpatialAudio", spatialStr),
+                Localization.Get("OptBack")
+            };
+        }
+
+        private void HandleOptionsKeys(KeyEventArgs e)
+        {
+            string[] items = GetOptionsMenuItems();
+            if (e.KeyCode == Keys.Down)
+            {
+                _optionsIdx = (_optionsIdx + 1) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_optionsIdx], true);
+            }
+            else if (e.KeyCode == Keys.Up)
+            {
+                _optionsIdx = (_optionsIdx - 1 + items.Length) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_optionsIdx], true);
+            }
+            else if (e.KeyCode == Keys.Left || e.KeyCode == Keys.Right)
+            {
+                if (_optionsIdx == 0)
+                {
+                    _sound.MusicVol = (e.KeyCode == Keys.Right) ? Math.Min(100, _sound.MusicVol + 5) : Math.Max(0, _sound.MusicVol - 5);
+                    _sound.UpdateMusicVolume();
+                    _speech.Speak(Localization.Get("OptMusicVol", _sound.MusicVol), true);
+                }
+                else if (_optionsIdx == 1)
+                {
+                    _sound.SfxVol = (e.KeyCode == Keys.Right) ? Math.Min(100, _sound.SfxVol + 5) : Math.Max(0, _sound.SfxVol - 5);
+                    _sound.PlaySound("select");
+                    _speech.Speak(Localization.Get("OptSoundVol", _sound.SfxVol), true);
+                }
+                else if (_optionsIdx == 2)
+                {
+                    _sound.VoiceVol = (e.KeyCode == Keys.Right) ? Math.Min(100, _sound.VoiceVol + 5) : Math.Max(0, _sound.VoiceVol - 5);
+                    _speech.Speak(Localization.Get("OptVoiceVol", _sound.VoiceVol), true);
+                }
+                else if (_optionsIdx == 3)
+                {
+                    _sound.SpatialBinauralEnabled = !_sound.SpatialBinauralEnabled;
+                    _sound.UpdateSpatialAudioState();
+                    _sound.PlaySound(_sound.SpatialBinauralEnabled ? "select" : "badmove");
+                    _speech.Speak(GetOptionsMenuItems()[3], true);
+                }
+                SaveOptionsState();
+            }
+            else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Escape)
+            {
+                _sound.PlaySound("button_press");
+                SaveOptionsState();
+                if (_optionsOriginScreen == GameScreen.PauseMenu)
+                {
+                    _screen = GameScreen.PauseMenu;
+                    _speech.Speak(GetPauseMenuItems()[_pauseIdx], true);
+                }
+                else
+                {
+                    TransitionToMainMenu();
+                }
+            }
+        }
+
+        private string[] GetZenOptionsMenuItems()
+        {
+            string ambStr = _zenMgr.AmbientEnabled ? Engine.ZenManager.GetAmbientName(_zenMgr.SelectedAmbient) : Localization.Get("StateDisabled");
+            string manStr = _zenMgr.MantrasEnabled ? Localization.Get("StateEnabled") : Localization.Get("StateDisabled");
+            string breathStr = _zenMgr.BreathModulationEnabled ? Localization.Get("StateEnabled") : Localization.Get("StateDisabled");
+
+            return new string[]
+            {
+                Localization.Get("ZenOptAmbient", ambStr),
+                Localization.Get("ZenOptMantras", manStr),
+                Localization.Get("ZenOptBreath", breathStr),
+                Localization.Get("OptBack")
+            };
+        }
+
+        private void HandleZenOptionsKeys(KeyEventArgs e)
+        {
+            string[] items = GetZenOptionsMenuItems();
+            if (e.KeyCode == Keys.Down)
+            {
+                _zenOptionsIdx = (_zenOptionsIdx + 1) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_zenOptionsIdx], true);
+            }
+            else if (e.KeyCode == Keys.Up)
+            {
+                _zenOptionsIdx = (_zenOptionsIdx - 1 + items.Length) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_zenOptionsIdx], true);
+            }
+            else if (e.KeyCode == Keys.Left || e.KeyCode == Keys.Right)
+            {
+                if (_zenOptionsIdx == 0) // Ambient Track
+                {
+                    int maxAmb = Enum.GetValues(typeof(AmbientType)).Length;
+                    int curAmb = (int)_zenMgr.SelectedAmbient;
+                    if (e.KeyCode == Keys.Right) curAmb = (curAmb + 1) % maxAmb;
+                    else curAmb = (curAmb - 1 + maxAmb) % maxAmb;
+
+                    _zenMgr.SelectedAmbient = (AmbientType)curAmb;
+                    _zenMgr.AmbientEnabled = (_zenMgr.SelectedAmbient != AmbientType.None);
+                    _sound.PlaySound("zen_dropdownbutton");
+                    _sound.PlaySound(string.Format("zen_necklace_{0}", (curAmb % 4) + 1));
+                    _zenMgr.StartZenSession(_level);
+                }
+                else if (_zenOptionsIdx == 1) // Mantras
+                {
+                    _zenMgr.MantrasEnabled = !_zenMgr.MantrasEnabled;
+                    _sound.PlaySound(_zenMgr.MantrasEnabled ? "zen_checkon" : "zen_checkoff");
+                    _zenMgr.UpdateZenSessionState();
+                }
+                else if (_zenOptionsIdx == 2) // Breath
+                {
+                    _zenMgr.BreathModulationEnabled = !_zenMgr.BreathModulationEnabled;
+                    _sound.PlaySound(_zenMgr.BreathModulationEnabled ? "zen_checkon" : "zen_checkoff");
+                    _zenMgr.UpdateZenSessionState();
+                }
+                SaveOptionsState();
+                _speech.Speak(GetZenOptionsMenuItems()[_zenOptionsIdx], true);
+            }
+            else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Escape)
+            {
+                _sound.PlaySound("zen_menuclose");
+                _screen = GameScreen.PauseMenu;
+                _speech.Speak(GetPauseMenuItems()[_pauseIdx], true);
+            }
+        }
+
+        private string[] GetBadgeListKeys()
+        {
+            return new string[]
+            {
+                "BadgeInferno",
+                "BadgeStellar",
+                "BadgeChromatic",
+                "BadgeBlaster",
+                "BadgeBejeweler",
+                "BadgeHighVoltage",
+                "BadgeAnnihilator",
+                "BadgeSuperstar",
+                "BadgeLevelord",
+                "BadgeTopSecret",
+                "OptBack"
+            };
+        }
+
+        private string[] GetBadgeListItems()
+        {
+            string[] keys = GetBadgeListKeys();
+            List<string> list = new List<string>();
+            for (int i = 0; i < keys.Length; i++)
+            {
+                if (keys[i] == "OptBack")
+                {
+                    list.Add(Localization.Get("OptBack"));
+                }
+                else
+                {
+                    BadgeTier t = _badgeMgr.GetTier(keys[i]);
+                    string tierStr = Localization.Get(string.Format("Tier{0}", t.ToString()));
+                    list.Add(string.Format("{0}: {1}", Localization.Get(keys[i]), tierStr));
+                }
+            }
+            list.Add(Localization.Get("BadgeMenuHelp"));
+            return list.ToArray();
+        }
+
+        private void HandleBadgesKeys(KeyEventArgs e)
+        {
+            string[] items = GetBadgeListItems();
+            if (e.KeyCode == Keys.Down)
+            {
+                _badgeIdx = (_badgeIdx + 1) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_badgeIdx], true);
+            }
+            else if (e.KeyCode == Keys.Up)
+            {
+                _badgeIdx = (_badgeIdx - 1 + items.Length) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_badgeIdx], true);
+            }
+            else if (e.KeyCode == Keys.Enter)
+            {
+                if (items[_badgeIdx] == Localization.Get("OptBack") || items[_badgeIdx] == Localization.Get("BadgeMenuHelp"))
+                {
+                    _sound.PlaySound("button_press");
+                    TransitionToMainMenu();
+                }
+                else
+                {
+                    _sound.PlaySound("button_press");
+                    _speech.Speak(items[_badgeIdx], true);
+                }
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                _sound.PlaySound("button_press");
+                TransitionToMainMenu();
+            }
+        }
+
+        private string[] GetRecordsItems()
+        {
+            List<string> list = new List<string>();
+            string rankStr = RankSystem.GetRankTitle(_progress.TotalScore);
+            list.Add(Localization.Get("StatPlayerRank", rankStr));
+            list.Add(Localization.Get("StatTotalScore", _progress.TotalScore));
+            list.Add(Localization.Get("StatTotalGems", _progress.TotalGemsCleared));
+            list.Add(Localization.Get("StatClassicLevel", _progress.ClassicLevel));
+            list.Add(Localization.Get("StatZenLevel", _progress.ZenLevel));
+            list.Add(Localization.Get("StatLightningRecord", _progress.LightningHighScore));
+            list.Add(Localization.Get("StatPokerRecord", _progress.PokerHighScore));
+            list.Add(Localization.Get("StatButterfliesRecord", _progress.ButterfliesHighScore));
+            list.Add(Localization.Get("StatIceStormRecord", _progress.IceStormHighScore));
+            list.Add(Localization.Get("StatDiamondMineRecord", _progress.DiamondMineHighScore));
+            list.Add(Localization.Get("StatFlamesDestroyed", _progress.TotalFlameGemsDestroyed));
+            list.Add(Localization.Get("StatStarsDestroyed", _progress.TotalStarGemsDestroyed));
+            list.Add(Localization.Get("StatHypercubesDestroyed", _progress.TotalHypercubesDestroyed));
+            list.Add(Localization.Get("OptBack"));
+            return list.ToArray();
+        }
+
+        private void HandleRecordsKeys(KeyEventArgs e)
+        {
+            string[] items = GetRecordsItems();
+            if (e.KeyCode == Keys.Down)
+            {
+                _recordsIdx = (_recordsIdx + 1) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound("tooltip");
+                _speech.Speak(items[_recordsIdx], true);
+            }
+            else if (e.KeyCode == Keys.Up)
+            {
+                _recordsIdx = (_recordsIdx - 1 + items.Length) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound("tooltip");
+                _speech.Speak(items[_recordsIdx], true);
+            }
+            else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Escape)
+            {
+                _sound.PlaySound("button_release");
+                _sound.PlaySound("rank_countup");
+                TransitionToMainMenu();
+            }
+        }
+
+        private string[] GetTutorialItems()
+        {
+            return new string[]
+            {
+                Localization.Get("TutorialStep1"),
+                Localization.Get("TutorialStep2"),
+                Localization.Get("TutorialStep3"),
+                Localization.Get("TutorialStep4"),
+                Localization.Get("TutorialStep5"),
+                Localization.Get("TutorialStep6"),
+                Localization.Get("TutorialStep7"),
+                Localization.Get("TutorialStep8"),
+                Localization.Get("OptBack")
+            };
+        }
+
+        private void HandleTutorialKeys(KeyEventArgs e)
+        {
+            string[] items = GetTutorialItems();
+            if (e.KeyCode == Keys.Down)
+            {
+                _tutorialIdx = (_tutorialIdx + 1) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_tutorialIdx], true);
+            }
+            else if (e.KeyCode == Keys.Up)
+            {
+                _tutorialIdx = (_tutorialIdx - 1 + items.Length) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_tutorialIdx], true);
+            }
+            else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Escape)
+            {
+                _sound.PlaySound("button_press");
+                TransitionToMainMenu();
+            }
+        }
+
+        private void HandleGameSelectKeys(KeyEventArgs e)
+        {
+            string[] keys = GetGameModeKeys();
+            if (e.KeyCode == Keys.Down)
+            {
+                _menuIdx = (_menuIdx + 1) % keys.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(Localization.Get(keys[_menuIdx]), true);
+            }
+            else if (e.KeyCode == Keys.Up)
+            {
+                _menuIdx = (_menuIdx - 1 + keys.Length) % keys.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(Localization.Get(keys[_menuIdx]), true);
+            }
+            else if (e.KeyCode == Keys.Enter)
+            {
+                string selectedKey = keys[_menuIdx];
+                if (selectedKey.EndsWith("Locked"))
+                {
+                    _sound.PlaySound("badmove");
+                    _speech.Speak(Localization.Get(selectedKey), true);
+                    return;
+                }
+
+                _sound.PlaySound("button_press");
+                if (selectedKey == "BackToMain")
+                {
+                    TransitionToMainMenu();
+                    return;
+                }
+                else if (selectedKey == "ModeQuest")
+                {
+                    _screen = GameScreen.QuestRelicScreen;
+                    _relicIdx = 0;
+                    _speech.Speak(Localization.Get("QuestSelectTitle") + ". " + GetQuestRelicItems()[0], true);
+                    return;
+                }
+
+                StartNewGame(selectedKey);
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                _sound.PlaySound("button_press");
+                TransitionToMainMenu();
+            }
+        }
+
+        private string[] GetQuestRelicItems()
+        {
+            List<string> items = new List<string>();
+            for (int i = 1; i <= 10; i++)
+            {
+                int relicIdx = i - 1;
+                int done = _progress.CountCompletedInRelic(relicIdx);
+                items.Add(Localization.Get("Relic" + i) + (done >= 4 ? Localization.Get("QuestCompletedMark") : " (" + done + " de 4)"));
+            }
+            items.Add(Localization.Get("OptBack"));
+            return items.ToArray();
+        }
+
+        private void HandleQuestRelicKeys(KeyEventArgs e)
+        {
+            string[] items = GetQuestRelicItems();
+            if (e.KeyCode == Keys.Down)
+            {
+                _relicIdx = (_relicIdx + 1) % items.Length;
+                _sound.PlaySound("quest_menu_button_mouseover1");
+                _speech.Speak(items[_relicIdx], true);
+            }
+            else if (e.KeyCode == Keys.Up)
+            {
+                _relicIdx = (_relicIdx - 1 + items.Length) % items.Length;
+                _sound.PlaySound("quest_menu_button_mouseover1");
+                _speech.Speak(items[_relicIdx], true);
+            }
+            else if (e.KeyCode == Keys.Enter)
+            {
+                if (_relicIdx == items.Length - 1)
+                {
+                    _sound.PlaySound("button_press");
+                    _screen = GameScreen.GameSelect;
+                    _speech.Speak(Localization.Get("SelectMode") + Localization.Get(GetGameModeKeys()[0]), true);
+                }
+                else
+                {
+                    _sound.PlaySound("quest_menu_button1");
+                    _sound.PlaySound("QuestMenu_RelicRevealed_object");
+                    _screen = GameScreen.QuestChallengeScreen;
+                    _questChallengeIdx = 0;
+                    _speech.Speak(GetQuestChallengeItems()[0], true);
+                }
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                _sound.PlaySound("button_press");
+                _screen = GameScreen.GameSelect;
+                _speech.Speak(Localization.Get("SelectMode") + Localization.Get(GetGameModeKeys()[0]), true);
+            }
+        }
+
+        private string[] GetQuestChallengeItems()
+        {
+            List<string> items = new List<string>();
+            Engine.QuestMission[] missions = Engine.QuestManager.GetRelicMissions(_relicIdx);
+            foreach (var m in missions)
+            {
+                string item = m.GetName();
+                if (_progress.IsQuestMissionComplete(m.MissionIndex))
+                    item += Localization.Get("QuestCompletedMark");
+                items.Add(item);
+            }
+            items.Add(Localization.Get("OptBack"));
+            return items.ToArray();
+        }
+
+        private void HandleQuestChallengeKeys(KeyEventArgs e)
+        {
+            string[] items = GetQuestChallengeItems();
+            if (e.KeyCode == Keys.Down)
+            {
+                _questChallengeIdx = (_questChallengeIdx + 1) % items.Length;
+                _sound.PlaySound("quest_menu_button_mouseover1");
+                _speech.Speak(items[_questChallengeIdx], true);
+            }
+            else if (e.KeyCode == Keys.Up)
+            {
+                _questChallengeIdx = (_questChallengeIdx - 1 + items.Length) % items.Length;
+                _sound.PlaySound("quest_menu_button_mouseover1");
+                _speech.Speak(items[_questChallengeIdx], true);
+            }
+            else if (e.KeyCode == Keys.Enter)
+            {
+                if (_questChallengeIdx == items.Length - 1)
+                {
+                    _sound.PlaySound("quest_menu_button1");
+                    _screen = GameScreen.QuestRelicScreen;
+                    _speech.Speak(GetQuestRelicItems()[_relicIdx], true);
+                }
+                else
+                {
+                    Engine.QuestMission[] missions = Engine.QuestManager.GetRelicMissions(_relicIdx);
+                    _activeQuest = missions[_questChallengeIdx];
+                    _activeQuestIndex = _activeQuest.MissionIndex;
+                    _activeQuestName = _activeQuest.GetName();
+                    _sound.PlaySound("quest_orb1");
+                    _sound.PlaySound("quest_get");
+                    StartNewGame("ModeQuest");
+                }
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                _sound.PlaySound("button_press");
+                _screen = GameScreen.QuestRelicScreen;
+                _speech.Speak(GetQuestRelicItems()[_relicIdx], true);
+            }
+        }
+
+        private string[] GetProfileSelectItems()
+        {
+            List<string> items = new List<string>();
+            for (int i = 0; i < _profileMgr.Profiles.Count; i++)
+            {
+                string marker = (i == _profileMgr.CurrentProfileIndex) ? " (" + Localization.Get("StateEnabled") + ")" : "";
+                items.Add(_profileMgr.Profiles[i].ProfileName + marker);
+            }
+            items.Add(Localization.Get("ProfileCreateNew"));
+            items.Add(Localization.Get("ProfileDelete"));
+            items.Add(Localization.Get("OptBack"));
+            return items.ToArray();
+        }
+
+        private void HandleProfileSelectKeys(KeyEventArgs e)
+        {
+            string[] items = GetProfileSelectItems();
+            if (e.KeyCode == Keys.Down)
+            {
+                _profileSelectIdx = (_profileSelectIdx + 1) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_profileSelectIdx], true);
+            }
+            else if (e.KeyCode == Keys.Up)
+            {
+                _profileSelectIdx = (_profileSelectIdx - 1 + items.Length) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_profileSelectIdx], true);
+            }
+            else if (e.KeyCode == Keys.Enter)
+            {
+                _sound.PlaySound("button_press");
+                string selectedItem = items[_profileSelectIdx];
+
+                if (selectedItem == Localization.Get("ProfileCreateNew"))
+                {
+                    _screen = GameScreen.ProfileInput;
+                    _profileInputBuffer = "";
+                    _speech.Speak(Localization.Get("CreateProfileTitle") + ". " + Localization.Get("EnterNamePrompt"), true);
+                }
+                else if (selectedItem == Localization.Get("ProfileDelete"))
+                {
+                    if (_profileMgr.Profiles.Count > 1)
+                    {
+                        _profileMgr.Profiles.RemoveAt(_profileMgr.CurrentProfileIndex);
+                        _profileMgr.CurrentProfileIndex = 0;
+                        _profileMgr.Save();
+                        _badgeMgr = BadgeManager.Load(_profileMgr.CurrentProfile.ProfileName);
+                        _profileSelectIdx = 0;
+                        items = GetProfileSelectItems();
+                        _speech.Speak(Localization.Get("ProfileSelectTitle") + ". " + items[0], true);
+                    }
+                    else if (_profileMgr.Profiles.Count == 1)
+                    {
+                        _profileMgr.Profiles.Clear();
+                        _profileMgr.CurrentProfileIndex = 0;
+                        _profileMgr.Save();
+                        _screen = GameScreen.ProfileInput;
+                        _profileInputBuffer = "";
+                        _sound.PlaySound("voice_welcometobejeweled");
+                        _speech.Speak(Localization.Get("CreateProfileTitle") + ". " + Localization.Get("EnterNamePrompt"), true);
+                    }
+                }
+                else if (selectedItem == Localization.Get("OptBack"))
+                {
+                    TransitionToMainMenu();
+                }
+                else if (_profileSelectIdx < _profileMgr.Profiles.Count)
+                {
+                    _profileMgr.CurrentProfileIndex = _profileSelectIdx;
+                    _profileMgr.Save();
+                    _badgeMgr = BadgeManager.Load(_profileMgr.CurrentProfile.ProfileName);
+                    TransitionToMainMenu(true);
+                }
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                _sound.PlaySound("button_press");
+                TransitionToMainMenu();
+            }
+        }
+
+        private void StartNewGame(string modeKey)
+        {
+            _score = 0;
+            _level = 1;
+            _cascadeChain = 0;
+            _cursorX = 3;
+            _cursorY = 3;
+            _questGemsCleared = 0;
+            _questButterfliesFreed = 0;
+            _questNuggets = 0;
+            _questGoldConverted = 0;
+            _questBombsDestroyed = 0;
+            _questMaxCascade = 0;
+            _questHandsScored = 0;
+            _questIceColumnsBroken = 0;
+            _pokerSkulls = 0;
+            _pokerSkullCharge = 0;
+            _pokerCards.Clear();
+            _shufflesRemaining = 3;
+            _iceRiseCounter = 0;
+            _iceRiseInterval = 4;
+            _diamondDepthMeters = 0;
+
+            _board = new Board(new Random().Next());
+            _screen = GameScreen.Playing;
+            _currentModeKey = modeKey;
+
+            // Never let Zen timers/sounds leak into other modes
+            if (_zenMgr != null) _zenMgr.StopZenSession();
+
+            _sound.PlaySound("voice_getready");
+            Task.Delay(1000).ContinueWith(_ =>
+            {
+                try
+                {
+                    Invoke(new Action(() =>
+                    {
+                        if (IsDisposed || !IsHandleCreated) return;
+                        if (_screen != GameScreen.Playing) return;
+                        _sound.PlaySound("voice_go");
+                    }));
+                }
+                catch { }
+            });
+
+            string startSpeech = null;
+            if (modeKey == "ModeLightning")
+            {
+                _lightningTimeLeft = 60;
+                _lightningMultiplier = 1;
+                _lightningTankSeconds = 0;
+                _lightningTimer.Start();
+                _sound.PlayMusic("07 - Lightning (aka Blitz).mp3");
+                startSpeech = Localization.Get("LightningStarted");
+            }
+            else if (modeKey == "ModeZen")
+            {
+                _zenMgr.StartZenSession();
+                startSpeech = Localization.Get("ZenStarted");
+            }
+            else if (modeKey == "ModePoker")
+            {
+                _sound.PlayMusic("09 - Poker.mp3");
+                startSpeech = Localization.Get("PokerStarted");
+            }
+            else if (modeKey == "ModeButterflies")
+            {
+                _board.InitializeButterfliesBoard();
+                _sound.PlayMusic("08 - Butterflies.mp3");
+                startSpeech = Localization.Get("ButterfliesStarted") + " " + Localization.Get("ButterflyStart", _board.GetButterflyCount());
+            }
+            else if (modeKey == "ModeIceStorm")
+            {
+                for (int i = 0; i < 8; i++)
+                {
+                    _iceColumns[i] = 0;
+                    _iceSkullTicks[i] = 0;
+                }
+                _iceRiseInterval = Math.Max(1, 6 - _level);
+                _iceRiseCounter = 0;
+                _lightningTimer.Start();
+                _sound.PlayMusic("10 - Ice Storm.mp3");
+                startSpeech = Localization.Get("IceStormStarted");
+            }
+            else if (modeKey == "ModeDiamondMine")
+            {
+                _diamondDepthMeters = 0;
+                _lightningTimeLeft = 60;
+                _lightningMultiplier = 1;
+                _lightningTankSeconds = 0;
+                _lightningTimer.Start();
+                _board.InitializeDiamondMineBoard();
+                _sound.PlayMusic("16 - Buried Treasure.mp3");
+                startSpeech = Localization.Get("DiamondMineStarted");
+            }
+            else if (modeKey == "ModeQuest")
+            {
+                if (_activeQuest != null)
+                {
+                    switch (_activeQuest.Type)
+                    {
+                        case Engine.QuestType.Butterflies:
+                            _board.InitializeButterfliesBoard();
+                            _sound.PlayMusic("08 - Butterflies.mp3");
+                            break;
+                        case Engine.QuestType.DiamondMine:
+                        case Engine.QuestType.GoldRush:
+                            _board.InitializeDiamondMineBoard();
+                            _sound.PlayMusic("16 - Buried Treasure.mp3");
+                            break;
+                        case Engine.QuestType.TimeBomb:
+                            // Authentic: the first board is already armed with bombs
+                            _board.InitializeBoard(true);
+                            _sound.PlaySound("bomb_appears");
+                            _sound.PlayMusic("19 - Time Bombs.mp3");
+                            _lightningTimer.Start();
+                            break;
+                        case Engine.QuestType.IceStorm:
+                            for (int i = 0; i < 8; i++)
+                            {
+                                _iceColumns[i] = 0;
+                                _iceSkullTicks[i] = 0;
+                            }
+                            _iceRiseInterval = Math.Max(1, 6 - _level);
+                            _iceRiseCounter = 0;
+                            _lightningTimer.Start();
+                            _sound.PlayMusic("10 - Ice Storm.mp3");
+                            break;
+                        case Engine.QuestType.Poker:
+                            _sound.PlayMusic("09 - Poker.mp3");
+                            break;
+                        case Engine.QuestType.Avalanche:
+                            _sound.PlayMusic("18 - Turn by Turn.mp3");
+                            break;
+                        default:
+                            _sound.PlayMusic("17 - Take Your Time.mp3");
+                            break;
+                    }
+                }
+                else
+                {
+                    _sound.PlayMusic("17 - Take Your Time.mp3");
+                }
+
+                startSpeech = Localization.Get("QuestMissionIntro", _activeQuestName);
+                if (_activeQuest != null && _activeQuest.Type == Engine.QuestType.Butterflies)
+                    startSpeech += Localization.Get("ButterflyStart", _board.GetButterflyCount());
+            }
+            else
+            {
+                _sound.PlayMusic("03 - Classic Mode - Part 1.mp3");
+                startSpeech = Localization.Get("ClassicStarted");
+            }
+
+            // Sequence: "Get ready!" (audio) -> "Go!" (audio) -> mode intro (TTS)
+            if (startSpeech != null)
+            {
+                string sp = startSpeech;
+                _speech.Speak(sp, true);
+            }
+            Task.Delay(3000).ContinueWith(_ =>
+            {
+                try
+                {
+                    Invoke(new Action(() =>
+                    {
+                        if (IsDisposed || !IsHandleCreated) return;
+                        if (_screen != GameScreen.Playing || _isSwapping) return;
+                        AnnounceCurrentCell();
+                    }));
+                }
+                catch { }
+            });
+        }
+
+        private void HandlePlayingKeys(KeyEventArgs e)
+        {
+            if (e.KeyCode == Keys.W || (e.Control && e.KeyCode == Keys.Up)) PerformSwap(0, -1);
+            else if (e.KeyCode == Keys.S && Control.ModifierKeys == Keys.Control) PerformSwap(0, 1);
+            else if (e.KeyCode == Keys.A || (e.Control && e.KeyCode == Keys.Left)) PerformSwap(-1, 0);
+            else if (e.KeyCode == Keys.D || (e.Control && e.KeyCode == Keys.Right)) PerformSwap(1, 0);
+
+            else if (e.KeyCode == Keys.Left && _cursorX > 0) { _cursorX--; _sound.PlaySoundSpatial("select", _cursorX, _cursorY); AnnounceCurrentCell(); }
+            else if (e.KeyCode == Keys.Right && _cursorX < Board.Cols - 1) { _cursorX++; _sound.PlaySoundSpatial("select", _cursorX, _cursorY); AnnounceCurrentCell(); }
+            else if (e.KeyCode == Keys.Up && _cursorY > 0) { _cursorY--; _sound.PlaySoundSpatial("select", _cursorX, _cursorY); AnnounceCurrentCell(); }
+            else if (e.KeyCode == Keys.Down && _cursorY < Board.Rows - 1) { _cursorY++; _sound.PlaySoundSpatial("select", _cursorX, _cursorY); AnnounceCurrentCell(); }
+
+            else if (e.Shift && e.KeyCode == Keys.H)
+            {
+                _board.SetGem(_cursorX, _cursorY, new Gem(GemColor.Red, SpecialType.Hypercube));
+                _sound.PlaySound("hypercube_create");
+                _speech.Speak("Hipercubo creado en casilla actual.", true);
+            }
+            else if (e.Shift && e.KeyCode == Keys.F)
+            {
+                _board.SetGem(_cursorX, _cursorY, new Gem(GemColor.Red, SpecialType.Flame));
+                _sound.PlaySound("powergem_created");
+                _speech.Speak("Gema de Fuego creada en casilla actual.", true);
+            }
+            else if (e.Shift && e.KeyCode == Keys.R)
+            {
+                _sound.PlaySound("button_press");
+                _board.InitializeBoard();
+                _score = 0;
+                _cascadeChain = 0;
+                _speech.Speak(Localization.Get("PauseReset") + ". " + Localization.Get("ClassicStarted"), true);
+            }
+            else if (e.KeyCode == Keys.R)
+            {
+                if (_currentModeKey == "ModeLightning")
+                    _speech.Speak(Localization.Get("LightningScoreAnnouncement", _score, _lightningTimeLeft, _lightningMultiplier), true);
+                else if (_currentModeKey == "ModeIceStorm")
+                {
+                    int iceHeight = _iceColumns[_cursorX];
+                    if (iceHeight >= 8 && _iceSkullTicks[_cursorX] > 0)
+                        _speech.Speak(Localization.Get("IceColumnCrestedStatus", _score, _iceSkullTicks[_cursorX]), true);
+                    else
+                        _speech.Speak(Localization.Get("IceColumnStatus", _score, iceHeight), true);
+                }
+                else if (_currentModeKey == "ModeButterflies")
+                    _speech.Speak(Localization.Get("ButterflyStatus", _board.GetButterflyCount(), FormatColumns(_board.GetButterflyColumns())), true);
+                else if (_currentModeKey == "ModeQuest")
+                    _speech.Speak(Localization.Get("QuestActiveStatus", _activeQuestName, _score), true);
+                else
+                    _speech.Speak(Localization.Get("ScoreAnnouncement", _score, _level), true);
+            }
+            else if (e.KeyCode == Keys.S)
+            {
+                PerformSwap(0, 1);
+            }
+            else if (e.KeyCode == Keys.C) { AnnounceCurrentCell(); }
+            else if (e.KeyCode == Keys.Q)
+            {
+                AnnounceFullModeStatus();
+            }
+            else if (e.KeyCode == Keys.H)
+            {
+                MoveHint? hint = HintFinder.FindValidMove(_board);
+                if (hint.HasValue)
+                {
+                    MoveHint h = hint.Value;
+                    Gem gem = _board.GetGem(h.FromX, h.FromY);
+                    string gemName = (gem != null) ? gem.GetNameLocalized() : Localization.Get("Gem");
+                    string fromCell = string.Format("{0}{1}", (char)('A' + h.FromX), h.FromY + 1);
+
+                    string dirStr = Localization.Get("DirRight");
+                    if (h.ToX < h.FromX) dirStr = Localization.Get("DirLeft");
+                    else if (h.ToY > h.FromY) dirStr = Localization.Get("DirDown");
+                    else if (h.ToY < h.FromY) dirStr = Localization.Get("DirUp");
+
+                    _sound.PlaySound("quest_notify");
+                    _speech.Speak(Localization.Get("HintFound", gemName, fromCell, dirStr), true);
+                }
+                else
+                {
+                    _sound.PlaySound("badmove");
+                    _speech.Speak(Localization.Get("NoHintFound"), true);
+                }
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                _lightningTimer.Stop();
+                _screen = GameScreen.PauseMenu;
+                _pauseIdx = 0;
+                _sound.PlaySound("button_press");
+                _speech.Speak(Localization.Get("PauseTitle") + ". " + GetPauseMenuItems()[0], true);
+            }
+        }
+
+        private string[] GetPauseMenuItems()
+        {
+            List<string> items = new List<string>
+            {
+                Localization.Get("PauseResume"),
+                Localization.Get("PauseReset"),
+                Localization.Get("PauseOptions")
+            };
+            if (_currentModeKey == "ModeZen")
+            {
+                items.Add(Localization.Get("ZenOptionsTitle"));
+            }
+            items.Add(Localization.Get("PauseQuit"));
+            return items.ToArray();
+        }
+
+        private void HandlePauseMenuKeys(KeyEventArgs e)
+        {
+            string[] items = GetPauseMenuItems();
+            if (e.KeyCode == Keys.Down)
+            {
+                _pauseIdx = (_pauseIdx + 1) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_pauseIdx], true);
+            }
+            else if (e.KeyCode == Keys.Up)
+            {
+                _pauseIdx = (_pauseIdx - 1 + items.Length) % items.Length;
+                _sound.PlaySound("button_mouseover");
+                _speech.Speak(items[_pauseIdx], true);
+            }
+            else if (e.KeyCode == Keys.Enter)
+            {
+                _sound.PlaySound("button_press");
+                string itemText = items[_pauseIdx];
+                if (itemText == Localization.Get("PauseResume"))
+                {
+                    _screen = GameScreen.Playing;
+                    if (UsesClockTimer()) _lightningTimer.Start();
+                    AnnounceCurrentCell();
+                }
+                else if (itemText == Localization.Get("PauseReset"))
+                {
+                    // Rebuild the mode properly: correct board type, counters, timers and music
+                    _sound.PlaySound("button_press");
+                    StartNewGame(_currentModeKey);
+                }
+                else if (itemText == Localization.Get("PauseOptions"))
+                {
+                    _screen = GameScreen.Options;
+                    _optionsOriginScreen = GameScreen.PauseMenu;
+                    _optionsIdx = 0;
+                    _speech.Speak(Localization.Get("OptionsTitle") + ". " + GetOptionsMenuItems()[0], true);
+                }
+                else if (itemText == Localization.Get("ZenOptionsTitle"))
+                {
+                    _sound.PlaySound("zen_menuopen");
+                    _screen = GameScreen.ZenOptionsScreen;
+                    _speech.Speak(Localization.Get("ZenOptionsTitle") + ". " + GetZenOptionsMenuItems()[0], true);
+                }
+                else if (itemText == Localization.Get("PauseQuit"))
+                {
+                    TransitionToMainMenu();
+                }
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                _screen = GameScreen.Playing;
+                if (UsesClockTimer()) _lightningTimer.Start();
+                AnnounceCurrentCell();
+            }
+        }
+
+        private async void PerformSwap(int dx, int dy)
+        {
+            if (_isSwapping) return;
+            _isSwapping = true;
+
+            // Snapshot the game context so the async continuation can detect
+            // that the user paused / reset / restarted while it was running.
+            GameScreen screenAtSwap = _screen;
+            Board boardAtSwap = _board;
+            string modeAtSwap = _currentModeKey;
+            int fromX = _cursorX;
+            int fromY = _cursorY;
+
+            int targetX = _cursorX + dx;
+            int targetY = _cursorY + dy;
+
+            if (targetX < 0 || targetX >= Board.Cols || targetY < 0 || targetY >= Board.Rows)
+            {
+                _sound.PlaySound("badmove");
+                _speech.Speak(Localization.Get("EdgeReached"), true);
+                _isSwapping = false;
+                return;
+            }
+
+            try
+            {
+                bool success = _board.SwapGems(_cursorX, _cursorY, targetX, targetY);
+                if (success)
+            {
+                _cursorX = targetX;
+                _cursorY = targetY;
+
+                // Swap confirmation sound (start rotate) glides from the origin to the
+                // destination column (HRTF swipe), so the movement is heard.
+                _sound.PlaySoundSpatialSweep("start_rotate", fromX, _cursorX, _cursorY);
+
+                bool isButterfliesMode = _currentModeKey == "ModeButterflies" || (_currentModeKey == "ModeQuest" && _activeQuest != null && _activeQuest.Type == Engine.QuestType.Butterflies);
+                bool isAlchemyMode = _currentModeKey == "ModeQuest" && _activeQuest != null && _activeQuest.Type == Engine.QuestType.Alchemy;
+                bool isBombMode = _currentModeKey == "ModeQuest" && _activeQuest != null && _activeQuest.Type == Engine.QuestType.TimeBomb;
+
+                CascadeResult res = _board.ProcessMatchesAndGravity(_currentModeKey == "ModeLightning", isButterfliesMode, isAlchemyMode, isBombMode);
+                if (res.AnyMatched)
+                {
+                    _cascadeChain++;
+                    if (_cascadeChain > 7) _cascadeChain = 7;
+
+                    bool levelUpVoicePlayed = false;
+
+                    // Pitch scales progressively with cascade depth, and the first
+                    // cascade gem glides (HRTF) from the swap origin to its landing
+                    // column, so the chain is heard sweeping the board.
+                    float pitchMult = 1.0f + ((_cascadeChain - 1) * 0.06f);
+                    _sound.PlaySoundSpatialSweep("gem_hit", fromX, _cursorX, _cursorY, pitchMult);
+                    await Task.Delay(110);
+
+                    // Revalidate: the user may have paused / reset / restarted while
+                    // the swap was resolving asynchronously, so abandon stale state.
+                    if (_screen != screenAtSwap || !ReferenceEquals(_board, boardAtSwap) || _currentModeKey != modeAtSwap)
+                    {
+                        return;
+                    }
+
+                    string comboSoundName;
+                    if (_currentModeKey == "ModeZen" && _cascadeChain <= 2)
+                    {
+                        comboSoundName = (_cascadeChain <= 1) ? "combo_1" : "zen_combo_2";
+                    }
+                    else
+                    {
+                        comboSoundName = string.Format("combo_{0}", _cascadeChain);
+                    }
+                    _sound.PlaySound(comboSoundName);
+
+                    int addedScore = res.BasePoints * (_currentModeKey == "ModeLightning" ? _lightningMultiplier * 5 : 1);
+                    _score += addedScore;
+
+                    int rankBefore = RankSystem.GetRankLevel(_progress.TotalScore);
+                    _progress.TotalScore += addedScore;
+                    int rankAfter = RankSystem.GetRankLevel(_progress.TotalScore);
+
+                    // Announce rank promotions with the authentic rank-up jingle and a
+                    // spoken description of the rank just earned.
+                    if (rankAfter > rankBefore)
+                    {
+                        _sound.PlaySound("rankup");
+                        _speech.Speak(Localization.Get("RankUpAnnouncement", RankSystem.GetRankTitle(_progress.TotalScore)), true);
+                        _profileMgr.Save();
+                    }
+                    _progress.TotalGemsCleared += res.TotalGemsDestroyed;
+                    _progress.TotalFlameGemsDestroyed += res.FlameDestroyed;
+                    _progress.TotalStarGemsDestroyed += res.StarDestroyed;
+                    _progress.TotalHypercubesDestroyed += res.HypercubeDestroyed;
+                    _questGemsCleared += res.TotalGemsDestroyed;
+
+                    if (_currentModeKey == "ModeLightning")
+                    {
+                        // Play speedmatch sound scaling with cascade depth (speedmatch1 to speedmatch9)
+                        int speedIdx = Math.Min(9, Math.Max(1, res.CascadeDepth));
+                        _sound.PlaySound(string.Format("speedmatch{0}", speedIdx));
+
+                        if (res.CascadeDepth >= 4 || res.TotalGemsDestroyed >= 10)
+                        {
+                            _sound.PlaySound("voice_blazingspeed");
+                        }
+                    }
+                    else if (_currentModeKey == "ModeClassic")
+                    {
+                        int newLevel = (_score / 5000) + 1;
+                        if (newLevel > _level)
+                        {
+                            _level = newLevel;
+                            _sound.PlaySound("voice_levelcomplete");
+                            levelUpVoicePlayed = true;
+
+                            // Dynamic stage music progression in Classic Mode (Parts 1 to 4)
+                            int stage = ((_level - 1) % 4) + 1;
+                            string classicTrack = string.Format("0{0} - Classic Mode - Part {1}.mp3", stage + 2, stage);
+                            _sound.PlayMusic(classicTrack);
+                        }
+                        if (newLevel > _progress.ClassicLevel)
+                        {
+                            if (_progress.ClassicLevel < 5 && newLevel >= 5)
+                            {
+                                _sound.PlaySound("secretunlocked");
+                                _speech.Speak(Localization.Get("UnlockPoker"), true);
+                            }
+                            _progress.ClassicLevel = newLevel;
+                        }
+                    }
+                    else if (_currentModeKey == "ModeZen")
+                    {
+                        int newLevel = (_score / 5000) + 1;
+                        if (newLevel > _level)
+                        {
+                            _level = newLevel;
+                            _sound.PlaySound("voice_levelcomplete");
+                            levelUpVoicePlayed = true;
+
+                            if (_zenMgr.AmbientEnabled && _zenMgr.SelectedAmbient != AmbientType.None)
+                            {
+                                // Keep ambient track playing
+                            }
+                            else
+                            {
+                                // Dynamic stage music progression in Zen Mode (Parts 1 to 4)
+                                _sound.PlayMusic(Engine.ZenManager.GetZenTrackForLevel(_level));
+                            }
+                        }
+                        if (newLevel > _progress.ZenLevel)
+                        {
+                            if (_progress.ZenLevel < 5 && newLevel >= 5)
+                            {
+                                _sound.PlaySound("secretunlocked");
+                                _speech.Speak(Localization.Get("UnlockButterflies"), true);
+                            }
+                            _progress.ZenLevel = newLevel;
+                        }
+                    }
+                    else if (_currentModeKey == "ModeIceStorm")
+                    {
+                        // Authentic Ice Storm: the cold front rises faster as the
+                        // level increases, exactly like the level-up pacing.
+                        int newLevel = (_score / 5000) + 1;
+                        if (newLevel > _level)
+                        {
+                            _level = newLevel;
+                            _iceRiseInterval = Math.Max(1, 6 - _level);
+                            _sound.PlaySound("voice_levelcomplete");
+                            levelUpVoicePlayed = true;
+                        }
+                    }
+                    bool isPokerActive = _currentModeKey == "ModePoker" || (_currentModeKey == "ModeQuest" && _activeQuest != null && _activeQuest.Type == Engine.QuestType.Poker);
+                    bool isButterfliesActive = isButterfliesMode;
+                    bool isIceStormActive = _currentModeKey == "ModeIceStorm" || (_currentModeKey == "ModeQuest" && _activeQuest != null && _activeQuest.Type == Engine.QuestType.IceStorm);
+                    bool isDiamondMineActive = _currentModeKey == "ModeDiamondMine" || (_currentModeKey == "ModeQuest" && _activeQuest != null && (_activeQuest.Type == Engine.QuestType.DiamondMine || _activeQuest.Type == Engine.QuestType.GoldRush));
+
+                    if (_currentModeKey == "ModeQuest" && _activeQuest != null)
+                    {
+                        // Track real mission progress
+                        if (isButterfliesActive && res.ButterfliesFreed > 0)
+                            _questButterfliesFreed += res.ButterfliesFreed;
+                        if (res.GoldTilesConverted > 0)
+                            _questGoldConverted += res.GoldTilesConverted;
+                        if (res.BombsDestroyed > 0)
+                            _questBombsDestroyed += res.BombsDestroyed;
+                        if (res.NuggetsMined > 0)
+                            _questNuggets += res.NuggetsMined;
+                        if (res.CascadeDepth > _questMaxCascade)
+                            _questMaxCascade = res.CascadeDepth;
+
+                        switch (_activeQuest.Type)
+                        {
+                            case Engine.QuestType.Butterflies:
+                                _sound.PlaySound("butterfly_appear");
+                                break;
+                            case Engine.QuestType.Alchemy:
+                                if (res.GoldTilesConverted > 0)
+                                {
+                                    _sound.PlaySound("alchemy_convert");
+                                    _speech.Speak(Localization.Get("GoldConvertedAnnounce", res.GoldTilesConverted), true);
+                                }
+                                break;
+                            case Engine.QuestType.GoldRush:
+                                if (res.NuggetsMined > 0)
+                                {
+                                    _sound.PlaySound("diamond_mine_treasurefind");
+                                    _sound.PlaySound("sandstorm_treasure_reveal");
+                                    _speech.Speak(Localization.Get("NuggetFound"), true);
+                                }
+                                break;
+                            case Engine.QuestType.TimeBomb:
+                                if (res.BombsDestroyed > 0)
+                                {
+                                    _sound.PlaySound("gem_countdown_destroyed");
+                                    _sound.PlaySound("skull_busted");
+                                }
+                                break;
+                        }
+
+                        // Mission completion per authentic objective
+                        bool questCompleted = false;
+                        switch (_activeQuest.Type)
+                        {
+                            case Engine.QuestType.Butterflies:
+                                questCompleted = _questButterfliesFreed >= _activeQuest.Objective;
+                                break;
+                            case Engine.QuestType.GoldRush:
+                                questCompleted = _questNuggets >= _activeQuest.Objective;
+                                break;
+                            case Engine.QuestType.Alchemy:
+                                questCompleted = _questGoldConverted >= _activeQuest.Objective;
+                                break;
+                            case Engine.QuestType.TimeBomb:
+                                questCompleted = _questBombsDestroyed >= _activeQuest.Objective;
+                                break;
+                            case Engine.QuestType.Avalanche:
+                                questCompleted = _questMaxCascade >= _activeQuest.Objective;
+                                break;
+                            case Engine.QuestType.Poker:
+                                questCompleted = _questHandsScored >= _activeQuest.Objective;
+                                break;
+                            case Engine.QuestType.IceStorm:
+                                questCompleted = _questIceColumnsBroken >= _activeQuest.Objective;
+                                break;
+                            case Engine.QuestType.DiamondMine:
+                                questCompleted = _diamondDepthMeters >= _activeQuest.Objective;
+                                break;
+                        }
+                        if (questCompleted)
+                        {
+                            int relicDoneBefore = _progress.CountCompletedInRelic(_activeQuest.RelicIndex);
+                            _progress.CompleteQuestMission(_activeQuestIndex);
+                            int relicDone = _progress.CountCompletedInRelic(_activeQuest.RelicIndex);
+                            if (relicDone == 4 && relicDoneBefore < 4)
+                            {
+                                _progress.QuestRelic1Completed++;
+                                _profileMgr.Save();
+                            }
+
+                            _sound.PlaySound("voice_challengecomplete");
+                            _sound.PlaySound("quest_award_wreath");
+                            _sound.PlaySound("QuestMenu_RelicComplete_object");
+                            _sound.PlaySound("QuestMenu_RelicComplete_rumble");
+
+                            _screen = GameScreen.QuestRelicScreen;
+                            _relicIdx = _activeQuest.RelicIndex;
+
+                            if (_progress.QuestRelic1Completed >= 4)
+                            {
+                                _sound.PlaySound("secretunlocked");
+                            }
+
+                            string questAnnounce = _progress.QuestRelic1Completed >= 4
+                                ? Localization.Get("UnlockDiamondMine") + " " + Localization.Get("QuestCompleteAnnounce", _activeQuestName)
+                                : Localization.Get("QuestCompleteAnnounce", _activeQuestName);
+                            _speech.Speak(questAnnounce, true);
+                            return;
+                        }
+                    }
+
+                    if (isIceStormActive)
+                    {
+                        // Authentic rule: only the columns where the match happened melt.
+                        // A vertical match shatters the whole ice column; horizontal and
+                        // special-gem blasts only push the front down a bit. Melted top
+                        // columns disarm their rising internal (skull) column.
+                        List<int> skullsDisarmed = new List<int>();
+                        foreach (int col in res.MatchedColumns)
+                        {
+                            if (col < 0 || col >= 8 || _iceColumns[col] <= 0) continue;
+                            bool hadSkull = _iceSkullTicks[col] > 0;
+                            bool shattered = res.VerticalMatchedColumns.Contains(col) || res.HypercubeTriggered || res.HypercubeCreated > 0;
+                            if (shattered)
+                            {
+                                _iceColumns[col] = 0;
+                                _iceSkullTicks[col] = 0;
+                                _questIceColumnsBroken++;
+                                if (hadSkull) skullsDisarmed.Add(col);
+                                _sound.PlaySound("ice_column_break");
+                            }
+                            else
+                            {
+                                _iceColumns[col] = Math.Max(0, _iceColumns[col] - 2);
+                                if (_iceColumns[col] < 8) _iceSkullTicks[col] = 0;
+                                if (hadSkull && _iceSkullTicks[col] == 0) skullsDisarmed.Add(col);
+                                if (_iceColumns[col] == 0) _questIceColumnsBroken++;
+                                _sound.PlaySound("Ice_Storm_ColumnCombo");
+                            }
+                        }
+                        if (skullsDisarmed.Count > 0)
+                        {
+                            _speech.Speak(Localization.Get("IceSkullResolved", FormatColumns(skullsDisarmed)), false);
+                        }
+                    }
+
+                    if (isButterfliesActive)
+                    {
+                        if (res.ButterfliesFreed > 0)
+                        {
+                            _sound.PlaySoundSpatial("butterflyescape", _cursorX, _cursorY);
+                            _speech.Speak(Localization.Get("ButterflyFreed", res.ButterfliesFreed), true);
+                        }
+
+                        // Original rule: every match moves all butterflies up one row
+                        _board.MoveButterfliesUp();
+
+                        // Butterflies stream in from the bottom to replace the ones
+                        // freed this turn, so the board never runs out (authentic
+                        // Butterflies / Quest rule: freedom targets stay reachable).
+                        {
+                            int poolTarget = 6;
+                            int guard = 0;
+                            while (_board.GetButterflyCount() < poolTarget && guard < 12)
+                            {
+                                _board.SpawnButterflyAtBottom();
+                                guard++;
+                            }
+                        }
+
+                        // Check if a butterfly reached top row 0 (caught by spider)
+                        if (_board.IsButterflyAtTop())
+                        {
+                            _lightningTimer.Stop();
+                            _screen = GameScreen.GameOver;
+                            // The spider strikes at the far top of the board
+                            List<int> bfCols = _board.GetButterflyColumns();
+                            int deathCol = (bfCols.Count > 0) ? bfCols[0] : _cursorX;
+                            _sound.PlaySoundSpatial("butterfly_death1", deathCol, 0);
+                            _sound.PlaySound("voice_gameover");
+                            if (_currentModeKey == "ModeButterflies" && _score > _progress.ButterfliesHighScore)
+                            {
+                                _progress.ButterfliesHighScore = _score;
+                                _sound.PlaySound("rankup");
+                                _profileMgr.Save();
+                            }
+                            CheckSecretRecordsBadge();
+                            _speech.Speak(Localization.Get("ButterflyCaught") + Localization.Get("GameOver", _score), true);
+                            return;
+                        }
+
+                        // Warn when a butterfly is one move away from the spider
+                        if (_board.IsButterflyInDanger())
+                        {
+                            // Sound the alarm from the column where the
+                            // butterfly sits (row 1, right under the spider)
+                            List<int> dangerCols = _board.GetButterflyDangerColumns();
+                            int warnCol = (dangerCols.Count > 0) ? dangerCols[0] : _cursorX;
+                            _sound.PlaySoundSpatial("butterfly_appear", warnCol, 1);
+                            _speech.Speak(Localization.Get("ButterflyDanger", FormatColumns(_board.GetButterflyDangerColumns())), true);
+                        }
+                    }
+
+                    if (isPokerActive)
+                    {
+                        _sound.PlaySound("carddeal");
+                        foreach (var color in res.MatchedColors)
+                        {
+                            _pokerCards.Add(color);
+                            _sound.PlaySound("cardflip");
+                        }
+
+                        if (_pokerCards.Count >= 5)
+                        {
+                            PokerHandType hand = PokerHandEvaluator.Evaluate(_pokerCards);
+                            int handPts = PokerHandEvaluator.GetHandPoints(hand);
+                            bool isBadHand = hand == PokerHandType.HighCard || hand == PokerHandType.Pair || hand == PokerHandType.TwoPair;
+
+                            if (isBadHand)
+                            {
+                                // Authentic: bad hands drop a skull on the table
+                                _pokerSkulls++;
+                                _sound.PlaySound("skullcoin_flip");
+                                _sound.PlaySound("skullcoinlose");
+                                _sound.PlaySound("skull_appear");
+                                _sound.PlaySound("pokerchips");
+                                _pokerCards.Clear();
+
+                                if (_pokerSkulls >= 5)
+                                {
+                                    _lightningTimer.Stop();
+                                    _screen = GameScreen.GameOver;
+                                    _sound.PlaySound("skull_buster");
+                                    _sound.PlaySound("voice_gameover");
+                                    if (_currentModeKey == "ModePoker" && _score > _progress.PokerHighScore)
+                                    {
+                                        _progress.PokerHighScore = _score;
+                                        _sound.PlaySound("rankup");
+                                        _profileMgr.Save();
+                                    }
+                                    CheckSecretRecordsBadge();
+                                    _speech.Speak(Localization.Get("PokerSkullGameOver") + " " + Localization.Get("GameOver", _score), true);
+                                    return;
+                                }
+                                _speech.Speak(Localization.Get("PokerSkullAnnounce", _pokerSkulls), true);
+                            }
+                            else
+                            {
+                                _score += handPts;
+                                _questHandsScored++;
+
+                                if (hand == PokerHandType.Flush)
+                                {
+                                    _sound.PlaySound("poker_flush");
+                                    _sound.PlaySound("skullcoinwin");
+                                }
+                                else if (hand == PokerHandType.FullHouse)
+                                {
+                                    _sound.PlaySound("poker_fullhouse");
+                                    _sound.PlaySound("skullcoinlands");
+                                }
+                                else if (hand == PokerHandType.FourOfAKind)
+                                {
+                                    _sound.PlaySound("poker_4ofakind");
+                                    _sound.PlaySound("skullcoinwin");
+                                }
+                                else
+                                {
+                                    _sound.PlaySound("pokerscore");
+                                    _sound.PlaySound("skull_buster");
+                                }
+
+                                _sound.PlaySound("pokerchips");
+                                _speech.Speak(Localization.Get("PokerHandScored", Localization.GetPokerHandName(hand), handPts), true);
+                                _pokerCards.Clear();
+
+                                // Skull Eliminator: scoring strongly charges the bar.
+                                // At 3 charges one skull is busted off the table.
+                                _pokerSkullCharge++;
+                                if (_pokerSkullCharge >= 3 && _pokerSkulls > 0)
+                                {
+                                    _pokerSkulls--;
+                                    _pokerSkullCharge = 0;
+                                    _sound.PlaySound("skull_buster");
+                                    _speech.Speak(Localization.Get("PokerSkullEliminated", _pokerSkulls), true);
+                                }
+                            }
+                        }
+                    }
+
+                    if (isDiamondMineActive)
+                    {
+                        if (res.NuggetsMined > 0)
+                        {
+                            _sound.PlaySound("diamond_mine_treasurefind");
+                            _speech.Speak(Localization.Get("NuggetFound"), true);
+                        }
+                        else if (res.RockCleared > 0)
+                        {
+                            _sound.PlaySound("diamond_mine_stone_cracked");
+                            _sound.PlaySound("diamond_mine_dig_line_hit");
+                        }
+                        else if (res.DirtCleared > 0)
+                        {
+                            _sound.PlaySound("diamond_mine_dirt_cracked");
+                            _sound.PlaySound("diamond_mine_dig");
+                        }
+
+                        // If all dirt is cleared in screen, shift down and add depth + time
+                        if (!_board.HasDirtRemaining())
+                        {
+                            _diamondDepthMeters += 10;
+                            _lightningTimeLeft += 30;
+                            _sound.PlaySound("diamond_mine_treasurefind");
+                            _sound.PlaySound("diamond_mine_treasurefind_diamonds");
+                            _sound.PlaySound("diamond_mine_artifact_showcase");
+                            _sound.PlaySound("diamond_mine_dig_notify");
+                            _speech.Speak(Localization.Get("ArtifactFound", _diamondDepthMeters), true);
+
+                            _board.ShiftDiamondMineDown();
+                        }
+                    }
+
+                    if (res.ExtraTimeSeconds > 0) _lightningTankSeconds += res.ExtraTimeSeconds;
+
+                    if (res.SupernovaCreated > 0)
+                    {
+                        _sound.PlaySound("firework_launch");
+                        _sound.PlaySound("firework_thump");
+                        _sound.PlaySound("firework_crackle");
+                        _sound.PlaySound("lasergem_created");
+                        _sound.PlaySound("electro_explode");
+                        AwardBadge("BadgeSuperstar", BadgeTier.Platinum);
+                    }
+                    else if (res.HypercubeCreated > 0)
+                    {
+                        _sound.PlaySound("hypercube_create");
+                        _sound.PlaySound("hyperspace");
+                    }
+                    else if (res.FlameCreated > 0)
+                    {
+                        _sound.PlaySound("powergem_created");
+                        _sound.PlaySound("flamebonus");
+                        _sound.PlaySound("flamespeed1");
+                    }
+
+                    // Special gem explosions (Flame 3x3, Star beam, Supernova, Coin bonus)
+                    // Match impact sounds are panned to the move position (HRTF)
+                    if (res.TotalGemsDestroyed >= 10)
+                    {
+                        _sound.PlaySoundSpatial("electro_path", _cursorX, _cursorY);
+                        _sound.PlaySoundSpatial("electro_path2", _cursorX, _cursorY);
+                        _sound.PlaySoundSpatial("coin_created", _cursorX, _cursorY);
+                        _sound.PlaySoundSpatial("coinappear", _cursorX, _cursorY);
+                    }
+                    else if (res.TotalGemsDestroyed >= 4)
+                    {
+                        _sound.PlaySoundSpatial("small_explode", _cursorX, _cursorY);
+                        _sound.PlaySoundSpatial("gem_shatters", _cursorX, _cursorY);
+                    }
+                    else
+                    {
+                        _sound.PlaySoundSpatial("gem_hit", _cursorX, _cursorY);
+                    }
+
+                    // Announce voice praise based on total gems destroyed or cascade depth across ALL modes
+                    bool praiseVoicePlayed = false;
+                    if (res.TotalGemsDestroyed >= 25 || res.CascadeDepth >= 6)
+                    { _sound.PlaySound("voice_unbelievable"); praiseVoicePlayed = true; }
+                    else if (res.TotalGemsDestroyed >= 20 || res.CascadeDepth >= 5)
+                    { _sound.PlaySound("voice_extraordinary"); praiseVoicePlayed = true; }
+                    else if (res.TotalGemsDestroyed >= 15 || res.CascadeDepth >= 4)
+                    { _sound.PlaySound("voice_spectacular"); praiseVoicePlayed = true; }
+                    else if (res.TotalGemsDestroyed >= 12 || res.CascadeDepth >= 3)
+                    { _sound.PlaySound("voice_awesome"); praiseVoicePlayed = true; }
+                    else if (res.TotalGemsDestroyed >= 8)
+                    { _sound.PlaySound("voice_excellent"); praiseVoicePlayed = true; }
+                    else if (res.TotalGemsDestroyed >= 5)
+                    { _sound.PlaySound("voice_good"); praiseVoicePlayed = true; }
+
+                    CheckBadgesEvaluation(res);
+
+                    string matchAnnounceText = res.CascadeDepth > 1
+                        ? Localization.Get("CascadeAnnounce", res.CascadeDepth, res.TotalGemsDestroyed, _score)
+                        : Localization.Get("MatchAnnounce", res.TotalGemsDestroyed, _score);
+                    _speech.Speak(matchAnnounceText, true);
+
+                    // Check if any valid moves remain, otherwise scramble board
+                    MoveHint? validHint = HintFinder.FindValidMove(_board);
+                    if (!validHint.HasValue)
+                    {
+                        _sound.PlaySound("voice_nomoremoves");
+                        if (_currentModeKey == "ModeClassic")
+                        {
+                            // Authentic Classic: only 3 reshuffles, then game over
+                            if (_shufflesRemaining > 0)
+                            {
+                                _shufflesRemaining--;
+                                _sound.PlaySound("scramble");
+                                int left = _shufflesRemaining;
+                                _speech.Speak(Localization.Get("ShuffleAnnounce", left), true);
+                                _board.InitializeBoard();
+                            }
+                            else
+                            {
+                                _screen = GameScreen.GameOver;
+                                _sound.PlaySound("voice_gameover");
+                                _speech.Speak(Localization.Get("NoShufflesLeft") + " " + Localization.Get("GameOver", _score), true);
+                            }
+                        }
+                        else
+                        {
+                            _sound.PlaySound("scramble");
+                            _speech.Speak(Localization.Get("NoMoreMovesScramble"), true);
+                            if (isDiamondMineActive)
+                            {
+                                // Keep the mine alive: rebuild dirt/rock + fresh
+                                // nuggets so the Gold Rush quest can keep going.
+                                _board.InitializeDiamondMineBoard();
+                            }
+                            else
+                            {
+                                // Preserve mode elements across a scramble: Time Bomb
+                                // boards keep a fresh bomb field, and Butterflies boards
+                                // re-spawn their butterfly pool right away.
+                                _board.InitializeBoard(isBombMode);
+                                if (isButterfliesMode)
+                                {
+                                    int poolTarget = 6;
+                                    int guard = 0;
+                                    while (_board.GetButterflyCount() < poolTarget && guard < 12)
+                                    {
+                                        _board.SpawnButterflyAtBottom();
+                                        guard++;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                else
+                {
+                    _cascadeChain = 0;
+                }
+            }
+            else
+                {
+                    _cascadeChain = 0;
+                    _sound.PlaySound("badmove");
+                    _speech.Speak(Localization.Get("InvalidMove"), true);
+                }
+            }
+            finally
+            {
+                _isSwapping = false;
+            }
+        }
+
+        private void AwardBadge(string key, BadgeTier tier)
+        {
+            if (_badgeMgr.SetTierIfHigher(key, tier))
+            {
+                _badgeMgr.Save(_profileMgr.CurrentProfile.ProfileName);
+                _sound.PlaySound("badgeawarded");
+                _sound.PlaySound("badgefall");
+                string bName = Localization.Get(key);
+                string tName = Localization.Get(string.Format("Tier{0}", tier.ToString()));
+                _speech.Speak(Localization.Get("BadgeUnlockedAnnounce", bName, tName), true);
+            }
+        }
+
+        private void CheckBadgesEvaluation(CascadeResult res)
+        {
+            // Blaster Badge (30, 40, 50, 60 gems)
+            if (res.TotalGemsDestroyed >= 60) AwardBadge("BadgeBlaster", BadgeTier.Platinum);
+            else if (res.TotalGemsDestroyed >= 50) AwardBadge("BadgeBlaster", BadgeTier.Gold);
+            else if (res.TotalGemsDestroyed >= 40) AwardBadge("BadgeBlaster", BadgeTier.Silver);
+            else if (res.TotalGemsDestroyed >= 30) AwardBadge("BadgeBlaster", BadgeTier.Bronze);
+
+            // Bejeweler Badge (Classic Score: 50k, 150k, 300k, 500k)
+            if (_currentModeKey == "ModeClassic")
+            {
+                if (_score >= 500000) AwardBadge("BadgeBejeweler", BadgeTier.Platinum);
+                else if (_score >= 300000) AwardBadge("BadgeBejeweler", BadgeTier.Gold);
+                else if (_score >= 150000) AwardBadge("BadgeBejeweler", BadgeTier.Silver);
+                else if (_score >= 50000) AwardBadge("BadgeBejeweler", BadgeTier.Bronze);
+
+                if (_progress.ClassicLevel >= 10) AwardBadge("BadgeLevelord", BadgeTier.Platinum);
+            }
+
+            // High Voltage Badge (Lightning Score: 100k, 300k, 500k, 750k)
+            if (_currentModeKey == "ModeLightning")
+            {
+                if (_score >= 750000) AwardBadge("BadgeHighVoltage", BadgeTier.Platinum);
+                else if (_score >= 500000) AwardBadge("BadgeHighVoltage", BadgeTier.Gold);
+                else if (_score >= 300000) AwardBadge("BadgeHighVoltage", BadgeTier.Silver);
+                else if (_score >= 100000) AwardBadge("BadgeHighVoltage", BadgeTier.Bronze);
+            }
+
+            // Inferno Badge (lifetime destroyed flame gems: 10, 25, 50, 100)
+            int flame = _progress.TotalFlameGemsDestroyed + res.FlameDestroyed;
+            if (flame >= 100) AwardBadge("BadgeInferno", BadgeTier.Platinum);
+            else if (flame >= 50) AwardBadge("BadgeInferno", BadgeTier.Gold);
+            else if (flame >= 25) AwardBadge("BadgeInferno", BadgeTier.Silver);
+            else if (flame >= 10) AwardBadge("BadgeInferno", BadgeTier.Bronze);
+
+            // Stellar Badge (lifetime destroyed star gems: 5, 15, 30, 60)
+            int stars = _progress.TotalStarGemsDestroyed + res.StarDestroyed;
+            if (stars >= 60) AwardBadge("BadgeStellar", BadgeTier.Platinum);
+            else if (stars >= 30) AwardBadge("BadgeStellar", BadgeTier.Gold);
+            else if (stars >= 15) AwardBadge("BadgeStellar", BadgeTier.Silver);
+            else if (stars >= 5) AwardBadge("BadgeStellar", BadgeTier.Bronze);
+
+            // Chromatic Badge (lifetime destroyed hypercubes: 3, 8, 15, 30)
+            int hypers = _progress.TotalHypercubesDestroyed + res.HypercubeDestroyed;
+            if (hypers >= 30) AwardBadge("BadgeChromatic", BadgeTier.Platinum);
+            else if (hypers >= 15) AwardBadge("BadgeChromatic", BadgeTier.Gold);
+            else if (hypers >= 8) AwardBadge("BadgeChromatic", BadgeTier.Silver);
+            else if (hypers >= 3) AwardBadge("BadgeChromatic", BadgeTier.Bronze);
+
+            // Annihilator Badge (destroy the whole board with a hypercube swap)
+            if (res.AnnihilatorUsed) AwardBadge("BadgeAnnihilator", BadgeTier.Platinum);
+        }
+
+        // Top Secret Badge: beat the high score of all four secret modes
+        private void CheckSecretRecordsBadge()
+        {
+            if (_progress.PokerHighScore > 0 && _progress.ButterfliesHighScore > 0 &&
+                _progress.IceStormHighScore > 0 && _progress.DiamondMineHighScore > 0)
+            {
+                AwardBadge("BadgeTopSecret", BadgeTier.Platinum);
+            }
+        }
+
+        private string FormatColumns(List<int> columns)
+        {
+            List<string> letters = new List<string>();
+            foreach (int c in columns)
+                letters.Add(((char)('A' + c)).ToString());
+            return string.Join(", ", letters.ToArray());
+        }
+
+        // Full status of the mode that is being played (press Q): Quest shows
+        // exact mission progress; every other mode announces its own state.
+        private void AnnounceFullModeStatus()
+        {
+            if (_currentModeKey == "ModeQuest" && _activeQuest != null)
+            {
+                System.Text.StringBuilder status = new System.Text.StringBuilder();
+                status.Append(Localization.Get("QuestStatusTitle", _activeQuestName));
+                status.Append(Localization.Get("QuestStatusScore", _score));
+
+                switch (_activeQuest.Type)
+                {
+                    case Engine.QuestType.Butterflies:
+                        status.Append(Localization.Get("QuestStatusButterflies", Math.Min(_questButterfliesFreed, _activeQuest.Objective), _activeQuest.Objective));
+                        break;
+                    case Engine.QuestType.GoldRush:
+                        status.Append(Localization.Get("QuestStatusNuggets", Math.Min(_questNuggets, _activeQuest.Objective), _activeQuest.Objective));
+                        break;
+                    case Engine.QuestType.Alchemy:
+                        status.Append(Localization.Get("QuestStatusGoldTiles", Math.Min(_questGoldConverted, _activeQuest.Objective), _activeQuest.Objective));
+                        break;
+case Engine.QuestType.TimeBomb:
+                        status.Append(Localization.Get("QuestStatusBombsDestroyed", Math.Min(_questBombsDestroyed, _activeQuest.Objective), _activeQuest.Objective));
+                        {
+                            var bombInfo = _board.GetBombInfo();
+                            int activeBombs = bombInfo.Count;
+                            int lowestTimer = 99;
+                            foreach (var b in bombInfo) lowestTimer = Math.Min(lowestTimer, b.Item3);
+                            status.Append(Localization.Get("QuestStatusBombs", activeBombs, lowestTimer == 99 ? 0 : lowestTimer));
+                        }
+                        break;
+                    case Engine.QuestType.Avalanche:
+                        status.Append(Localization.Get("QuestStatusCascade", Math.Min(_questMaxCascade, _activeQuest.Objective), _activeQuest.Objective));
+                        break;
+                    case Engine.QuestType.Poker:
+                        status.Append(Localization.Get("QuestStatusPokerHands", Math.Min(_questHandsScored, _activeQuest.Objective), _activeQuest.Objective));
+                        status.Append(Localization.Get("QuestStatusSkulls", _pokerSkulls));
+                        break;
+                    case Engine.QuestType.IceStorm:
+                        status.Append(Localization.Get("QuestStatusIceColumns", Math.Min(_questIceColumnsBroken, _activeQuest.Objective), _activeQuest.Objective));
+                        break;
+                    case Engine.QuestType.DiamondMine:
+                        status.Append(Localization.Get("QuestStatusDepth", Math.Min(_diamondDepthMeters, _activeQuest.Objective), _activeQuest.Objective));
+                        break;
+                }
+
+                _speech.Speak(status.ToString(), true);
+                return;
+            }
+
+            if (_currentModeKey == "ModeQuest")
+            {
+                _speech.Speak(Localization.Get("QuestStatusInactive"), true);
+                return;
+            }
+
+            switch (_currentModeKey)
+            {
+                case "ModeClassic":
+                    _speech.Speak(Localization.Get("ClassicStatus", _score, _level, _shufflesRemaining), true);
+                    break;
+                case "ModeLightning":
+                    _speech.Speak(Localization.Get("LightningScoreAnnouncement", _score, _lightningTimeLeft, _lightningMultiplier), true);
+                    break;
+                case "ModeZen":
+                    _speech.Speak(Localization.Get("ZenStatus", _score, _level), true);
+                    break;
+                case "ModePoker":
+                    _speech.Speak(Localization.Get("PokerStatus", _score, _pokerCards.Count, _pokerSkulls, _pokerSkullCharge), true);
+                    break;
+                case "ModeButterflies":
+                    _speech.Speak(Localization.Get("ButterfliesModeStatus", _score, _board.GetButterflyCount(), FormatColumns(_board.GetButterflyColumns())), true);
+                    break;
+                case "ModeIceStorm":
+                    {
+                        int melted = 0;
+                        List<int> danger = new List<int>();
+                        List<int> cresting = new List<int>();
+                        for (int c = 0; c < 8; c++)
+                        {
+                            if (_iceColumns[c] == 0) melted++;
+                            if (_iceColumns[c] >= 7 && _iceColumns[c] < 8) danger.Add(c);
+                            if (_iceColumns[c] >= 8 && _iceSkullTicks[c] > 0) cresting.Add(c);
+                        }
+                        string suffix = "";
+                        if (cresting.Count > 0) suffix += Localization.Get("IceSkullSuffix", FormatColumns(cresting));
+                        if (danger.Count > 0) suffix += Localization.Get("IceDangerSuffix", FormatColumns(danger));
+                        _speech.Speak(Localization.Get("IceStormModeStatus", _score, melted, suffix).TrimEnd(), true);
+                    }
+                    break;
+                case "ModeDiamondMine":
+                    _speech.Speak(Localization.Get("DiamondMineStatus", _score, _diamondDepthMeters, _lightningTimeLeft), true);
+                    break;
+                default:
+                    _speech.Speak(Localization.Get("ScoreAnnouncement", _score, _level), true);
+                    break;
+            }
+        }
+
+        private void AnnounceCurrentCell()
+        {
+            Gem g = _board.GetGem(_cursorX, _cursorY);
+            string colLetter = ((char)('A' + _cursorX)).ToString();
+            int rowNum = _cursorY + 1;
+
+            string text;
+            if (g != null)
+                text = string.Format("{0}{1}: {2}", colLetter, rowNum, g.GetNameLocalized());
+            else
+                text = string.Format("{0}{1}: {2}", colLetter, rowNum, Localization.Get("Empty"));
+
+            // Board accessibility: announce where this gem can be swapped,
+            // like visual games highlight the swappable gems
+            List<KeyValuePair<int, int>> moves = HintFinder.GetValidMovesFrom(_board, _cursorX, _cursorY);
+            if (moves.Count > 0)
+            {
+                List<string> dirs = new List<string>();
+                foreach (KeyValuePair<int, int> m in moves)
+                {
+                    if (m.Key == 1) dirs.Add(Localization.Get("DirRight"));
+                    else if (m.Key == -1) dirs.Add(Localization.Get("DirLeft"));
+                    else if (m.Value == 1) dirs.Add(Localization.Get("DirDown"));
+                    else if (m.Value == -1) dirs.Add(Localization.Get("DirUp"));
+                }
+                text += ". " + Localization.Get("MoveHint", string.Join(Localization.Get("DirOr"), dirs.ToArray()));
+            }
+
+            _speech.Speak(text, true);
+        }
+
+        protected override void OnPaint(PaintEventArgs e)
+        {
+            base.OnPaint(e);
+            Graphics g = e.Graphics;
+            g.Clear(Color.FromArgb(20, 20, 35));
+
+            if (_screen == GameScreen.Loading) DrawLoading(g);
+            else if (_screen == GameScreen.ProfileInput) DrawProfileInput(g);
+            else if (_screen == GameScreen.MainMenu || _screen == GameScreen.GameSelect || _screen == GameScreen.Options || _screen == GameScreen.BadgesScreen || _screen == GameScreen.RecordsScreen || _screen == GameScreen.TutorialScreen || _screen == GameScreen.QuestRelicScreen || _screen == GameScreen.QuestChallengeScreen || _screen == GameScreen.ProfileSelectScreen || _screen == GameScreen.ZenOptionsScreen || _screen == GameScreen.PauseMenu) DrawMenu(g);
+            else if (_screen == GameScreen.Playing) DrawBoard(g);
+            else if (_screen == GameScreen.GameOver)
+            {
+                using (Font font = new Font("Segoe UI", 24, FontStyle.Bold))
+                {
+                    g.DrawString(Localization.Get("GameOver", _score), font, Brushes.Gold, 200, 280);
+                }
+            }
+        }
+
+        private void DrawProfileInput(Graphics g)
+        {
+            using (Font titleFont = new Font("Segoe UI", 26, FontStyle.Bold))
+            using (Font subFont = new Font("Segoe UI", 16))
+            {
+                g.DrawString(Localization.Get("CreateProfileTitle"), titleFont, Brushes.Cyan, 180, 150);
+                g.DrawString(Localization.Get("EnterNamePrompt"), subFont, Brushes.White, 180, 250);
+
+                Rectangle box = new Rectangle(180, 320, 450, 45);
+                g.DrawRectangle(Pens.Gold, box);
+                g.DrawString(_profileInputBuffer + "_", subFont, Brushes.Yellow, 190, 328);
+            }
+        }
+
+        private void DrawLoading(Graphics g)
+        {
+            using (Font titleFont = new Font("Segoe UI", 28, FontStyle.Bold))
+            using (Font subFont = new Font("Segoe UI", 16))
+            {
+                g.DrawString("BEJEWELED 3 ACCESIBLE", titleFont, Brushes.Cyan, 200, 150);
+                g.DrawString(Localization.Get("LoadingTitle"), subFont, Brushes.Gold, 280, 250);
+
+                Rectangle barOutline = new Rectangle(200, 320, 500, 30);
+                g.DrawRectangle(Pens.White, barOutline);
+
+                Rectangle barFill = new Rectangle(202, 322, (int)(496 * (_loadingProgress / 100.0)), 26);
+                g.FillRectangle(Brushes.DeepSkyBlue, barFill);
+
+                g.DrawString(string.Format("{0}%", _loadingProgress), subFont, Brushes.White, 430, 360);
+
+                if (_loadingComplete)
+                {
+                    g.DrawString(Localization.Get("LoadingPrompt"), subFont, Brushes.Lime, 220, 430);
+                }
+            }
+        }
+
+        private void DrawMenu(Graphics g)
+        {
+            using (Font titleFont = new Font("Segoe UI", 30, FontStyle.Bold))
+            using (Font menuFont = new Font("Segoe UI", 20))
+            {
+                g.DrawString(Localization.Get("AppTitle"), titleFont, Brushes.Cyan, 180, 80);
+
+                string[] items;
+                int currentIdx = _menuIdx;
+
+                if (_screen == GameScreen.MainMenu)
+                {
+                    items = GetMainMenuItems();
+                }
+                else if (_screen == GameScreen.Options)
+                {
+                    items = GetOptionsMenuItems();
+                    currentIdx = _optionsIdx;
+                }
+                else if (_screen == GameScreen.BadgesScreen)
+                {
+                    items = GetBadgeListItems();
+                    currentIdx = _badgeIdx;
+                }
+                else if (_screen == GameScreen.RecordsScreen)
+                {
+                    items = GetRecordsItems();
+                    currentIdx = _recordsIdx;
+                }
+                else if (_screen == GameScreen.TutorialScreen)
+                {
+                    items = GetTutorialItems();
+                    currentIdx = _tutorialIdx;
+                }
+                else if (_screen == GameScreen.QuestRelicScreen)
+                {
+                    items = GetQuestRelicItems();
+                    currentIdx = _relicIdx;
+                }
+                else if (_screen == GameScreen.QuestChallengeScreen)
+                {
+                    items = GetQuestChallengeItems();
+                    currentIdx = _questChallengeIdx;
+                }
+                else if (_screen == GameScreen.ProfileSelectScreen)
+                {
+                    items = GetProfileSelectItems();
+                    currentIdx = _profileSelectIdx;
+                }
+                else if (_screen == GameScreen.ZenOptionsScreen)
+                {
+                    items = GetZenOptionsMenuItems();
+                    currentIdx = _zenOptionsIdx;
+                }
+                else if (_screen == GameScreen.PauseMenu)
+                {
+                    items = GetPauseMenuItems();
+                    currentIdx = _pauseIdx;
+                }
+                else
+                {
+                    string[] keys = GetGameModeKeys();
+                    items = new string[keys.Length];
+                    for (int i = 0; i < keys.Length; i++) items[i] = Localization.Get(keys[i]);
+                }
+
+                for (int i = 0; i < items.Length; i++)
+                {
+                    Brush b = (i == currentIdx) ? Brushes.Yellow : Brushes.White;
+                    string prefix = (i == currentIdx) ? "> " : "  ";
+                    g.DrawString(prefix + items[i], menuFont, b, 200, 220 + (i * 45));
+                }
+            }
+        }
+
+        protected override void OnFormClosing(FormClosingEventArgs e)
+        {
+            try
+            {
+                _lightningTimer.Stop();
+                _loadingTimer.Stop();
+                _renderTimer.Stop();
+                if (_zenMgr != null) _zenMgr.StopZenSession();
+                SaveOptionsState();
+                if (_profileMgr.CurrentProfile != null) _profileMgr.Save();
+                if (_speech != null) _speech.Dispose();
+                if (_sound != null) _sound.Dispose();
+            }
+            catch
+            {
+                // best-effort cleanup before the window closes
+            }
+            base.OnFormClosing(e);
+        }
+
+        private void DrawBoard(Graphics g)
+        {
+            int tileSize = 60;
+            int startX = 200;
+            int startY = 80;
+
+            using (Font font = new Font("Segoe UI", 16, FontStyle.Bold))
+            {
+                g.DrawString(string.Format("Mode: {0}", Localization.Get(_currentModeKey)), font, Brushes.Cyan, 20, 20);
+                g.DrawString(string.Format("Score: {0}", _score), font, Brushes.Gold, 300, 20);
+
+                if (_currentModeKey == "ModeLightning")
+                {
+                    g.DrawString(string.Format("Time: {0}s", _lightningTimeLeft), font, Brushes.OrangeRed, 650, 20);
+                }
+                else
+                {
+                    g.DrawString(string.Format("Level: {0}", _level), font, Brushes.Lime, 650, 20);
+                }
+            }
+
+            for (int y = 0; y < Board.Rows; y++)
+            {
+                for (int x = 0; x < Board.Cols; x++)
+                {
+                    Rectangle rect = new Rectangle(startX + (x * tileSize), startY + (y * tileSize), tileSize - 4, tileSize - 4);
+                    Gem gem = _board.GetGem(x, y);
+
+                    if (gem != null)
+                    {
+                        Color c = _gemColors.ContainsKey(gem.Color) ? _gemColors[gem.Color] : Color.Gray;
+                        using (Brush b = new SolidBrush(c))
+                        {
+                            g.FillEllipse(b, rect);
+                        }
+                    }
+
+                    if (x == _cursorX && y == _cursorY)
+                    {
+                        using (Pen p = new Pen(Color.Yellow, 4))
+                        {
+                            g.DrawRectangle(p, rect);
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

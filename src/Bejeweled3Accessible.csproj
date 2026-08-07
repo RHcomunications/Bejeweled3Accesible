@@ -1,0 +1,75 @@
+<Project ToolsVersion="4.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+  <PropertyGroup>
+    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
+    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
+    <ProjectGuid>{8F3214A1-561B-4D2A-8954-2195F1906A21}</ProjectGuid>
+    <OutputType>WinExe</OutputType>
+    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <RootNamespace>Bejeweled3Accessible</RootNamespace>
+    <AssemblyName>Bejeweled3Accessible</AssemblyName>
+    <TargetFrameworkVersion>v4.5</TargetFrameworkVersion>
+    <FileAlignment>512</FileAlignment>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugSymbols>true</DebugSymbols>
+    <DebugType>full</DebugType>
+    <Optimize>false</Optimize>
+    <OutputPath>..\bin\Debug\</OutputPath>
+    <DefineConstants>DEBUG;TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
+    <PlatformTarget>AnyCPU</PlatformTarget>
+    <DebugType>pdbonly</DebugType>
+    <Optimize>true</Optimize>
+    <OutputPath>..\bin\Release\</OutputPath>
+    <DefineConstants>TRACE</DefineConstants>
+    <ErrorReport>prompt</ErrorReport>
+    <WarningLevel>4</WarningLevel>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="System" />
+    <Reference Include="System.Core" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="System.Speech" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xml" />
+  </ItemGroup>
+  <ItemGroup>
+    <Compile Include="Accessibility\NvdaSpeech.cs" />
+    <Compile Include="Audio\PacPacker.cs" />
+    <Compile Include="Audio\PacReader.cs" />
+    <Compile Include="Audio\PacCipher.cs" />
+    <Compile Include="Audio\SoundEngine.cs" />
+    <Compile Include="Audio\SpatialAudio.cs" />
+    <Compile Include="Engine\BadgeManager.cs" />
+    <Compile Include="Engine\Affirmations.cs" />
+    <Compile Include="Engine\Board.cs" />
+    <Compile Include="Engine\GameOptions.cs" />
+    <Compile Include="Engine\GameProgress.cs" />
+    <Compile Include="Engine\Gem.cs" />
+    <Compile Include="Engine\HintFinder.cs" />
+    <Compile Include="Engine\Localization.cs" />
+    <Compile Include="Engine\PokerHandEvaluator.cs" />
+    <Compile Include="Engine\ProfileManager.cs" />
+    <Compile Include="Engine\QuestManager.cs" />
+    <Compile Include="Engine\RankSystem.cs" />
+    <Compile Include="Engine\StoragePaths.cs" />
+    <Compile Include="Engine\ZenManager.cs" />
+    <Compile Include="Properties\AssemblyInfo.cs" />
+    <Compile Include="UI\MainWindow.cs" />
+    <Compile Include="Program.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\README.html">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+    <Content Include="..\bin\Debug\bass.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
+</Project>

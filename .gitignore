@@ -1,0 +1,7 @@
+bin/
+obj/
+*.zip
+*.log
+pack_error.txt
+*.tmp.mp3
+*.tmp.ogg
