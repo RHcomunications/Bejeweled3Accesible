@@ -940,7 +940,7 @@ namespace Bejeweled3Accessible.Tests
                 Assert.Equal(1, gp.ClassicLevel, "ClassicLevel");
                 Assert.Equal(1, gp.ZenLevel, "ZenLevel");
                 Assert.Equal(0, gp.LightningHighScore, "LightningHighScore");
-                Assert.Equal(0, gp.QuestRelic1Completed, "QuestRelic1Completed");
+                Assert.Equal(0, gp.QuestRelicCount, "QuestRelicCount");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Progress: desbloqueos por umbral", () =>
@@ -950,7 +950,7 @@ namespace Bejeweled3Accessible.Tests
                 gp.ClassicLevel = 5;
                 gp.ZenLevel = 5;
                 gp.LightningHighScore = 100000;
-                gp.QuestRelic1Completed = 4;
+                gp.QuestRelicCount = 4;
                 Assert.True(gp.IsPokerUnlocked, "Poker nivel 5");
                 Assert.True(gp.IsButterfliesUnlocked, "Mariposas Zen 5");
                 Assert.True(gp.IsIceStormUnlocked, "Tormenta 100k");
@@ -965,14 +965,28 @@ namespace Bejeweled3Accessible.Tests
                 {
                     GameProgress.OverrideDataDirectory = tempDir;
                     GameProgress gp = new GameProgress();
-                    gp.ClassicLevel = 7;
-                    gp.LightningHighScore = 150000;
-                    gp.TotalScore = 42000;
-                    gp.Save();
-                    GameProgress loaded = GameProgress.Load();
-                    Assert.Equal(7, loaded.ClassicLevel, "ClassicLevel persistido");
-                    Assert.Equal(150000, loaded.LightningHighScore, "Record persistido");
-                    Assert.Equal(42000, loaded.TotalScore, "Puntaje persistido");
+                gp.ClassicLevel = 7;
+                gp.LightningHighScore = 150000;
+                gp.TotalScore = 42000;
+                gp.QuestRelicCount = 4;
+                gp.Save();
+                GameProgress loaded = GameProgress.Load();
+                Assert.Equal(7, loaded.ClassicLevel, "ClassicLevel persistido");
+                Assert.Equal(150000, loaded.LightningHighScore, "Record persistido");
+                Assert.Equal(42000, loaded.TotalScore, "Puntaje persistido");
+                Assert.Equal(4, loaded.QuestRelicCount, "Relicarios persistidos");
+
+                // Retro-compatibilidad: un archivo generado por builds anteriores
+                // (elemento <QuestRelic1Completed>) debe seguir poblando el campo.
+                File.WriteAllText(Path.Combine(tempDir, "Bejeweled3Accessible", "progress.xml"),
+                    "<?xml version=\"1.0\" encoding=\"utf-8\"?><GameProgress>" +
+                    "<ClassicLevel>1</ClassicLevel><ZenLevel>1</ZenLevel><LightningHighScore>0</LightningHighScore>" +
+                    "<PokerHighScore>0</PokerHighScore><ButterfliesHighScore>0</ButterfliesHighScore>" +
+                    "<IceStormHighScore>0</IceStormHighScore><DiamondMineHighScore>0</DiamondMineHighScore>" +
+                    "<QuestRelic1Completed>4</QuestRelic1Completed><TotalScore>0</TotalScore></GameProgress>");
+                GameProgress legacy = GameProgress.Load();
+                Assert.True(legacy.QuestRelicCount == 4, "XML name antiguo -> QuestRelicCount");
+                Assert.True(legacy.IsDiamondMineUnlocked, "Desbloqueo desde legado");
                 }
                 finally
                 {

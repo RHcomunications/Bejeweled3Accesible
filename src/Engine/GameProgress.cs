@@ -13,7 +13,11 @@ namespace Bejeweled3Accessible.Engine
         public int ButterfliesHighScore { get; set; }
         public int IceStormHighScore { get; set; }
         public int DiamondMineHighScore { get; set; }
-        public int QuestRelic1Completed { get; set; }
+        // Number of question-reliquaries fully completed (4 missions each).
+        // Serialized under the old name for backwards compatibility with
+        // progress.xml files created by previous builds.
+        [XmlElement("QuestRelic1Completed")]
+        public int QuestRelicCount { get; set; }
         public int TotalScore { get; set; }
         public int TotalGemsCleared { get; set; }
         public int TotalFlameGemsDestroyed { get; set; }
@@ -24,7 +28,7 @@ namespace Bejeweled3Accessible.Engine
         public bool IsPokerUnlocked { get { return ClassicLevel >= 5; } }
         public bool IsButterfliesUnlocked { get { return ZenLevel >= 5; } }
         public bool IsIceStormUnlocked { get { return LightningHighScore >= 100000; } }
-        public bool IsDiamondMineUnlocked { get { return QuestRelic1Completed >= 4; } }
+        public bool IsDiamondMineUnlocked { get { return QuestRelicCount >= 4; } }
 
         public static string OverrideDataDirectory { get; set; }
 
@@ -37,7 +41,7 @@ namespace Bejeweled3Accessible.Engine
             ButterfliesHighScore = 0;
             IceStormHighScore = 0;
             DiamondMineHighScore = 0;
-            QuestRelic1Completed = 0;
+            QuestRelicCount = 0;
             TotalScore = 0;
             TotalGemsCleared = 0;
             TotalFlameGemsDestroyed = 0;

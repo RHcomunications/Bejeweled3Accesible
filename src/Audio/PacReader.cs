@@ -5,12 +5,28 @@ using System.Collections.Generic;
 
 namespace Bejeweled3Accessible.Audio
 {
-    public class PacReader
+    // Lazy PAC reader: the constructor only reads the index (file name +
+    // offset + length), so building the engine does NOT decompress the whole
+    // archive (~180 MB) into RAM. Bytes are decrypted on first request and
+    // cached from then on, which keeps the audio used by the playing modes
+    // resident but avoids the startup cost/memory of decoding everything.
+    public class PacReader : IDisposable
     {
-        private readonly Dictionary<string, byte[]> _files = new Dictionary<string, byte[]>(StringComparer.OrdinalIgnoreCase);
+        private sealed class PacEntry
+        {
+            public long Offset;
+            public int Length;
+            public byte[] Data;
+        }
+
+        private readonly Dictionary<string, PacEntry> _files =
+            new Dictionary<string, PacEntry>(StringComparer.OrdinalIgnoreCase);
+        private readonly string _pacFilePath;
+        private readonly object _sync = new object();
 
         public PacReader(string pacFilePath)
         {
+            _pacFilePath = pacFilePath;
             if (!File.Exists(pacFilePath)) return;
 
             try
@@ -26,19 +42,20 @@ namespace Bejeweled3Accessible.Audio
                     {
                         string fileName = reader.ReadString();
                         int length = reader.ReadInt32();
-                        byte[] encryptedData = reader.ReadBytes(length);
+                        long offset = reader.BaseStream.Position;
 
-                        // Decrypt data with XOR Key
-                        PacCipher.Xor(encryptedData);
-
-                        _files[fileName] = encryptedData;
-                        _files[fileName.ToLower()] = encryptedData;
+                        PacEntry entry = new PacEntry { Offset = offset, Length = length };
+                        _files[fileName] = entry;
+                        _files[fileName.ToLower()] = entry;
                         string justName = Path.GetFileName(fileName);
-                        _files[justName] = encryptedData;
-                        _files[justName.ToLower()] = encryptedData;
+                        _files[justName] = entry;
+                        _files[justName.ToLower()] = entry;
                         string nameNoExt = Path.GetFileNameWithoutExtension(fileName);
-                        _files[nameNoExt] = encryptedData;
-                        _files[nameNoExt.ToLower()] = encryptedData;
+                        _files[nameNoExt] = entry;
+                        _files[nameNoExt.ToLower()] = entry;
+
+                        // Skip the payload; it is decoded on demand.
+                        reader.BaseStream.Seek(length, SeekOrigin.Current);
                     }
                 }
             }
@@ -48,12 +65,46 @@ namespace Bejeweled3Accessible.Audio
         public byte[] GetFileBytes(string resourceName)
         {
             if (string.IsNullOrEmpty(resourceName)) return null;
-            if (_files.ContainsKey(resourceName)) return _files[resourceName];
-            string lower = resourceName.ToLower();
-            if (_files.ContainsKey(lower)) return _files[lower];
-            string clean = Path.GetFileNameWithoutExtension(resourceName).ToLower();
-            if (_files.ContainsKey(clean)) return _files[clean];
-            return null;
+
+            lock (_sync)
+            {
+                PacEntry entry;
+                if (_files.TryGetValue(resourceName, out entry))
+                    return LoadEntry(entry);
+                string lower = resourceName.ToLower();
+                if (_files.TryGetValue(lower, out entry))
+                    return LoadEntry(entry);
+                string clean = Path.GetFileNameWithoutExtension(resourceName).ToLower();
+                if (_files.TryGetValue(clean, out entry))
+                    return LoadEntry(entry);
+                return null;
+            }
+        }
+
+        private byte[] LoadEntry(PacEntry entry)
+        {
+            if (entry.Data != null) return entry.Data;
+
+            // Read per request (no persistent handle) so the archive can be
+            // replaced/rebuilt meanwhile and temp copies are never locked.
+            byte[] encrypted = new byte[entry.Length];
+            using (FileStream fs = new FileStream(_pacFilePath, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+            {
+                fs.Seek(entry.Offset, SeekOrigin.Begin);
+                int read = 0;
+                while (read < entry.Length)
+                {
+                    int n = fs.Read(encrypted, read, entry.Length - read);
+                    if (n <= 0) break;
+                    read += n;
+                }
+            }
+
+            // Decrypt data with XOR Key
+            PacCipher.Xor(encrypted);
+
+            entry.Data = encrypted;
+            return entry.Data;
         }
 
         [System.Runtime.InteropServices.DllImport("kernel32.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto, SetLastError = true)]
@@ -90,6 +141,20 @@ namespace Bejeweled3Accessible.Audio
                 string fallbackPath = Path.Combine(Path.GetTempPath(), "bj3_" + Guid.NewGuid().ToString("N") + "_" + safeName);
                 File.WriteAllBytes(fallbackPath, bytes);
                 return fallbackPath;
+            }
+        }
+
+        public void Dispose()
+        {
+            // Lazy reader keeps no persistent file handle; just drop the cached
+            // decoded buffers so the engine frees the audio memory on shutdown.
+            lock (_sync)
+            {
+                foreach (PacEntry entry in _files.Values)
+                {
+                    entry.Data = null;
+                }
+                _files.Clear();
             }
         }
     }

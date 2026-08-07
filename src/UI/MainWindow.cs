@@ -1388,13 +1388,13 @@ namespace Bejeweled3Accessible.UI
             {
                 _board.SetGem(_cursorX, _cursorY, new Gem(GemColor.Red, SpecialType.Hypercube));
                 _sound.PlaySound("hypercube_create");
-                _speech.Speak("Hipercubo creado en casilla actual.", true);
+                _speech.Speak(Localization.Get("HypercubeCreatedCell"), true);
             }
             else if (e.Shift && e.KeyCode == Keys.F)
             {
                 _board.SetGem(_cursorX, _cursorY, new Gem(GemColor.Red, SpecialType.Flame));
                 _sound.PlaySound("powergem_created");
-                _speech.Speak("Gema de Fuego creada en casilla actual.", true);
+                _speech.Speak(Localization.Get("FlameCreatedCell"), true);
             }
             else if (e.Shift && e.KeyCode == Keys.R)
             {
@@ -1794,7 +1794,7 @@ namespace Bejeweled3Accessible.UI
                             int relicDone = _progress.CountCompletedInRelic(_activeQuest.RelicIndex);
                             if (relicDone == 4 && relicDoneBefore < 4)
                             {
-                                _progress.QuestRelic1Completed++;
+                                _progress.QuestRelicCount++;
                                 _profileMgr.Save();
                             }
 
@@ -1806,12 +1806,12 @@ namespace Bejeweled3Accessible.UI
                             _screen = GameScreen.QuestRelicScreen;
                             _relicIdx = _activeQuest.RelicIndex;
 
-                            if (_progress.QuestRelic1Completed >= 4)
+                            if (_progress.QuestRelicCount >= 4)
                             {
                                 _sound.PlaySound("secretunlocked");
                             }
 
-                            string questAnnounce = _progress.QuestRelic1Completed >= 4
+                            string questAnnounce = _progress.QuestRelicCount >= 4
                                 ? Localization.Get("UnlockDiamondMine") + " " + Localization.Get("QuestCompleteAnnounce", _activeQuestName)
                                 : Localization.Get("QuestCompleteAnnounce", _activeQuestName);
                             _speech.Speak(questAnnounce, true);

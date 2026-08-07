@@ -29,7 +29,22 @@ namespace Bejeweled3Accessible
             }
             catch (Exception ex)
             {
-                File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pack_error.txt"), ex.ToString());
+                // Never start in silent mode: audio is the backbone of the
+                // accessible experience, so tell the user what happened instead
+                // of silently launching without sound.
+                try
+                {
+                    File.WriteAllText(Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "pack_error.txt"), ex.ToString());
+                }
+                catch { }
+                MessageBox.Show(
+                    "No se pudo generar el paquete de audio (audio.pac). El juego necesita el audio para su accesibilidad y se cerrará.\r\n\r\n" +
+                    "Could not generate the audio package (audio.pac). The game needs audio for accessibility and will close.\r\n\r\n" +
+                    "Detalles / Details: pack_error.txt",
+                    "Bejeweled 3 Accesible",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                return;
             }
 
             if (repackOnly) return;

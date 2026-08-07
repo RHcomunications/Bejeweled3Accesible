@@ -818,22 +818,16 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
 
                         if (_activeSfxList.Count >= 25)
                         {
+                            // Cap reached with 25+ sounds still playing: stop the
+                            // oldest effect so the newest sound is always heard.
+                            // A short cut is less damaging for an accessible game
+                            // than silently swallowing the requested sound.
                             ActiveSfx oldest = _activeSfxList[0];
-                            // Only evict a channel that has really finished; if the
-                            // oldest is still playing (a long effect), drop the newly
-                            // requested one instead of silencing the running sound.
-                            if (BASS_ChannelIsActive(oldest.Handle) == 0)
-                            {
-                                _activeSfxList.RemoveAt(0);
-                                if (oldest.Pin.IsAllocated) { try { oldest.Pin.Free(); } catch { } }
-                                BASS_StreamFree(oldest.Handle);
-                                _activeSfxList.Add(new ActiveSfx { Handle = handle, Pin = pinned, IsVoice = false });
-                            }
-                            else
-                            {
-                                try { BASS_StreamFree(handle); } catch { }
-                                if (pinned.IsAllocated) pinned.Free();
-                            }
+                            _activeSfxList.RemoveAt(0);
+                            try { BASS_ChannelStop(oldest.Handle); } catch { }
+                            if (oldest.Pin.IsAllocated) { try { oldest.Pin.Free(); } catch { } }
+                            try { BASS_StreamFree(oldest.Handle); } catch { }
+                            _activeSfxList.Add(new ActiveSfx { Handle = handle, Pin = pinned, IsVoice = false });
                         }
                         else
                         {
@@ -1000,10 +994,12 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         // finishes, but the callback is the one calling us -> deadlock.
         private void StopFadeTimer()
         {
-            if (_musicFadeTimer != null)
+            System.Threading.Timer timer = _musicFadeTimer;
+            _musicFadeTimer = null;
+            if (timer != null)
             {
-                try { _musicFadeTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite); } catch { }
-                _musicFadeTimer = null;
+                try { timer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite); } catch { }
+                try { timer.Dispose(); } catch { }
             }
         }
 
@@ -1234,7 +1230,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             {
                 _pendingMusicFile = null;
                 _currentMusicFile = null;
-                _musicFadeTimer = null;
+                StopFadeTimer();
 
                 FreeChannel(_pendingMusicChannel, _pendingMusicPin);
                 _pendingMusicChannel = 0;
@@ -1264,6 +1260,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             if (_musicMonitorTimer != null)
             {
                 try { _musicMonitorTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite); } catch { }
+                try { _musicMonitorTimer.Dispose(); } catch { }
                 _musicMonitorTimer = null;
             }
 
@@ -1310,6 +1307,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             if (_panSweepTimer != null)
             {
                 try { _panSweepTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite); } catch { }
+                try { _panSweepTimer.Dispose(); } catch { }
                 _panSweepTimer = null;
             }
             lock (_panSweepLock) { _panSweeps.Clear(); }
@@ -1331,6 +1329,11 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 BASS_Free();
             }
             catch { }
+
+            if (_audioPac != null)
+            {
+                try { _audioPac.Dispose(); } catch { }
+            }
         }
     }
 }

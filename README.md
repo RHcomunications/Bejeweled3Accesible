@@ -4,6 +4,8 @@ Edición accesible de Bejeweled 3 con soporte total para lectores de pantalla (N
 
 Este repositorio contiene el **código fuente completo** (C#/.NET 4.5) y publica **releases de binarios** listos para jugar. Documentación técnica en [README_DEV.md](README_DEV.md).
 
+> **Sobre los assets de audio:** el juego empaqueta sus efectos, voces y música en `audio.pac`. Ese paquete usa solo **ofuscación XOR** (la clave está en `src/Audio/PacCipher.cs`), no criptografía: al publicar el código fuente, cualquiera puede extraer el contenido. Es una barrera cosmética para los archivos originales, no un cifrado.
+
 ## Descargar
 
 Ve a la pestaña [Releases](../../releases) y descarga el zip más reciente.
