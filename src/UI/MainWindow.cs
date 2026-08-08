@@ -91,6 +91,7 @@ namespace Bejeweled3Accessible.UI
         };
 
         private Bitmap[] _gemImages;
+        private Bitmap[] _gemShadows;
         private Bitmap _heatwaveLogo;
 
         private GameProgress _progress
@@ -2568,39 +2569,23 @@ case Engine.QuestType.TimeBomb:
         {
             try
             {
-                string[] dirCandidates = new string[]
-                {
-                    Path.Combine(baseDir, "sounds", "images", "600", "GemsNormal"),
-                    Path.Combine(baseDir, "..", "sounds", "images", "600", "GemsNormal"),
-                    Path.Combine(baseDir, "..", "..", "sounds", "images", "600", "GemsNormal"),
-                    Path.Combine(Environment.CurrentDirectory, "sounds", "images", "600", "GemsNormal"),
-                    Path.Combine(Environment.CurrentDirectory, "..", "sounds", "images", "600", "GemsNormal")
-                };
-                string gemsDir = null;
-                foreach (string c in dirCandidates)
-                {
-                    if (Directory.Exists(c)) { gemsDir = c; break; }
-                }
-                if (gemsDir == null) return;
+                string resDir = PickGemResolutionFolder(baseDir, 60);
+                if (resDir == null) return;
+
+                string normalDir = Path.Combine(resDir, "GemsNormal");
+                string shadowDir = Path.Combine(resDir, "GemsShadow");
 
                 string[] gemNames = Enum.GetNames(typeof(GemColor));
                 _gemImages = new Bitmap[gemNames.Length];
+                _gemShadows = new Bitmap[gemNames.Length];
                 for (int i = 0; i < gemNames.Length; i++)
                 {
-                    string path = Path.Combine(gemsDir, gemNames[i] + ".png");
-                    if (!File.Exists(path)) continue;
-                    using (Bitmap sheet = new Bitmap(path))
-                    {
-                        Rectangle bounds = GetContentBounds(sheet);
-                        if (bounds.Width <= 0 || bounds.Height <= 0) continue;
-                        using (Bitmap sprite = sheet.Clone(bounds, sheet.PixelFormat))
-                        {
-                            _gemImages[i] = ScaleToFit(sprite, 56, 56);
-                        }
-                    }
+                    string name = gemNames[i];
+                    _gemImages[i] = LoadGemFrame(Path.Combine(normalDir, name + ".png"), 56);
+                    _gemShadows[i] = LoadGemFrame(Path.Combine(shadowDir, name + ".png"), 60);
                 }
 
-                string heatwavePath = Path.Combine(Path.GetDirectoryName(gemsDir), "..", "NonResize", "heatwave.png");
+                string heatwavePath = Path.Combine(resDir, "..", "NonResize", "heatwave.png");
                 if (File.Exists(heatwavePath))
                 {
                     _heatwaveLogo = new Bitmap(heatwavePath);
@@ -2609,19 +2594,79 @@ case Engine.QuestType.TimeBomb:
             catch { }
         }
 
-        private static Rectangle GetContentBounds(Bitmap bmp)
+        // Cada PNG de gema es una hoja 5x4 (20 fotogramas de animacion); se usa
+        // solo el fotograma 0 (gema en reposo) recortado a su contenido real.
+        private static Bitmap LoadGemFrame(string path, int maxSize)
         {
-            int minX = bmp.Width, minY = bmp.Height, maxX = -1, maxY = -1;
-            for (int y = 0; y < bmp.Height; y++)
+            if (!File.Exists(path)) return null;
+            using (Bitmap sheet = new Bitmap(path))
             {
-                for (int x = 0; x < bmp.Width; x++)
+                int pitchW = Math.Max(1, sheet.Width / 5);
+                int pitchH = Math.Max(1, sheet.Height / 4);
+                Rectangle bounds = GetContentBounds(sheet, 0, 0, pitchW, pitchH);
+                if (bounds.Width <= 0 || bounds.Height <= 0) return null;
+                using (Bitmap sprite = sheet.Clone(bounds, sheet.PixelFormat))
+                {
+                    return ScaleToFit(sprite, maxSize, maxSize);
+                }
+            }
+        }
+
+        // Las carpetas 600/768/1200 son juegos de gemas para distintas resoluciones
+        // de pantalla; se elige la que mas se aproxime al tamano de celda del tablero.
+        private string PickGemResolutionFolder(string baseDir, int targetPitch)
+        {
+            string[] imagesCandidates = new string[]
+            {
+                Path.Combine(baseDir, "sounds", "images"),
+                Path.Combine(baseDir, "..", "sounds", "images"),
+                Path.Combine(baseDir, "..", "..", "sounds", "images"),
+                Path.Combine(Environment.CurrentDirectory, "sounds", "images"),
+                Path.Combine(Environment.CurrentDirectory, "..", "sounds", "images")
+            };
+            string imagesRoot = null;
+            foreach (string c in imagesCandidates)
+            {
+                if (Directory.Exists(c)) { imagesRoot = c; break; }
+            }
+            if (imagesRoot == null) return null;
+
+            int[] resolutions = { 600, 768, 1200 };
+            string best = null;
+            int bestScore = int.MaxValue;
+            foreach (int res in resolutions)
+            {
+                string dir = Path.Combine(imagesRoot, res.ToString());
+                string probe = Path.Combine(dir, "GemsNormal", "Red.png");
+                if (!File.Exists(probe)) continue;
+                int pitch;
+                using (Bitmap sheet = new Bitmap(probe))
+                {
+                    pitch = sheet.Width / 5;
+                }
+                int score = Math.Abs(pitch - targetPitch);
+                if (score < bestScore)
+                {
+                    bestScore = score;
+                    best = dir;
+                }
+            }
+            return best;
+        }
+
+        private static Rectangle GetContentBounds(Bitmap bmp, int x0, int y0, int w, int h)
+        {
+            int minX = w, minY = h, maxX = -1, maxY = -1;
+            for (int y = y0; y < y0 + h; y++)
+            {
+                for (int x = x0; x < x0 + w; x++)
                 {
                     if (bmp.GetPixel(x, y).A > 8)
                     {
-                        if (x < minX) minX = x;
-                        if (x > maxX) maxX = x;
-                        if (y < minY) minY = y;
-                        if (y > maxY) maxY = y;
+                        if (x - x0 < minX) minX = x - x0;
+                        if (x - x0 > maxX) maxX = x - x0;
+                        if (y - y0 < minY) minY = y - y0;
+                        if (y - y0 > maxY) maxY = y - y0;
                     }
                 }
             }
@@ -2677,6 +2722,13 @@ case Engine.QuestType.TimeBomb:
                         Bitmap gemImg = (_gemImages != null && (int)gem.Color < _gemImages.Length) ? _gemImages[(int)gem.Color] : null;
                         if (gemImg != null)
                         {
+                            Bitmap shadowImg = (_gemShadows != null && (int)gem.Color < _gemShadows.Length) ? _gemShadows[(int)gem.Color] : null;
+                            if (shadowImg != null)
+                            {
+                                int sw = Math.Min(shadowImg.Width, rect.Width - 2);
+                                int sh = Math.Min(shadowImg.Height, rect.Height - 2);
+                                g.DrawImage(shadowImg, rect.X + (rect.Width - sw) / 2, rect.Y + (rect.Height - sh) / 2, sw, sh);
+                            }
                             int dw = Math.Min(gemImg.Width, rect.Width - 2);
                             int dh = Math.Min(gemImg.Height, rect.Height - 2);
                             int dx = rect.X + (rect.Width - dw) / 2;
