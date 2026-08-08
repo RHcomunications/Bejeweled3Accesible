@@ -21,4 +21,4 @@ Go to the [Releases](../../releases) tab and download the latest zip.
 2. Run `Bejeweled3Accessible.exe`.
 3. Create a player profile and pick a mode: Classic, Zen, Lightning, Poker, Butterflies, Ice Storm, Diamond Mine or Quest.
 
-The whole game is operable with the keyboard and communicates through voice and spatial sound.
+The whole game is operable with the keyboard and communicates through voice and spatial sound. In the Sound & Voice options you can pick one of three spatial audio profiles: **Stage 2D** (full theatrical soundscape), **Clean Classic** (default, the crisp original arcade character) or **Simple** (bare left/right pan).

@@ -101,6 +101,10 @@ namespace Bejeweled3Accessible.Audio
 
         public bool SpatialBinauralEnabled { get; set; }
 
+        // Active spatial profile. When SpatialBinauralEnabled is off every
+        // profile collapses to centered, flat audio.
+        public SpatialProfile SpatialProfile { get; set; }
+
         // Queue a voice without ever cutting the one that is sounding now.
         private void EnqueueVoice(VoiceRequest req)
         {
@@ -414,6 +418,7 @@ namespace Bejeweled3Accessible.Audio
             SfxVol = 100;
             VoiceVol = 100;
             SpatialBinauralEnabled = true;
+            SpatialProfile = SpatialProfile.CleanArcade;
 
             string candidateSoundDir1 = Path.Combine(baseDir, "sounds");
             string candidateSoundDir2 = Path.Combine(baseDir, "sounds", "sounds");
@@ -672,11 +677,20 @@ namespace Bejeweled3Accessible.Audio
                     float pan = SpatialAudio.SweepPan(s.FromPan, s.ToPan, progress);
                     try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_PAN, pan); } catch { }
 
-                    // The gem swells a little and brightens as it crosses the
-                    // middle of the glide, like it is sweeping past the player.
-                    float bulge = SpatialAudio.SweepPassBulge(progress);
-                    try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_VOL, s.VolBase * bulge); } catch { }
-                    try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_FREQ, s.FreqBase * (1.0f + 0.015f * (float)Math.Sin(Math.PI * progress))); } catch { }
+                    if (SpatialProfile == SpatialProfile.Stage2D)
+                    {
+                        // The gem swells a little and brightens as it crosses
+                        // the middle of the glide, like it is sweeping past the
+                        // player. The clean profiles glide at a constant volume
+                        // and pitch so nothing ever sounds "swollen".
+                        float bulge = SpatialAudio.SweepPassBulge(progress);
+                        try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_VOL, s.VolBase * bulge); } catch { }
+                        try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_FREQ, s.FreqBase * (1.0f + 0.015f * (float)Math.Sin(Math.PI * progress))); } catch { }
+                    }
+                    else
+                    {
+                        try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_VOL, s.VolBase); } catch { }
+                    }
                 }
 
                 if (_panSweeps.Count == 0 && _panSweepTimer != null)
@@ -765,9 +779,13 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     // Depth plane: a gem in the back rows (0..2) is quieter,
                     // darker and closer to the center; the front rows keep the
                     // full presence. Non-positional sounds (row < 0) stay flat.
-                    float depthVol = SpatialAudio.DepthVolumeForRow(row);
-                    float panScale = SpatialAudio.DepthPanScaleForRow(row);
-                    float depthPitch = SpatialAudio.DepthPitchForRow(row);
+                    // The depth plane is a Stage2D theatrical effect: the clean
+                    // profiles keep every row at full presence and pan only by
+                    // column, so no gem is ever "pushed away" from the player.
+                    bool stage2dDepth = (SpatialProfile == SpatialProfile.Stage2D);
+                    float depthVol = stage2dDepth ? SpatialAudio.DepthVolumeForRow(row) : 1.0f;
+                    float panScale = stage2dDepth ? SpatialAudio.DepthPanScaleForRow(row) : 1.0f;
+                    float depthPitch = stage2dDepth ? SpatialAudio.DepthPitchForRow(row) : 1.0f;
 
                     BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, (float)SfxVol / 100.0f * depthVol);
 
@@ -841,7 +859,16 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     if (SpatialBinauralEnabled && sweepToCol >= 0 && sweepToCol != col)
                     {
                         float toPan = SpatialAudio.PanColumn(sweepToCol) * panScale;
-                        SchedulePanSweep(handle, fromPan, toPan, (float)SfxVol / 100.0f * depthVol, currentFreq);
+                        if (SpatialProfile == SpatialProfile.SimplePan)
+                        {
+                            // Simple profile: place the sound at the destination
+                            // column instantly, no animated glide at all.
+                            BASS_ChannelSetAttribute(handle, BASS_ATTRIB_PAN, toPan);
+                        }
+                        else
+                        {
+                            SchedulePanSweep(handle, fromPan, toPan, (float)SfxVol / 100.0f * depthVol, currentFreq);
+                        }
                     }
                 }
                 catch
@@ -1064,7 +1091,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
 
                 // Fade-in starts from silence
                 BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, 0.0f);
-                if (SpatialBinauralEnabled)
+                if (SpatialBinauralEnabled && SpatialProfile == SpatialProfile.Stage2D)
                 {
                     // Enveloping 3D atmospheric binaural reverb soundscape for background music
                     BASS_ChannelSetAttribute(handle, BASS_ATTRIB_PAN, 0.0f);
@@ -1187,7 +1214,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                         _musicReverbFx = 0;
                     }
 
-                    if (SpatialBinauralEnabled)
+                    if (SpatialBinauralEnabled && SpatialProfile == SpatialProfile.Stage2D)
                     {
                         _musicReverbFx = BASS_ChannelSetFX(_currentMusicChannel, BASS_FX_DX8_REVERB, 0);
                         if (_musicReverbFx != 0)

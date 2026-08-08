@@ -21,7 +21,7 @@ namespace Bejeweled3Accessible.Engine
         private static readonly Dictionary<string, Tuple<string, string>> _dict = new Dictionary<string, Tuple<string, string>>
         {
             // Loading Screen
-            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.8.7.", "Loading Bejeweled 3... Version 2026.8.7.") },
+            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.8.8.", "Loading Bejeweled 3... Version 2026.8.8.") },
             { "LoadingPrompt", new Tuple<string, string>("Presiona cualquier tecla para continuar", "Press any key to continue") },
 
             // Profile Screen
@@ -32,7 +32,7 @@ namespace Bejeweled3Accessible.Engine
             { "ProfileDelete", new Tuple<string, string>("Eliminar perfil actual", "Delete current profile") },
 
             // Menus
-            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.8.7", "Bejeweled 3 Accessible - Version 2026.8.7") },
+            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.8.8", "Bejeweled 3 Accessible - Version 2026.8.8") },
             { "MenuPlay", new Tuple<string, string>("Jugar Bejeweled 3", "Play Bejeweled 3") },
             { "MenuChangeUser", new Tuple<string, string>("Haz clic aquí para cambiar de usuario. Perfil actual: {0}", "Click here to change user. Current profile: {0}") },
             { "MenuLanguage", new Tuple<string, string>("Idioma: Español. Pulsa Enter para cambiar", "Language: English. Press Enter to switch to Spanish") },
@@ -57,6 +57,10 @@ namespace Bejeweled3Accessible.Engine
             { "OptSoundVol", new Tuple<string, string>("Volumen de Sonido: {0}%", "Sound Volume: {0}%") },
             { "OptVoiceVol", new Tuple<string, string>("Volumen de Voz: {0}%", "Voice Volume: {0}%") },
             { "OptSpatialAudio", new Tuple<string, string>("Audio Binaural: {0}", "Binaural Audio: {0}") },
+            { "OptSpatialProfile", new Tuple<string, string>("Perfil Espacial: {0}", "Spatial Profile: {0}") },
+            { "SpatialProfileStage2D", new Tuple<string, string>("Escenario 2D", "Stage 2D") },
+            { "SpatialProfileClean", new Tuple<string, string>("Clásico Limpio", "Clean Classic") },
+            { "SpatialProfileSimple", new Tuple<string, string>("Simple", "Simple") },
             { "OptBack", new Tuple<string, string>("Guardar y Volver al Menú", "Save & Return to Menu") },
 
             // Main Modes

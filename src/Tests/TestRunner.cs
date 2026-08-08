@@ -1022,6 +1022,8 @@ namespace Bejeweled3Accessible.Tests
                 Assert.Equal(100, opt.SoundVolume, "Sonido");
                 Assert.Equal(100, opt.VoiceVolume, "Voz");
                 Assert.Equal(Language.Spanish, opt.SelectedLanguage, "Idioma");
+                Assert.Equal((int)SpatialProfile.CleanArcade, opt.EffectiveSpatialProfile, "Perfil espacial por defecto");
+                Assert.True(opt.EffectiveSpatialBinauralEnabled, "Binaural por defecto");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Options: persistencia roundtrip sin tocar AppData", () =>
@@ -1034,11 +1036,39 @@ namespace Bejeweled3Accessible.Tests
                     opt.MusicVolume = 35;
                     opt.SoundVolume = 55;
                     opt.SelectedLanguage = Language.English;
+                    opt.SpatialProfile = (int)SpatialProfile.SimplePan;
+                    opt.SpatialBinauralEnabled = false;
                     opt.Save();
                     GameOptions loaded = GameOptions.Load();
                     Assert.Equal(35, loaded.MusicVolume, "Musica persistida");
                     Assert.Equal(55, loaded.SoundVolume, "Sonido persistido");
                     Assert.Equal(Language.English, loaded.SelectedLanguage, "Idioma persistido");
+                    Assert.Equal((int)SpatialProfile.SimplePan, loaded.EffectiveSpatialProfile, "Perfil espacial persistido");
+                    Assert.False(loaded.EffectiveSpatialBinauralEnabled, "Binaural persistido");
+                }
+                finally
+                {
+                    GameOptions.OverrideDataDirectory = null;
+                    if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+                }
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Options: XML antiguo sin perfil usa Clasico Limpio", () =>
+            {
+                string tempDir = Path.Combine(Path.GetTempPath(), "Bj3Tests_" + Guid.NewGuid().ToString("N"));
+                try
+                {
+                    GameOptions.OverrideDataDirectory = tempDir;
+                    Directory.CreateDirectory(tempDir);
+                    File.WriteAllText(Path.Combine(tempDir, "options.xml"),
+                        "<?xml version=\"1.0\" encoding=\"utf-8\"?>" +
+                        "<GameOptions xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\">" +
+                        "<MusicVolume>80</MusicVolume><SoundVolume>100</SoundVolume><VoiceVolume>100</VoiceVolume>" +
+                        "<SelectedLanguage>Spanish</SelectedLanguage><ZenAmbient>0</ZenAmbient>" +
+                        "<ZenMantras>true</ZenMantras><ZenBreath>true</ZenBreath></GameOptions>");
+                    GameOptions loaded = GameOptions.Load();
+                    Assert.Equal((int)SpatialProfile.CleanArcade, loaded.EffectiveSpatialProfile, "Perfil en XML viejo");
+                    Assert.True(loaded.EffectiveSpatialBinauralEnabled, "Binaural en XML viejo");
                 }
                 finally
                 {

@@ -2,6 +2,24 @@ using System;
 
 namespace Bejeweled3Accessible.Audio
 {
+    // Selectable spatial-audio profiles. All of them share the same HRTF
+    // column math below; they differ in how strongly the stage is rendered:
+    //  - Stage2D: the full theatrical soundscape - row depth (volume, pitch
+    //    and width), DX8 reverb on the music and the volume/frequency swell
+    //    on glides.
+    //  - CleanArcade (default): the original arcade character - crisp and
+    //    dry. No music reverb, no depth darkening, every row at full
+    //    presence; only the column pan and a pure lateral glide on swaps.
+    //  - SimplePan: the bare minimum - just the left/right column pan, placed
+    //    instantly (no glide animation), flat depth. Closest to a plain
+    //    stereo game without any virtual stage.
+    public enum SpatialProfile
+    {
+        Stage2D = 0,
+        CleanArcade = 1,
+        SimplePan = 2
+    }
+
     // HRTF / spatial-audio mapping tailored to the 8x8 Bejeweled board.
     //
     // Design (game-first, not a generic DAFH-style curve):

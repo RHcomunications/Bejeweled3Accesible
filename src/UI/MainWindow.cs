@@ -153,6 +153,8 @@ namespace Bejeweled3Accessible.UI
             _sound.MusicVol = _options.MusicVolume;
             _sound.SfxVol = _options.SoundVolume;
             _sound.VoiceVol = _options.VoiceVolume;
+            _sound.SpatialProfile = (Audio.SpatialProfile)_options.EffectiveSpatialProfile;
+            _sound.SpatialBinauralEnabled = _options.EffectiveSpatialBinauralEnabled;
             Localization.CurrentLanguage = _options.SelectedLanguage;
 
             Text = Localization.Get("AppTitle");
@@ -210,6 +212,8 @@ namespace Bejeweled3Accessible.UI
             _options.ZenAmbient = (int)_zenMgr.SelectedAmbient;
             _options.ZenMantras = _zenMgr.MantrasEnabled;
             _options.ZenBreath = _zenMgr.BreathModulationEnabled;
+            _options.SpatialProfile = (int)_sound.SpatialProfile;
+            _options.SpatialBinauralEnabled = _sound.SpatialBinauralEnabled;
             _options.Save();
         }
 
@@ -668,8 +672,19 @@ namespace Bejeweled3Accessible.UI
                 Localization.Get("OptSoundVol", _sound.SfxVol),
                 Localization.Get("OptVoiceVol", _sound.VoiceVol),
                 Localization.Get("OptSpatialAudio", spatialStr),
+                Localization.Get("OptSpatialProfile", GetSpatialProfileName(_sound.SpatialProfile)),
                 Localization.Get("OptBack")
             };
+        }
+
+        private string GetSpatialProfileName(Audio.SpatialProfile profile)
+        {
+            switch (profile)
+            {
+                case Audio.SpatialProfile.Stage2D: return Localization.Get("SpatialProfileStage2D");
+                case Audio.SpatialProfile.SimplePan: return Localization.Get("SpatialProfileSimple");
+                default: return Localization.Get("SpatialProfileClean");
+            }
         }
 
         private void HandleOptionsKeys(KeyEventArgs e)
@@ -712,6 +727,14 @@ namespace Bejeweled3Accessible.UI
                     _sound.UpdateSpatialAudioState();
                     _sound.PlaySound(_sound.SpatialBinauralEnabled ? "select" : "badmove");
                     _speech.Speak(GetOptionsMenuItems()[3], true);
+                }
+                else if (_optionsIdx == 4)
+                {
+                    // Cycle the spatial profile: Stage2D -> CleanArcade -> SimplePan
+                    _sound.SpatialProfile = (Audio.SpatialProfile)(((int)_sound.SpatialProfile + 1) % 3);
+                    _sound.UpdateSpatialAudioState();
+                    _sound.PlaySound("select");
+                    _speech.Speak(GetOptionsMenuItems()[4], true);
                 }
                 SaveOptionsState();
             }
