@@ -90,6 +90,9 @@ namespace Bejeweled3Accessible.UI
             { GemColor.Orange, Color.Orange }
         };
 
+        private Bitmap[] _gemImages;
+        private Bitmap _heatwaveLogo;
+
         private GameProgress _progress
         {
             get { return _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.Progress : new GameProgress(); }
@@ -163,6 +166,7 @@ namespace Bejeweled3Accessible.UI
             DoubleBuffered = true;
 
             _board = new Board(new Random().Next());
+            LoadVisualAssets(baseDir);
 
             _renderTimer = new Timer { Interval = 30 };
             _renderTimer.Tick += (s, e) => Invalidate();
@@ -2438,6 +2442,12 @@ case Engine.QuestType.TimeBomb:
 
         private void DrawLoading(Graphics g)
         {
+            if (_heatwaveLogo != null)
+            {
+                int lw = 150, lh = 150;
+                g.DrawImage(_heatwaveLogo, (900 - lw) / 2, 15, lw, lh);
+            }
+
             using (Font titleFont = new Font("Segoe UI", 28, FontStyle.Bold))
             using (Font subFont = new Font("Segoe UI", 16))
             {
@@ -2554,6 +2564,86 @@ case Engine.QuestType.TimeBomb:
             base.OnFormClosing(e);
         }
 
+        private void LoadVisualAssets(string baseDir)
+        {
+            try
+            {
+                string[] dirCandidates = new string[]
+                {
+                    Path.Combine(baseDir, "sounds", "images", "600", "GemsNormal"),
+                    Path.Combine(baseDir, "..", "sounds", "images", "600", "GemsNormal"),
+                    Path.Combine(baseDir, "..", "..", "sounds", "images", "600", "GemsNormal"),
+                    Path.Combine(Environment.CurrentDirectory, "sounds", "images", "600", "GemsNormal"),
+                    Path.Combine(Environment.CurrentDirectory, "..", "sounds", "images", "600", "GemsNormal")
+                };
+                string gemsDir = null;
+                foreach (string c in dirCandidates)
+                {
+                    if (Directory.Exists(c)) { gemsDir = c; break; }
+                }
+                if (gemsDir == null) return;
+
+                string[] gemNames = Enum.GetNames(typeof(GemColor));
+                _gemImages = new Bitmap[gemNames.Length];
+                for (int i = 0; i < gemNames.Length; i++)
+                {
+                    string path = Path.Combine(gemsDir, gemNames[i] + ".png");
+                    if (!File.Exists(path)) continue;
+                    using (Bitmap sheet = new Bitmap(path))
+                    {
+                        Rectangle bounds = GetContentBounds(sheet);
+                        if (bounds.Width <= 0 || bounds.Height <= 0) continue;
+                        using (Bitmap sprite = sheet.Clone(bounds, sheet.PixelFormat))
+                        {
+                            _gemImages[i] = ScaleToFit(sprite, 56, 56);
+                        }
+                    }
+                }
+
+                string heatwavePath = Path.Combine(Path.GetDirectoryName(gemsDir), "..", "NonResize", "heatwave.png");
+                if (File.Exists(heatwavePath))
+                {
+                    _heatwaveLogo = new Bitmap(heatwavePath);
+                }
+            }
+            catch { }
+        }
+
+        private static Rectangle GetContentBounds(Bitmap bmp)
+        {
+            int minX = bmp.Width, minY = bmp.Height, maxX = -1, maxY = -1;
+            for (int y = 0; y < bmp.Height; y++)
+            {
+                for (int x = 0; x < bmp.Width; x++)
+                {
+                    if (bmp.GetPixel(x, y).A > 8)
+                    {
+                        if (x < minX) minX = x;
+                        if (x > maxX) maxX = x;
+                        if (y < minY) minY = y;
+                        if (y > maxY) maxY = y;
+                    }
+                }
+            }
+            if (maxX < 0) return Rectangle.Empty;
+            return new Rectangle(minX, minY, maxX - minX + 1, maxY - minY + 1);
+        }
+
+        private static Bitmap ScaleToFit(Bitmap src, int maxW, int maxH)
+        {
+            double scale = Math.Min((double)maxW / src.Width, (double)maxH / src.Height);
+            if (scale >= 1.0) return new Bitmap(src);
+            int w = Math.Max(1, (int)(src.Width * scale));
+            int h = Math.Max(1, (int)(src.Height * scale));
+            Bitmap dst = new Bitmap(w, h);
+            using (Graphics g = Graphics.FromImage(dst))
+            {
+                g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
+                g.DrawImage(src, 0, 0, w, h);
+            }
+            return dst;
+        }
+
         private void DrawBoard(Graphics g)
         {
             int tileSize = 60;
@@ -2584,11 +2674,24 @@ case Engine.QuestType.TimeBomb:
 
                     if (gem != null)
                     {
-                        Color c = _gemColors.ContainsKey(gem.Color) ? _gemColors[gem.Color] : Color.Gray;
-                        using (Brush b = new SolidBrush(c))
+                        Bitmap gemImg = (_gemImages != null && (int)gem.Color < _gemImages.Length) ? _gemImages[(int)gem.Color] : null;
+                        if (gemImg != null)
                         {
-                            g.FillEllipse(b, rect);
+                            int dw = Math.Min(gemImg.Width, rect.Width - 2);
+                            int dh = Math.Min(gemImg.Height, rect.Height - 2);
+                            int dx = rect.X + (rect.Width - dw) / 2;
+                            int dy = rect.Y + (rect.Height - dh) / 2;
+                            g.DrawImage(gemImg, dx, dy, dw, dh);
                         }
+                        else
+                        {
+                            Color c = _gemColors.ContainsKey(gem.Color) ? _gemColors[gem.Color] : Color.Gray;
+                            using (Brush b = new SolidBrush(c))
+                            {
+                                g.FillEllipse(b, rect);
+                            }
+                        }
+                        DrawSpecialOverlay(g, gem, rect);
                     }
 
                     if (x == _cursorX && y == _cursorY)
@@ -2599,6 +2702,129 @@ case Engine.QuestType.TimeBomb:
                         }
                     }
                 }
+            }
+        }
+
+        private void DrawSpecialOverlay(Graphics g, Gem gem, Rectangle rect)
+        {
+            int cx = rect.X + rect.Width / 2;
+            int cy = rect.Y + rect.Height / 2;
+            switch (gem.Special)
+            {
+                case SpecialType.Flame:
+                    DrawStar(g, cx, cy, 14, 7, Color.OrangeRed);
+                    break;
+                case SpecialType.Star:
+                    DrawStar(g, cx, cy, 14, 7, Color.Gold);
+                    break;
+                case SpecialType.Hypercube:
+                    DrawDiamond(g, cx, cy, 13, Color.MediumPurple);
+                    break;
+                case SpecialType.Supernova:
+                    DrawDiamond(g, cx, cy, 15, Color.White);
+                    break;
+                case SpecialType.Time5:
+                    DrawBadge(g, cx, cy, "5");
+                    break;
+                case SpecialType.Time10:
+                    DrawBadge(g, cx, cy, "10");
+                    break;
+                case SpecialType.Bomb:
+                    using (Brush b = new SolidBrush(Color.FromArgb(200, 40, 40)))
+                    using (Pen p = new Pen(Color.Black, 2))
+                    {
+                        g.FillEllipse(b, cx - 10, cy - 10, 20, 20);
+                        g.DrawEllipse(p, cx - 10, cy - 10, 20, 20);
+                    }
+                    break;
+                case SpecialType.Butterfly:
+                    using (Brush b = new SolidBrush(Color.FromArgb(150, 200, 240)))
+                    {
+                        g.FillEllipse(b, cx - 9, cy - 9, 18, 18);
+                    }
+                    break;
+                case SpecialType.PokerCard:
+                    using (Brush b = new SolidBrush(Color.FromArgb(230, 230, 235)))
+                    using (Pen p = new Pen(Color.DarkSlateGray, 2))
+                    {
+                        g.FillRectangle(b, cx - 12, cy - 16, 24, 32);
+                        g.DrawRectangle(p, cx - 12, cy - 16, 24, 32);
+                    }
+                    break;
+                case SpecialType.Dirt:
+                    using (Brush b = new SolidBrush(Color.FromArgb(150, 110, 70)))
+                    {
+                        g.FillRectangle(b, rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 4);
+                    }
+                    break;
+                case SpecialType.HardRock:
+                    using (Brush b = new SolidBrush(Color.FromArgb(120, 120, 128)))
+                    {
+                        g.FillRectangle(b, rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 4);
+                    }
+                    break;
+                case SpecialType.Gold:
+                    using (Brush b = new SolidBrush(Color.Gold))
+                    using (Pen p = new Pen(Color.DarkGoldenrod, 2))
+                    {
+                        g.FillEllipse(b, cx - 9, cy - 9, 18, 18);
+                        g.DrawEllipse(p, cx - 9, cy - 9, 18, 18);
+                    }
+                    break;
+                case SpecialType.GoldNugget:
+                    using (Brush b = new SolidBrush(Color.FromArgb(255, 200, 60)))
+                    using (Pen p = new Pen(Color.FromArgb(140, 90, 10), 2))
+                    {
+                        g.FillEllipse(b, cx - 10, cy - 10, 20, 20);
+                        g.DrawEllipse(p, cx - 10, cy - 10, 20, 20);
+                    }
+                    break;
+            }
+        }
+
+        private void DrawStar(Graphics g, int cx, int cy, int outer, int inner, Color color)
+        {
+            PointF[] pts = new PointF[10];
+            for (int i = 0; i < 10; i++)
+            {
+                double ang = -Math.PI / 2 + i * Math.PI / 5;
+                double r = (i % 2 == 0) ? outer : inner;
+                pts[i] = new PointF((float)(cx + r * Math.Cos(ang)), (float)(cy + r * Math.Sin(ang)));
+            }
+            using (SolidBrush b = new SolidBrush(color))
+            {
+                g.FillPolygon(b, pts);
+            }
+        }
+
+        private void DrawDiamond(Graphics g, int cx, int cy, int r, Color color)
+        {
+            PointF[] pts = new PointF[]
+            {
+                new PointF(cx, cy - r), new PointF(cx + r, cy),
+                new PointF(cx, cy + r), new PointF(cx - r, cy)
+            };
+            using (SolidBrush b = new SolidBrush(color))
+            using (Pen p = new Pen(Color.White, 1))
+            {
+                g.FillPolygon(b, pts);
+                g.DrawPolygon(p, pts);
+            }
+        }
+
+        private void DrawBadge(Graphics g, int cx, int cy, string text)
+        {
+            using (Brush b = new SolidBrush(Color.FromArgb(40, 180, 90)))
+            using (Pen p = new Pen(Color.White, 1))
+            {
+                g.FillEllipse(b, cx - 10, cy - 10, 20, 20);
+                g.DrawEllipse(p, cx - 10, cy - 10, 20, 20);
+            }
+            using (Font f = new Font("Segoe UI", 8, FontStyle.Bold))
+            using (SolidBrush tb = new SolidBrush(Color.White))
+            {
+                SizeF sz = g.MeasureString(text, f);
+                g.DrawString(text, f, tb, cx - sz.Width / 2, cy - sz.Height / 2);
             }
         }
     }
