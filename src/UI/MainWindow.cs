@@ -1834,12 +1834,14 @@ namespace Bejeweled3Accessible.UI
                             _screen = GameScreen.QuestRelicScreen;
                             _relicIdx = _activeQuest.RelicIndex;
 
-                            if (_progress.QuestRelicCount >= 4)
+                            // Authentic unlock: the first relic revealed (one
+                            // complete relicary) opens Diamond Mine.
+                            if (_progress.QuestRelicCount >= 1)
                             {
                                 _sound.PlaySound("secretunlocked");
                             }
 
-                            string questAnnounce = _progress.QuestRelicCount >= 4
+                            string questAnnounce = _progress.QuestRelicCount >= 1
                                 ? Localization.Get("UnlockDiamondMine") + " " + Localization.Get("QuestCompleteAnnounce", _activeQuestName)
                                 : Localization.Get("QuestCompleteAnnounce", _activeQuestName);
                             _speech.Speak(questAnnounce, true);
@@ -2101,26 +2103,43 @@ namespace Bejeweled3Accessible.UI
                         _sound.PlaySoundSpatial("gem_hit", _cursorX, _cursorY);
                     }
 
-                    // Announce voice praise based on total gems destroyed or cascade depth across ALL modes
-                    bool praiseVoicePlayed = false;
-                    if (res.TotalGemsDestroyed >= 25 || res.CascadeDepth >= 6)
-                    { _sound.PlaySound("voice_unbelievable"); praiseVoicePlayed = true; }
-                    else if (res.TotalGemsDestroyed >= 20 || res.CascadeDepth >= 5)
-                    { _sound.PlaySound("voice_extraordinary"); praiseVoicePlayed = true; }
-                    else if (res.TotalGemsDestroyed >= 15 || res.CascadeDepth >= 4)
-                    { _sound.PlaySound("voice_spectacular"); praiseVoicePlayed = true; }
-                    else if (res.TotalGemsDestroyed >= 12 || res.CascadeDepth >= 3)
-                    { _sound.PlaySound("voice_awesome"); praiseVoicePlayed = true; }
-                    else if (res.TotalGemsDestroyed >= 8)
-                    { _sound.PlaySound("voice_excellent"); praiseVoicePlayed = true; }
-                    else if (res.TotalGemsDestroyed >= 5)
-                    { _sound.PlaySound("voice_good"); praiseVoicePlayed = true; }
+                    // Announce voice praise based on total gems destroyed or cascade depth across ALL modes.
+                    // Never on a level-up match: "Level Complete!" and then "Good!" makes no sense.
+                    if (!levelUpVoicePlayed)
+                    {
+                        if (res.TotalGemsDestroyed >= 25 || res.CascadeDepth >= 6)
+                        { _sound.PlaySound("voice_unbelievable"); }
+                        else if (res.TotalGemsDestroyed >= 20 || res.CascadeDepth >= 5)
+                        { _sound.PlaySound("voice_extraordinary"); }
+                        else if (res.TotalGemsDestroyed >= 15 || res.CascadeDepth >= 4)
+                        { _sound.PlaySound("voice_spectacular"); }
+                        else if (res.TotalGemsDestroyed >= 12 || res.CascadeDepth >= 3)
+                        { _sound.PlaySound("voice_awesome"); }
+                        else if (res.TotalGemsDestroyed >= 8)
+                        { _sound.PlaySound("voice_excellent"); }
+                        else if (res.TotalGemsDestroyed >= 5)
+                        { _sound.PlaySound("voice_good"); }
+                    }
 
                     CheckBadgesEvaluation(res);
 
                     string matchAnnounceText = res.CascadeDepth > 1
                         ? Localization.Get("CascadeAnnounce", res.CascadeDepth, res.TotalGemsDestroyed, _score)
                         : Localization.Get("MatchAnnounce", res.TotalGemsDestroyed, _score);
+
+                    if (levelUpVoicePlayed)
+                    {
+                        // Let the "Level Complete" jingle finish before the score
+                        // announcement, so the voice and the speech never overlap.
+                        for (int i = 0; i < 60 && _sound.IsVoiceBusy; i++)
+                        {
+                            await Task.Delay(50);
+                        }
+                        if (_screen != screenAtSwap || !ReferenceEquals(_board, boardAtSwap) || _currentModeKey != modeAtSwap)
+                        {
+                            return;
+                        }
+                    }
                     _speech.Speak(matchAnnounceText, true);
 
                     // Check if any valid moves remain, otherwise scramble board

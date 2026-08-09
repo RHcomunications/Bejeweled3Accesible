@@ -950,12 +950,13 @@ namespace Bejeweled3Accessible.Tests
                 gp.ClassicLevel = 5;
                 gp.ZenLevel = 5;
                 gp.LightningHighScore = 100000;
-                gp.QuestRelicCount = 4;
+                gp.QuestRelicCount = 1;
                 Assert.True(gp.IsPokerUnlocked, "Poker nivel 5");
                 Assert.True(gp.IsButterfliesUnlocked, "Mariposas Zen 5");
                 Assert.True(gp.IsIceStormUnlocked, "Tormenta 100k");
-                Assert.True(gp.IsDiamondMineUnlocked, "Mina 4 desafios");
+                Assert.True(gp.IsDiamondMineUnlocked, "Mina con el primer relicario");
                 Assert.False(new GameProgress { ClassicLevel = 4 }.IsPokerUnlocked, "Nivel 4 no desbloquea poker");
+                Assert.False(new GameProgress { QuestRelicCount = 0 }.IsDiamondMineUnlocked, "Sin relicarios no desbloquea mina");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Progress: persistencia roundtrip sin tocar AppData", () =>

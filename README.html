@@ -89,7 +89,7 @@
 <body>
 
     <h1>💎 Bejeweled 3 Accesible (Español &amp; English)</h1>
-    <p style="text-align:center;">Versión <strong>2026.8.9</strong> · 8 de agosto de 2026</p>
+    <p style="text-align:center;">Versión <strong>2026.8.9</strong> · 9 de agosto de 2026</p>
 
     <div class="feature-box lang-index" style="text-align:center;">
         <p><a href="#es">🇪🇸 Español</a> &nbsp;·&nbsp; <a href="#en">🇬🇧 English</a></p>
@@ -126,14 +126,14 @@
         <li><strong>Tormenta de Hielo</strong>: derrite las columnas heladas antes de que congelen el tablero.</li>
         <li><strong>Mina de Diamantes</strong>: excava los metros de profundidad indicados.</li>
     </ul>
-    <p>Al completar las 4 misiones de un relicario se marca como completado; al completar 10 relicarios se desbloquea la <strong>Mina de Diamantes</strong>.</p>
+    <p>Al completar las 4 misiones de un relicario se marca como completado; al completar el primer relicario se desbloquea la <strong>Mina de Diamantes</strong>, como en el original.</p>
 
     <h3>5. Modos Desbloqueables</h3>
     <ul>
         <li><strong>Modo Póker</strong>: forma manos de 5 cartas combinando colores de gemas (Pareja, Doble Pareja, Tercia, Escalera, Full House, Póker, Color, Espectro). Las manos bajas (carta alta, pareja o doble pareja) colocan una <strong>calavera</strong> en la mesa: con 5 calaveras se pierde. (Se desbloquea al nivel 5 de Clásico).</li>
         <li><strong>Modo Mariposas</strong>: salva a las mariposas que ascienden desde abajo antes de que la araña superior las atrape. (Se desbloquea al nivel 5 de Zen).</li>
         <li><strong>Tormenta de Hielo</strong>: el frente de hielo sube uniformemente por todas las columnas, más rápido según el nivel. Cada combinación derrite únicamente su propia columna; un emparejamiento vertical destroza la columna entera, mientras que uno horizontal solo la baja un poco. Si una columna llega al tope, aparecerá una calavera: derítela en pocos segundos o el tablero se congelará. (Se desbloquea con 100.000 puntos en Relámpago).</li>
-        <li><strong>Mina de Diamantes</strong>: excava en 60 segundos por pantalla; al limpiar toda la tierra ganas <strong>30 segundos extra</strong> y 10 metros de profundidad. Las rocas se rompen con un solo impacto y las pepitas de oro esconden tesoros. (Se desbloquea completando los 10 relicarios).</li>
+        <li><strong>Mina de Diamantes</strong>: excava en 60 segundos por pantalla; al limpiar toda la tierra ganas <strong>30 segundos extra</strong> y 10 metros de profundidad. Las rocas se rompen con un solo impacto y las pepitas de oro esconden tesoros. (Se desbloquea al completar el primer relicario de Búsqueda, como en el original).</li>
     </ul>
 
     <h3>💠 Gemas Especiales</h3>
@@ -200,7 +200,7 @@
 
     <h3>📝 Historial de Versiones</h3>
     <ul>
-        <li><strong>2026.8.9</strong> — Tablero visual arreglado: las gemas se renderizaban recortando el atlas completo (20 fotogramas de animación) y aplastándolo en la casilla; ahora se usa el fotograma de reposo de cada gema con su capa de sombra debajo, y el juego elige automáticamente el juego de imágenes de la resolución adecuada (carpetas <code>600/768/1200</code> de <code>sounds/images</code>, seleccionadas por proximidad al tamaño de celda).</li>
+        <li><strong>2026.8.9</strong> — Tablero visual arreglado: las gemas se renderizaban recortando el atlas completo (20 fotogramas de animación) y aplastándolo en la casilla; ahora se usa el fotograma de reposo de cada gema con su capa de sombra debajo, y el juego elige automáticamente el juego de imágenes de la resolución adecuada (carpetas <code>600/768/1200</code> de <code>sounds/images</code>, seleccionadas por proximidad al tamaño de celda). Secuenciación de voces en las subidas de nivel: ya no se dice una voz de admiración ("Good", "Excellent"...) justo después de "Level Complete" — el elogio se suprime en la jugada que sube de nivel, y el anuncio hablado de puntuación espera a que el jingle termine, para que las voces nunca se pisen. La Mina de Diamantes se desbloquea al completar el primer relicario de Búsqueda, fiel al original.</li>
         <li><strong>2026.8.8</strong> — Perfiles de audio espacial seleccionables en las opciones de sonido y voz (Flechas Izquierda/Derecha para cambiar): <strong>Escenario 2D</strong> (el paisaje sonoro teatral completo: profundidad por filas, reverberación DX8 en la música y el realce de volumen/brillo cuando una gema cruza por delante al deslizar), <strong>Clásico Limpio</strong> (nuevo por defecto — el carácter arcade del original: seco y nítido, sin reverberación, sin oscurecimiento por profundidad y sin sonidos "inflados"; solo el paneo por columna y el deslizamiento lateral puro) y <strong>Simple</strong> (solo el paneo izquierda/derecha por columna, colocado al instante, sin escenario virtual). El audio binaural y el perfil espacial ahora se recuerdan entre sesiones, y los archivos de opciones antiguos adoptan automáticamente los nuevos valores por defecto. Suite completa: 127/127 tests en verde.</li>
         <li><strong>2026.8.7</strong> — Auditoría completa del código: <code>audio.pac</code> ahora se indexa de forma diferida (ya no carga ~180 MB en RAM al arrancar; los archivos se descifran bajo demanda y se cachean), los efectos simultáneos nunca se descartan en silencio (al llegar al tope de 25 efectos se corta el sonido más antiguo para que el nuevo siempre suene), todos los temporizadores internos se liberan correctamente, los atajos Shift+H / Shift+F anuncian en el idioma seleccionado, un fallo del paquete de audio muestra un mensaje claro en lugar de arrancar sin sonido, y el contador interno de relicarios de quest fue renombrado con total retrocompatibilidad para los guardados existentes. Suite completa: 126/126 tests en verde.</li>
         <li><strong>2026.8.5</strong> — Rango de jugador fiel al original: ahora son los 131 rangos oficiales del Bejeweled 3, del Novato al Anciano Bejeweliano (rango final), traducidos al español y en inglés, y el rango avanza con la escala real de puntuación acumulada del juego (250.000 puntos extra por rango, como en el original). La ventana de récords muestra tu rango junto a tu puntuación total acumulada.</li>
@@ -256,14 +256,14 @@
         <li><strong>Ice Storm</strong>: melt the frozen columns before they freeze the board.</li>
         <li><strong>Diamond Mine</strong>: dig the stated meters of depth.</li>
     </ul>
-    <p>Completing all 4 missions of a relicary marks it as complete; completing 10 relicaries unlocks <strong>Diamond Mine</strong>.</p>
+    <p>Completing all 4 missions of a relicary marks it as complete; revealing the first relicary unlocks <strong>Diamond Mine</strong>, just like the original.</p>
 
     <h3>5. Unlockable Modes</h3>
     <ul>
         <li><strong>Poker Mode</strong>: form 5-card hands by matching gem colors (Pair, Two Pair, Three of a Kind, Straight, Full House, Four of a Kind, Flush, Spectrum). Low hands (high card, pair or two pair) place a <strong>skull</strong> on the table: 5 skulls and you lose. (Unlocked at Classic level 5).</li>
         <li><strong>Butterflies Mode</strong>: save the butterflies rising from the bottom before the spider at the top catches them. (Unlocked at Zen level 5).</li>
         <li><strong>Ice Storm</strong>: the ice front rises evenly across all columns, faster the higher the level. Each match melts only its own column; a vertical match destroys the whole column, while a horizontal one only lowers it a bit. If a column reaches the top, a skull appears: melt it within a few seconds or the board freezes. (Unlocked with 100,000 points in Lightning).</li>
-        <li><strong>Diamond Mine</strong>: dig for 60 seconds per screen; clearing all the dirt earns you <strong>30 extra seconds</strong> and 10 meters of depth. Rocks break with a single impact and the gold nuggets hide treasures. (Unlocked by completing all 10 relicaries).</li>
+        <li><strong>Diamond Mine</strong>: dig for 60 seconds per screen; clearing all the dirt earns you <strong>30 extra seconds</strong> and 10 meters of depth. Rocks break with a single impact and the gold nuggets hide treasures. (Unlocked by revealing the first relicary in Quest, just like the original).</li>
     </ul>
 
     <h3>💠 Special Gems</h3>
@@ -330,7 +330,7 @@
 
     <h3>📝 Version History</h3>
     <ul>
-        <li><strong>2026.8.9</strong> — Visual board fixed: gems were rendered by cropping the full atlas (20 animation frames) and squashing it into the tile; now each gem uses its idle frame with the shadow layer underneath, and the game automatically picks the image set for the right resolution (the <code>600/768/1200</code> folders under <code>sounds/images</code>, selected by how close their cell size is to the board tile).</li>
+        <li><strong>2026.8.9</strong> — Visual board fixed: gems were rendered by cropping the full atlas (20 animation frames) and squashing it into the tile; now each gem uses its idle frame with the shadow layer underneath, and the game automatically picks the image set for the right resolution (the <code>600/768/1200</code> folders under <code>sounds/images</code>, selected by how close their cell size is to the board tile). Voice sequencing on level-ups: no admiration voice ("Good", "Excellent"...) is ever spoken right after "Level Complete" — the praise is suppressed on the leveling move, and the spoken score announcement waits for the jingle to end, so voices never step on each other. Diamond Mine now unlocks by completing the first Quest relicary, faithful to the original.</li>
         <li><strong>2026.8.8</strong> — Selectable spatial audio profiles in the Sound &amp; Voice options (Left/Right cycles them): <strong>Stage 2D</strong> (the full theatrical soundscape: row depth, DX8 reverb on the music and the volume/brightness swell on glides), <strong>Clean Classic</strong> (new default — the original arcade character: crisp and dry, only the column pan and a pure lateral glide, nothing ever sounds "swollen") and <strong>Simple</strong> (bare left/right column pan placed instantly, no virtual stage). Binaural audio and the spatial profile are now remembered between sessions, and old options files automatically adopt the new defaults. Full test suite: 127/127 green.</li>
         <li><strong>2026.8.7</strong> — Full code audit applied: <code>audio.pac</code> is now indexed lazily (no longer loads ~180 MB into RAM at startup; files are decrypted on demand and cached), concurrent effects are never silently dropped (at the 25-effect cap the oldest sound is cut so the newest always plays), all internal timers are properly released, the Shift+H / Shift+F cheats announce in the selected language, a failed audio package shows a clear message instead of launching silently without sound, and the internal quest relic counter was renamed with full backward compatibility for saved progress. Full test suite: 126/126 green.</li>
         <li><strong>2026.8.5</strong> — Player rank faithful to the original: now the 131 official Bejeweled 3 ranks, from Novice to Elder Bejewelian (final rank), localized in Spanish and English, and the rank advances with the game's real cumulative score scale (250,000 extra points per rank, like the original). The high-scores window shows your rank next to your total cumulative score.</li>

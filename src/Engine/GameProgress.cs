@@ -28,7 +28,7 @@ namespace Bejeweled3Accessible.Engine
         public bool IsPokerUnlocked { get { return ClassicLevel >= 5; } }
         public bool IsButterfliesUnlocked { get { return ZenLevel >= 5; } }
         public bool IsIceStormUnlocked { get { return LightningHighScore >= 100000; } }
-        public bool IsDiamondMineUnlocked { get { return QuestRelicCount >= 4; } }
+        public bool IsDiamondMineUnlocked { get { return QuestRelicCount >= 1; } }
 
         public static string OverrideDataDirectory { get; set; }
 
