@@ -1487,6 +1487,25 @@ namespace Bejeweled3Accessible.Tests
                 }
             }));
 
+            // Music ducking: while a locution sounds, the music must be lowered
+            // (duck target on); when the queue drains, it must come back.
+            tests.Add(Tuple.Create<string, Action>("Sound: la musica baja (duck) mientras suena una voz y vuelve al terminar", () =>
+            {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                using (SoundEngine sound = new SoundEngine(baseDir))
+                {
+                    Assert.False(sound.MusicDucked, "Sin voces no debe haber duck");
+                    sound.PlaySound("voice_awesome");
+                    int waited = 0;
+                    while (!sound.MusicDucked && waited < 3000) { System.Threading.Thread.Sleep(25); waited += 25; }
+                    Assert.True(sound.MusicDucked, "Al reproducir una voz debe activarse el duck de la musica");
+                    while (sound.IsVoiceBusy && waited < 10000) { System.Threading.Thread.Sleep(25); waited += 25; }
+                    waited = 0;
+                    while (sound.MusicDucked && waited < 3000) { System.Threading.Thread.Sleep(25); waited += 25; }
+                    Assert.False(sound.MusicDucked, "Al terminar las voces la musica debe volver a su volumen");
+                }
+            }));
+
             // Reproduccion real de voces simulando una rafaga de eventos de juego:
             // verifica que ninguna locucion se corta (dura su duracion completa,
             // llega a su final natural) ni se solapa con la siguiente.

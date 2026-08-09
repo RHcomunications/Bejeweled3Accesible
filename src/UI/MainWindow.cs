@@ -2127,19 +2127,9 @@ namespace Bejeweled3Accessible.UI
                         ? Localization.Get("CascadeAnnounce", res.CascadeDepth, res.TotalGemsDestroyed, _score)
                         : Localization.Get("MatchAnnounce", res.TotalGemsDestroyed, _score);
 
-                    if (levelUpVoicePlayed)
-                    {
-                        // Let the "Level Complete" jingle finish before the score
-                        // announcement, so the voice and the speech never overlap.
-                        for (int i = 0; i < 60 && _sound.IsVoiceBusy; i++)
-                        {
-                            await Task.Delay(50);
-                        }
-                        if (_screen != screenAtSwap || !ReferenceEquals(_board, boardAtSwap) || _currentModeKey != modeAtSwap)
-                        {
-                            return;
-                        }
-                    }
+                    // The score announcement goes to the screen reader (NVDA/SAPI),
+                    // which is independent from the game voices: speak it right away
+                    // so the reader never waits for the "Level Complete" jingle.
                     _speech.Speak(matchAnnounceText, true);
 
                     // Check if any valid moves remain, otherwise scramble board

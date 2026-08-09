@@ -163,6 +163,8 @@ namespace Bejeweled3Accessible.Audio
                 {
                     if (_activeVoiceHandle == 0 && _voicePumpTimer != null)
                     {
+                        // Nothing left to speak: let the music come back.
+                        SetDuckTarget(1.0f);
                         try { _voicePumpTimer.Dispose(); } catch { }
                         _voicePumpTimer = null;
                     }
@@ -226,6 +228,8 @@ namespace Bejeweled3Accessible.Audio
                 }
 
                 BASS_ChannelPlay(handle, true);
+                // The announcer is on air: duck the music while she talks.
+                SetDuckTarget(MUSIC_DUCK_FACTOR);
                 _activeVoiceHandle = handle;
                 _activeVoicePin = pinned;
                 _activeVoiceName = req.SoundName;
@@ -516,6 +520,7 @@ namespace Bejeweled3Accessible.Audio
                     _voicePumpTimer = null;
                 }
             }
+            SetDuckTarget(1.0f);
         }
 
         // True while a locution is sounding or waiting in the queue.
@@ -527,6 +532,68 @@ namespace Bejeweled3Accessible.Audio
                 {
                     if (_activeVoiceHandle != 0 && DateTime.UtcNow < _activeVoiceEndAt) return true;
                     return _voiceQueue.Count > 0;
+                }
+            }
+        }
+
+        // Music ducking: while a locution (voice_*) is sounding, the music
+        // lowers a little and returns gently, like the original game where the
+        // announcer talks over a quieter track. The attack/release ramp moves
+        // in small steps so the music never pumps or clicks.
+        private const float MUSIC_DUCK_FACTOR = 0.55f;
+        private const int DUCK_TICK_MS = 25;
+        private const float DUCK_STEP = 0.08f;
+        private readonly object _duckLock = new object();
+        private float _duckCurrent = 1.0f;
+        private float _duckTarget = 1.0f;
+        private System.Threading.Timer _duckTimer;
+
+        // True while the music should be (or is being) lowered for a locution.
+        internal bool MusicDucked
+        {
+            get { lock (_duckLock) { return _duckTarget < 0.99f; } }
+        }
+
+        private void SetDuckTarget(float target)
+        {
+            lock (_duckLock)
+            {
+                _duckTarget = target;
+                if (_duckTimer == null && Math.Abs(_duckCurrent - _duckTarget) > 0.001f)
+                {
+                    _duckTimer = new System.Threading.Timer(DuckTick, null, DUCK_TICK_MS, DUCK_TICK_MS);
+                }
+            }
+        }
+
+        private void DuckTick(object state)
+        {
+            float apply = 1.0f;
+            lock (_duckLock)
+            {
+                if (_duckCurrent < _duckTarget)
+                    _duckCurrent = Math.Min(_duckTarget, _duckCurrent + DUCK_STEP);
+                else if (_duckCurrent > _duckTarget)
+                    _duckCurrent = Math.Max(_duckTarget, _duckCurrent - DUCK_STEP);
+
+                if (Math.Abs(_duckCurrent - _duckTarget) < 0.001f)
+                {
+                    _duckCurrent = _duckTarget;
+                    if (_duckTimer != null)
+                    {
+                        try { _duckTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite); } catch { }
+                        try { _duckTimer.Dispose(); } catch { }
+                        _duckTimer = null;
+                    }
+                }
+                apply = _duckCurrent;
+            }
+
+            lock (_musicLock)
+            {
+                if (_currentMusicChannel != 0 && _musicFadeTimer == null)
+                {
+                    try { BASS_ChannelSetAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, (float)MusicVol / 100.0f * apply); } catch { }
                 }
             }
         }
@@ -1245,7 +1312,11 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 {
                     // Don't override the volume while a fade is in progress
                     if (_musicFadeTimer == null)
-                        BASS_ChannelSetAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, (float)MusicVol / 100.0f);
+                    {
+                        float duck;
+                        lock (_duckLock) { duck = _duckCurrent; }
+                        BASS_ChannelSetAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, (float)MusicVol / 100.0f * duck);
+                    }
                 }
                 catch { }
             }
@@ -1283,6 +1354,18 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         public void Dispose()
         {
             StopMusic();
+
+            System.Threading.Timer duckTimer = null;
+            lock (_duckLock)
+            {
+                duckTimer = _duckTimer;
+                _duckTimer = null;
+            }
+            if (duckTimer != null)
+            {
+                try { duckTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite); } catch { }
+                try { duckTimer.Dispose(); } catch { }
+            }
 
             if (_musicMonitorTimer != null)
             {
