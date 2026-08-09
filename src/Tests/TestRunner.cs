@@ -1677,6 +1677,19 @@ namespace Bejeweled3Accessible.Tests
                 }, "NvdaSpeech ciclo de vida");
             }));
 
+            // ======================= AUTO UPDATER =======================
+            tests.Add(Tuple.Create<string, Action>("Update: ParseTagVersion y comparacion de versiones", () =>
+            {
+                System.Version v = Bejeweled3Accessible.Update.AutoUpdater.ParseTagVersion("v2026.8.9.1");
+                Assert.True(v != null && v.ToString() == "2026.8.9.1", "tag v2026.8.9.1 debe parsear a 2026.8.9.1");
+                Assert.True(Bejeweled3Accessible.Update.AutoUpdater.ParseTagVersion("basura") == null, "tag invalido no debe parsear");
+                Assert.True(Bejeweled3Accessible.Update.AutoUpdater.ParseTagVersion("2026.8.9") != null, "tag sin minor debe parsear");
+                Assert.True(Bejeweled3Accessible.Update.AutoUpdater.CompareTagVersions("v2026.8.9.2", "v2026.8.9.1") > 0, "2026.8.9.2 es mas nueva que 2026.8.9.1");
+                Assert.True(Bejeweled3Accessible.Update.AutoUpdater.CompareTagVersions("v2026.8.9.1", "2026.8.9.1") == 0, "la v del tag no afecta a la comparacion");
+                Assert.True(Bejeweled3Accessible.Update.AutoUpdater.CompareTagVersions("2026.8.9", "v2026.8.9.1") < 0, "una version sin minor es anterior a la misma con .1");
+                Assert.Equal("2026.8.9.1", Bejeweled3Accessible.Update.AutoUpdater.DisplayVersion("v2026.8.9.1"), "DisplayVersion quita la v");
+            }));
+
             return tests;
         }
 

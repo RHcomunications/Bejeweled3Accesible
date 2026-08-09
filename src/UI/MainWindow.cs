@@ -7,6 +7,7 @@ using System.Windows.Forms;
 using Bejeweled3Accessible.Accessibility;
 using Bejeweled3Accessible.Audio;
 using Bejeweled3Accessible.Engine;
+using Updater = Bejeweled3Accessible.Update.AutoUpdater;
 
 namespace Bejeweled3Accessible.UI
 {
@@ -28,6 +29,9 @@ namespace Bejeweled3Accessible.UI
         private GameScreen _screen = GameScreen.Loading;
         private GameScreen _optionsOriginScreen = GameScreen.MainMenu;
         private int _loadingProgress = 0;
+        private bool _updateChecked = false;
+        private string _latestTag = null;
+        private bool _updatePromptActive = false;
         private bool _loadingComplete = false;
 
         private int _menuIdx = 0;
@@ -111,6 +115,7 @@ namespace Bejeweled3Accessible.UI
                 Localization.Get("MenuChangeUser", profName),
                 Localization.Get("MenuLanguage"),
                 Localization.Get("MenuOptions"),
+                Localization.Get("MenuUpdateCheck"),
                 Localization.Get("MenuExit")
             };
         }
@@ -179,6 +184,11 @@ namespace Bejeweled3Accessible.UI
             _loadingTimer = new Timer { Interval = 50 };
             _loadingTimer.Tick += LoadingTimer_Tick;
             _loadingTimer.Start();
+
+            // Background update check: announces once if a newer release exists,
+            // without blocking the startup or opening any browser.
+            try { System.Threading.ThreadPool.QueueUserWorkItem(delegate { CheckForUpdatesAsync(); }); }
+            catch { }
 
             KeyDown += MainWindow_KeyDown;
             KeyPress += MainWindow_KeyPress;
@@ -511,6 +521,22 @@ namespace Bejeweled3Accessible.UI
 
         private void MainWindow_KeyDown(object sender, KeyEventArgs e)
         {
+            if (_updatePromptActive)
+            {
+                if (e.KeyCode == Keys.Enter)
+                {
+                    _updatePromptActive = false;
+                    PerformUpdate();
+                }
+                else if (e.KeyCode == Keys.Escape)
+                {
+                    _updatePromptActive = false;
+                    _sound.PlaySound("button_mouseover");
+                    _speech.Speak(Localization.Get("UpdateCancelled"), true);
+                }
+                return;
+            }
+
             if (_screen == GameScreen.ProfileInput)
             {
                 if (e.KeyCode == Keys.Escape)
@@ -550,6 +576,81 @@ namespace Bejeweled3Accessible.UI
             else if (_screen == GameScreen.Playing) HandlePlayingKeys(e);
             else if (_screen == GameScreen.PauseMenu) HandlePauseMenuKeys(e);
             else if (_screen == GameScreen.GameOver) HandleGameOverKeys(e);
+        }
+
+        // Runs on a pool thread: asks GitHub for the latest tag and, when it is
+        // newer than the running version, announces it once in the main menu.
+        private void CheckForUpdatesAsync()
+        {
+            string tag = null;
+            try { tag = Updater.GetLatestTag(); } catch { }
+            bool newer = tag != null && Updater.IsNewerThanCurrent(tag);
+            try
+            {
+                BeginInvoke((MethodInvoker)delegate
+                {
+                    _updateChecked = true;
+                    if (newer)
+                    {
+                        _latestTag = tag;
+                        if (_screen == GameScreen.MainMenu)
+                        {
+                            _speech.Speak(Localization.Get("UpdateAvailable", Updater.DisplayVersion(tag)), false);
+                        }
+                    }
+                });
+            }
+            catch { }
+        }
+
+        // Download + install flow: prepares the update in %TEMP% and hands over
+        // to a hidden script that swaps the game folder and reopens the game.
+        private async void PerformUpdate()
+        {
+            string tag = _latestTag;
+            if (tag == null) return;
+            _sound.PlaySound("button_press");
+            _speech.Speak(Localization.Get("UpdateDownloading"), true);
+
+            Updater.UpdateDownloadResult result = null;
+            try
+            {
+                string exeDir = Path.GetDirectoryName(Application.ExecutablePath);
+                result = await Task.Run(() => Updater.PrepareUpdate(tag, exeDir));
+            }
+            catch (Exception ex)
+            {
+                _speech.Speak(Localization.Get("UpdateError", ex.Message), true);
+                return;
+            }
+
+            if (result == null || result.Error != null)
+            {
+                _speech.Speak(Localization.Get("UpdateError", result != null ? result.Error : "error"), true);
+                return;
+            }
+
+            _speech.Speak(Localization.Get("UpdateInstalling"), true);
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(result.ScriptPath)
+                {
+                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
+                    UseShellExecute = true
+                });
+            }
+            catch (Exception ex)
+            {
+                _speech.Speak(Localization.Get("UpdateError", ex.Message), true);
+                return;
+            }
+
+            // Close the game: the script waits for this process to end, replaces
+            // the files and starts the new version by itself.
+            Task.Delay(1500).ContinueWith(_2 =>
+            {
+                try { Invoke(new Action(() => Close())); } catch { }
+            });
         }
 
         private string[] GetGameOverItems()
@@ -656,7 +757,23 @@ namespace Bejeweled3Accessible.UI
                     _optionsIdx = 0;
                     _speech.Speak(Localization.Get("OptionsTitle") + ". " + GetOptionsMenuItems()[0], true);
                 }
-                else if (_menuIdx == 7) // Exit
+                else if (_menuIdx == 7) // Update check
+                {
+                    if (!_updateChecked)
+                    {
+                        _speech.Speak(Localization.Get("UpdateChecking"), true);
+                    }
+                    else if (_latestTag == null)
+                    {
+                        _speech.Speak(Localization.Get("UpdateNone"), true);
+                    }
+                    else
+                    {
+                        _speech.Speak(Localization.Get("UpdateFound", Updater.DisplayVersion(_latestTag)), true);
+                        _updatePromptActive = true;
+                    }
+                }
+                else if (_menuIdx == 8) // Exit
                 {
                     _sound.PlaySound("voice_goodbye");
                     _speech.Speak(Localization.CurrentLanguage == Language.Spanish ? "¡Adiós!" : "Goodbye!", true);

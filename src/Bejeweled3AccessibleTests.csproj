@@ -25,6 +25,7 @@
     <Reference Include="System" />
     <Reference Include="System.Core" />
     <Reference Include="System.Drawing" />
+    <Reference Include="System.IO.Compression.FileSystem" />
     <Reference Include="System.Speech" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
@@ -36,6 +37,7 @@
     <Compile Include="Audio\PacCipher.cs" />
     <Compile Include="Audio\SoundEngine.cs" />
     <Compile Include="Audio\SpatialAudio.cs" />
+    <Compile Include="Update\AutoUpdater.cs" />
     <Compile Include="Engine\BadgeManager.cs" />
     <Compile Include="Engine\Affirmations.cs" />
     <Compile Include="Engine\Board.cs" />

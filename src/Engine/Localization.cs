@@ -21,7 +21,7 @@ namespace Bejeweled3Accessible.Engine
         private static readonly Dictionary<string, Tuple<string, string>> _dict = new Dictionary<string, Tuple<string, string>>
         {
             // Loading Screen
-            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.8.9.", "Loading Bejeweled 3... Version 2026.8.9.") },
+            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.8.9.1.", "Loading Bejeweled 3... Version 2026.8.9.1.") },
             { "LoadingPrompt", new Tuple<string, string>("Presiona cualquier tecla para continuar", "Press any key to continue") },
 
             // Profile Screen
@@ -32,7 +32,7 @@ namespace Bejeweled3Accessible.Engine
             { "ProfileDelete", new Tuple<string, string>("Eliminar perfil actual", "Delete current profile") },
 
             // Menus
-            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.8.9", "Bejeweled 3 Accessible - Version 2026.8.9") },
+            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.8.9.1", "Bejeweled 3 Accessible - Version 2026.8.9.1") },
             { "MenuPlay", new Tuple<string, string>("Jugar Bejeweled 3", "Play Bejeweled 3") },
             { "MenuChangeUser", new Tuple<string, string>("Haz clic aquí para cambiar de usuario. Perfil actual: {0}", "Click here to change user. Current profile: {0}") },
             { "MenuLanguage", new Tuple<string, string>("Idioma: Español. Pulsa Enter para cambiar", "Language: English. Press Enter to switch to Spanish") },
@@ -48,6 +48,15 @@ namespace Bejeweled3Accessible.Engine
             { "TutorialStep7", new Tuple<string, string>("7. Menú de Pausa: Presiona Escape en cualquier momento para pausar la partida, ajustar volúmenes o salir.", "7. Pause Menu: Press Escape at any time to pause the match, adjust volumes, or quit.") },
             { "TutorialStep8", new Tuple<string, string>("8. Audio Binaural y Voz: Igual que el original, cada sonido se sitúa a la izquierda o a la derecha del tablero. Las locuciones de voz nunca se cortan ni se solapan: se escuchan completas, una detrás de otra, con un pequeño margen de silencio.", "8. Binaural Audio & Voice: Like the original, each sound is placed to the left or right of the board. Voice lines are never cut short or overlapping: they play in full, one after another, with a small silent gap.") },
             { "MenuExit", new Tuple<string, string>("Salir", "Exit") },
+            { "MenuUpdateCheck", new Tuple<string, string>("Actualización: comprobar e instalar", "Update: check and install") },
+            { "UpdateChecking", new Tuple<string, string>("Comprobando actualizaciones...", "Checking for updates...") },
+            { "UpdateNone", new Tuple<string, string>("No hay versiones nuevas del juego.", "No new game versions available.") },
+            { "UpdateAvailable", new Tuple<string, string>("Hay una nueva versión {0}. Puedes instalarla desde Actualización: comprobar e instalar en el menú principal.", "A new version {0} is available. You can install it from Update: check and install in the main menu.") },
+            { "UpdateFound", new Tuple<string, string>("Nueva versión {0} disponible. Pulsa Enter para descargar e instalar, o Escape para cancelar.", "New version {0} available. Press Enter to download and install, or Escape to cancel.") },
+            { "UpdateCancelled", new Tuple<string, string>("Actualización cancelada.", "Update cancelled.") },
+            { "UpdateDownloading", new Tuple<string, string>("Descargando la nueva versión, un momento...", "Downloading the new version, one moment...") },
+            { "UpdateInstalling", new Tuple<string, string>("Versión descargada. El juego se cerrará, se instalará la actualización y se abrirá solo al terminar.", "Version downloaded. The game will close, install the update and open by itself when done.") },
+            { "UpdateError", new Tuple<string, string>("No se pudo completar la actualización: {0}", "Could not complete the update: {0}") },
             { "SelectMode", new Tuple<string, string>("Seleccionar Modo de Juego: ", "Select Game Mode: ") },
             { "BackToMain", new Tuple<string, string>("Volver al Menú Principal", "Back to Main Menu") },
 
