@@ -14,10 +14,17 @@ namespace Bejeweled3Accessible.Update
     // end, because a running exe cannot overwrite itself.
     public static class AutoUpdater
     {
-        public const string GitHubRepo = "RHcomunications/Bejeweled3Accessible";
+        public const string GitHubRepo = "RHcomunications/Bejeweled3Accesible";
 
-        // Zip asset naming must match the release process: Bejeweled3Accesible-<tag>.zip
+        // Zip asset naming must match the release process: Bejeweled3Accesible-<version>.zip
+        // (the tag keeps the "v" but the asset name does not).
         public const string ZipAssetPrefix = "Bejeweled3Accesible-";
+
+        // e.g. BuildZipAssetName("v2026.8.9.1") -> "Bejeweled3Accesible-2026.8.9.1.zip"
+        public static string BuildZipAssetName(string tag)
+        {
+            return ZipAssetPrefix + DisplayVersion(tag) + ".zip";
+        }
 
         static AutoUpdater()
         {
@@ -239,7 +246,7 @@ namespace Bejeweled3Accessible.Update
                 if (!File.Exists(zipPath))
                 {
                     string url = "https://github.com/" + GitHubRepo
-                        + "/releases/download/" + tag + "/" + ZipAssetPrefix + tag + ".zip";
+                        + "/releases/download/" + tag + "/" + BuildZipAssetName(tag);
                     using (WebClient client = new WebClient())
                     {
                         client.Headers[HttpRequestHeader.UserAgent] =

@@ -1713,6 +1713,27 @@ namespace Bejeweled3Accessible.Tests
                 Assert.Equal("", Bejeweled3Accessible.Update.AutoUpdater.ExtractNotes("", true), "vacio devuelve vacio");
             }));
 
+            tests.Add(Tuple.Create<string, Action>("Update: el nombre del zip de release coincide con el patron real", () =>
+            {
+                Assert.Equal("Bejeweled3Accesible-2026.8.9.1.zip",
+                    Bejeweled3Accessible.Update.AutoUpdater.BuildZipAssetName("v2026.8.9.1"),
+                    "el asset zip va sin la v, como en las releases publicadas");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Update: GetLatestRelease no lanza y con red devuelve la ultima release", () =>
+            {
+                Bejeweled3Accessible.Update.AutoUpdater.ReleaseInfo r = null;
+                Assert.NoThrow(() => { r = Bejeweled3Accessible.Update.AutoUpdater.GetLatestRelease(5000); },
+                    "GetLatestRelease no debe lanzar");
+                Assert.True(r != null, "GetLatestRelease devuelve objeto");
+                if (r.IsValid)
+                {
+                    Assert.True(r.Tag.StartsWith("v"), "el tag de release empieza por v");
+                    Assert.True(Bejeweled3Accessible.Update.AutoUpdater.ParseTagVersion(r.Tag) != null,
+                        "el tag de release parsea como version");
+                }
+            }));
+
             return tests;
         }
 
