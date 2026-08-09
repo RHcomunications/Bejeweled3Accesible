@@ -88,30 +88,127 @@ namespace Bejeweled3Accessible.Update
         // redirect and reading its Location header (no page download needed).
         public static string GetLatestTag(int timeoutMs = 10000)
         {
+            ReleaseInfo release = GetLatestRelease(timeoutMs);
+            return release != null ? release.Tag : null;
+        }
+
+        public class ReleaseInfo
+        {
+            public string Tag;    // e.g. "v2026.8.10.0" (null when unreachable)
+            public string Notes;  // raw release body (may be null)
+            public bool IsValid { get { return !string.IsNullOrEmpty(Tag); } }
+        }
+
+        // Queries the GitHub API for the latest release: returns the tag and
+        // the raw release notes body. Best effort: never throws.
+        public static ReleaseInfo GetLatestRelease(int timeoutMs = 10000)
+        {
+            ReleaseInfo info = new ReleaseInfo();
             try
             {
                 HttpWebRequest req = (HttpWebRequest)WebRequest.Create(
-                    "https://github.com/" + GitHubRepo + "/releases/latest");
+                    "https://api.github.com/repos/" + GitHubRepo + "/releases/latest");
                 req.Method = "GET";
-                req.AllowAutoRedirect = false;
+                req.Accept = "application/vnd.github+json";
                 req.Timeout = timeoutMs;
                 req.UserAgent = "Bejeweled3Accessible-Updater/" + CurrentVersionString;
                 using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                using (StreamReader reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
                 {
-                    int code = (int)resp.StatusCode;
-                    if (code >= 300 && code < 400)
-                    {
-                        string location = resp.Headers["Location"];
-                        if (!string.IsNullOrEmpty(location))
-                        {
-                            int idx = location.LastIndexOf("/tag/", StringComparison.OrdinalIgnoreCase);
-                            if (idx >= 0) return location.Substring(idx + 5).TrimEnd('/');
-                        }
-                    }
+                    string json = reader.ReadToEnd();
+                    info.Tag = ReadJsonString(json, "tag_name");
+                    info.Notes = ReadJsonString(json, "body");
                 }
             }
             catch { }
-            return null;
+            return info;
+        }
+
+        // Reads "key":"value" from a JSON object, decoding the standard escapes.
+        private static string ReadJsonString(string json, string key)
+        {
+            if (string.IsNullOrEmpty(json)) return null;
+            string needle = "\"" + key + "\":\"";
+            int start = json.IndexOf(needle, StringComparison.Ordinal);
+            if (start < 0) return null;
+            start += needle.Length;
+            StringBuilder sb = new StringBuilder();
+            bool escaped = false;
+            for (int i = start; i < json.Length; i++)
+            {
+                char c = json[i];
+                if (escaped)
+                {
+                    switch (c)
+                    {
+                        case 'n': sb.Append('\n'); break;
+                        case 'r': sb.Append('\r'); break;
+                        case 't': sb.Append('\t'); break;
+                        case '"': sb.Append('"'); break;
+                        case '\\': sb.Append('\\'); break;
+                        case '/': sb.Append('/'); break;
+                        case 'u':
+                            if (i + 4 < json.Length)
+                            {
+                                string hex = json.Substring(i + 1, 4);
+                                try { sb.Append((char)Convert.ToInt32(hex, 16)); i += 4; }
+                                catch { }
+                            }
+                            break;
+                        default: sb.Append(c); break;
+                    }
+                    escaped = false;
+                }
+                else if (c == '\\') escaped = true;
+                else if (c == '"') break;
+                else sb.Append(c);
+            }
+            return sb.ToString();
+        }
+
+        // Notes are trimmed to keep screen-reader announcements short.
+        public const int MaxNotesChars = 1400;
+
+        // Returns the release notes section for the requested language. The
+        // release body carries "#ES" and "#EN" marker lines (case insensitive)
+        // and only the matching block is returned; when the markers are missing
+        // the whole body is used as a fallback. Long notes are trimmed.
+        public static string ExtractNotes(string body, bool spanish)
+        {
+            if (string.IsNullOrEmpty(body)) return "";
+            string[] lines = body.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n');
+            StringBuilder sb = new StringBuilder();
+            bool inBlock = false;
+            foreach (string rawLine in lines)
+            {
+                string trimmed = rawLine.Trim();
+                bool isMarker = trimmed.Length >= 3 && trimmed[0] == '#'
+                    && (trimmed.Substring(1).Trim().ToUpperInvariant() == "ES"
+                        || trimmed.Substring(1).Trim().ToUpperInvariant() == "EN");
+                if (isMarker)
+                {
+                    inBlock = trimmed.Substring(1).Trim().ToUpperInvariant() == (spanish ? "ES" : "EN");
+                    continue;
+                }
+                if (inBlock && trimmed.Length > 0)
+                {
+                    if (sb.Length > 0) sb.Append(' ');
+                    sb.Append(trimmed);
+                }
+            }
+            if (sb.Length == 0)
+            {
+                foreach (string rawLine in lines)
+                {
+                    string t = rawLine.Trim();
+                    if (t.Length == 0) continue;
+                    if (sb.Length > 0) sb.Append(' ');
+                    sb.Append(t);
+                }
+            }
+            string text = sb.ToString().Trim();
+            if (text.Length > MaxNotesChars) text = text.Substring(0, MaxNotesChars).TrimEnd() + "...";
+            return text;
         }
 
         public class UpdateDownloadResult

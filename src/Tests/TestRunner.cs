@@ -1690,6 +1690,29 @@ namespace Bejeweled3Accessible.Tests
                 Assert.Equal("2026.8.9.1", Bejeweled3Accessible.Update.AutoUpdater.DisplayVersion("v2026.8.9.1"), "DisplayVersion quita la v");
             }));
 
+            tests.Add(Tuple.Create<string, Action>("Update: ExtractNotes elige el idioma de la release", () =>
+            {
+                Bejeweled3Accessible.Update.AutoUpdater.ReleaseInfo info = new Bejeweled3Accessible.Update.AutoUpdater.ReleaseInfo();
+                info.Tag = "v2026.8.10.0";
+                Assert.True(info.IsValid, "ReleaseInfo con tag es valida");
+                Assert.True(new Bejeweled3Accessible.Update.AutoUpdater.ReleaseInfo().IsValid == false, "ReleaseInfo sin tag no es valida");
+
+                string body = "v2026.8.10.0\n#ES\n- Actualizador mejorado\n- Novedades en espanol\n#EN\n- Improved updater\n- English notes";
+                string es = Bejeweled3Accessible.Update.AutoUpdater.ExtractNotes(body, true);
+                Assert.True(es.Contains("Actualizador mejorado") && es.Contains("espanol") && !es.Contains("Improved"),
+                    "bloque ES no debe contener EN");
+                string en = Bejeweled3Accessible.Update.AutoUpdater.ExtractNotes(body, false);
+                Assert.True(en.Contains("Improved updater") && en.Contains("English") && !en.Contains("Actualizador"),
+                    "bloque EN no debe contener ES");
+                Assert.True(Bejeweled3Accessible.Update.AutoUpdater.ExtractNotes("notas sin marcadores", false).Contains("sin marcadores"),
+                    "sin marcadores devuelve el cuerpo completo");
+                string cut = Bejeweled3Accessible.Update.AutoUpdater.ExtractNotes(new string('x', 5000), true);
+                Assert.True(cut.Length <= Bejeweled3Accessible.Update.AutoUpdater.MaxNotesChars + 3,
+                    "el texto largo se recorta al maximo");
+                Assert.Equal("", Bejeweled3Accessible.Update.AutoUpdater.ExtractNotes(null, true), "null devuelve vacio");
+                Assert.Equal("", Bejeweled3Accessible.Update.AutoUpdater.ExtractNotes("", true), "vacio devuelve vacio");
+            }));
+
             return tests;
         }
 

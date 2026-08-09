@@ -31,6 +31,7 @@ namespace Bejeweled3Accessible.UI
         private int _loadingProgress = 0;
         private bool _updateChecked = false;
         private string _latestTag = null;
+        private string _latestNotesRaw = null;
         private bool _updatePromptActive = false;
         private bool _loadingComplete = false;
 
@@ -578,13 +579,16 @@ namespace Bejeweled3Accessible.UI
             else if (_screen == GameScreen.GameOver) HandleGameOverKeys(e);
         }
 
-        // Runs on a pool thread: asks GitHub for the latest tag and, when it is
-        // newer than the running version, announces it once in the main menu.
+        // Runs on a pool thread: asks GitHub for the latest release and, when
+        // it is newer than the running version, announces it once in the main
+        // menu with the current version and the new release notes.
         private void CheckForUpdatesAsync()
         {
-            string tag = null;
-            try { tag = Updater.GetLatestTag(); } catch { }
-            bool newer = tag != null && Updater.IsNewerThanCurrent(tag);
+            Updater.ReleaseInfo release = null;
+            try { release = Updater.GetLatestRelease(); } catch { }
+            bool newer = release != null && release.IsValid && Updater.IsNewerThanCurrent(release.Tag);
+            string tag = newer ? release.Tag : null;
+            string notesRaw = newer ? release.Notes : null;
             try
             {
                 BeginInvoke((MethodInvoker)delegate
@@ -593,14 +597,31 @@ namespace Bejeweled3Accessible.UI
                     if (newer)
                     {
                         _latestTag = tag;
+                        _latestNotesRaw = notesRaw;
                         if (_screen == GameScreen.MainMenu)
                         {
-                            _speech.Speak(Localization.Get("UpdateAvailable", Updater.DisplayVersion(tag)), false);
+                            _speech.Speak(BuildUpdateAnnouncement(false), false);
                         }
                     }
                 });
             }
             catch { }
+        }
+
+        // "You are on version X. The new version Y is available. What's new:
+        // <notes>." plus, when inMenu, the Enter/Escape instruction. Notes are
+        // extracted at speak time so the announcement follows the active
+        // language even if the user toggled it after the background check.
+        private string BuildUpdateAnnouncement(bool inMenu)
+        {
+            string notes = Updater.ExtractNotes(_latestNotesRaw, Localization.CurrentLanguage == Language.Spanish);
+            if (notes.Length > 0)
+            {
+                return Localization.Get(inMenu ? "UpdateFound" : "UpdateAvailable",
+                    Updater.CurrentVersionString, Updater.DisplayVersion(_latestTag), notes);
+            }
+            return Localization.Get(inMenu ? "UpdateFoundNoNotes" : "UpdateAvailableNoNotes",
+                Updater.CurrentVersionString, Updater.DisplayVersion(_latestTag));
         }
 
         // Download + install flow: prepares the update in %TEMP% and hands over
@@ -769,7 +790,7 @@ namespace Bejeweled3Accessible.UI
                     }
                     else
                     {
-                        _speech.Speak(Localization.Get("UpdateFound", Updater.DisplayVersion(_latestTag)), true);
+                        _speech.Speak(BuildUpdateAnnouncement(true), true);
                         _updatePromptActive = true;
                     }
                 }
