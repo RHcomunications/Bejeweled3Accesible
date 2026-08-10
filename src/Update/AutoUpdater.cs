@@ -107,7 +107,10 @@ namespace Bejeweled3Accessible.Update
         }
 
         // Queries the GitHub API for the latest release: returns the tag and
-        // the raw release notes body. Best effort: never throws.
+        // the raw release notes body. When the API is unavailable (rate limit,
+        // network block) it falls back to following the /releases/latest
+        // redirect, which needs no API. Best effort: never throws, and every
+        // check leaves a diagnostic line in %TEMP%\B3A_update_check.log.
         public static ReleaseInfo GetLatestRelease(int timeoutMs = 10000)
         {
             ReleaseInfo info = new ReleaseInfo();
@@ -127,8 +130,53 @@ namespace Bejeweled3Accessible.Update
                     info.Notes = ReadJsonString(json, "body");
                 }
             }
-            catch { }
+            catch (Exception ex) { Log("api.github.com fallo: " + ex.Message); }
+
+            if (!info.IsValid)
+            {
+                try
+                {
+                    HttpWebRequest req = (HttpWebRequest)WebRequest.Create(
+                        "https://github.com/" + GitHubRepo + "/releases/latest");
+                    req.Method = "HEAD";
+                    req.AllowAutoRedirect = false;
+                    req.Timeout = timeoutMs;
+                    req.UserAgent = "Bejeweled3Accessible-Updater/" + CurrentVersionString;
+                    using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                    {
+                        int code = (int)resp.StatusCode;
+                        if (code >= 300 && code < 400)
+                        {
+                            string location = resp.Headers["Location"];
+                            if (!string.IsNullOrEmpty(location))
+                            {
+                                int idx = location.LastIndexOf("/tag/", StringComparison.OrdinalIgnoreCase);
+                                if (idx >= 0)
+                                {
+                                    info.Tag = location.Substring(idx + 5).TrimEnd('/');
+                                    info.Notes = null;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception ex) { Log("redirect github.com fallo: " + ex.Message); }
+            }
+
+            Log("resultado: " + (info.IsValid ? info.Tag : "sin release (modo diagnostico)"));
             return info;
+        }
+
+        // One-line diagnostic log for support: %TEMP%\B3A_update_check.log
+        private static void Log(string message)
+        {
+            try
+            {
+                File.AppendAllText(
+                    Path.Combine(Path.GetTempPath(), "B3A_update_check.log"),
+                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + " " + message + Environment.NewLine);
+            }
+            catch { }
         }
 
         // Reads "key":"value" from a JSON object, decoding the standard escapes.
@@ -218,6 +266,78 @@ namespace Bejeweled3Accessible.Update
             return text;
         }
 
+        // Human-readable byte count for announcements, e.g. "186 megabytes",
+        // "1,9 gigabytes" (es) / "1.9 gigabytes" (en). Decimals use a comma in
+        // Spanish and a dot in English, matching how each language is read.
+        public static string FormatBytes(long bytes, bool spanish)
+        {
+            if (bytes < 0) bytes = 0;
+            if (bytes >= 1073741824L)
+            {
+                double gb = bytes / 1073741824.0;
+                if (Math.Round(gb, 1) == 1.0) return "1 " + (spanish ? "gigabyte" : "gigabyte");
+                string s = gb.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+                if (spanish) s = s.Replace('.', ',');
+                return s + " " + (spanish ? "gigabytes" : "gigabytes");
+            }
+            if (bytes >= 1048576L)
+            {
+                long mb = (long)Math.Round(bytes / 1048576.0);
+                return mb + " " + (mb == 1 ? (spanish ? "megabyte" : "megabyte") : (spanish ? "megabytes" : "megabytes"));
+            }
+            if (bytes >= 1024L)
+            {
+                long kb = (long)Math.Round(bytes / 1024.0);
+                return kb + " " + (kb == 1 ? (spanish ? "kilobyte" : "kilobyte") : (spanish ? "kilobytes" : "kilobytes"));
+            }
+            return bytes + " " + (bytes == 1 ? (spanish ? "byte" : "byte") : (spanish ? "bytes" : "bytes"));
+        }
+
+        // Download speed, e.g. "5 megabytes por segundo" or "1,5 megabytes por
+        // segundo". One decimal below 10 of the current unit, integers above.
+        public static string FormatSpeed(double bytesPerSecond, bool spanish)
+        {
+            if (bytesPerSecond < 0) bytesPerSecond = 0;
+            string suffix = spanish ? "por segundo" : "per second";
+            if (bytesPerSecond >= 1048576.0)
+            {
+                double mb = bytesPerSecond / 1048576.0;
+                string unit = spanish ? "megabytes" : "megabytes";
+                if (mb >= 10.0 || Math.Round(mb, 1) == Math.Floor(mb))
+                    return (long)Math.Round(mb) + " " + unit + " " + suffix;
+                string s = mb.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+                if (spanish) s = s.Replace('.', ',');
+                return s + " " + unit + " " + suffix;
+            }
+            if (bytesPerSecond >= 1024.0)
+            {
+                double kb = bytesPerSecond / 1024.0;
+                string unit = spanish ? "kilobytes" : "kilobytes";
+                if (kb >= 10.0 || Math.Round(kb, 1) == Math.Floor(kb))
+                    return (long)Math.Round(kb) + " " + unit + " " + suffix;
+                string s = kb.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture);
+                if (spanish) s = s.Replace('.', ',');
+                return s + " " + unit + " " + suffix;
+            }
+            return (long)bytesPerSecond + " " + (spanish ? "bytes" : "bytes") + " " + suffix;
+        }
+
+        // Remaining time, e.g. "45 segundos", "1 minuto y 15 segundos".
+        public static string FormatDuration(double seconds, bool spanish)
+        {
+            if (seconds < 0) seconds = 0;
+            if (seconds < 1.0) return spanish ? "menos de 1 segundo" : "less than 1 second";
+            long total = (long)Math.Round(seconds);
+            long min = total / 60;
+            long sec = total % 60;
+            if (min == 0)
+                return sec + " " + (sec == 1 ? (spanish ? "segundo" : "second") : (spanish ? "segundos" : "seconds"));
+            string minuteWord = min == 1 ? (spanish ? "minuto" : "minute") : (spanish ? "minutos" : "minutes");
+            if (sec == 0) return min + " " + minuteWord;
+            return min + " " + minuteWord + (spanish ? " y " : " and ") + sec + " "
+                + (sec == 1 ? (spanish ? "segundo" : "second") : (spanish ? "segundos" : "seconds"));
+        }
+
         public class UpdateDownloadResult
         {
             public string Error;       // null when everything is ready
@@ -226,8 +346,11 @@ namespace Bejeweled3Accessible.Update
 
         // Downloads the release zip for `tag` into %TEMP%, extracts it and
         // writes the updater script. Returns an UpdateDownloadResult; Error is
-        // null when the update is ready to install.
-        public static UpdateDownloadResult PrepareUpdate(string tag, string exeDir)
+        // null when the update is ready to install. progressCallback (optional)
+        // receives DownloadProgressChanged events while the zip is downloaded,
+        // so the UI can announce progress to the user.
+        public static UpdateDownloadResult PrepareUpdate(string tag, string exeDir,
+            Action<DownloadProgressChangedEventArgs> progressCallback = null)
         {
             UpdateDownloadResult result = new UpdateDownloadResult();
             try
@@ -247,11 +370,33 @@ namespace Bejeweled3Accessible.Update
                 {
                     string url = "https://github.com/" + GitHubRepo
                         + "/releases/download/" + tag + "/" + BuildZipAssetName(tag);
-                    using (WebClient client = new WebClient())
+                    Exception lastError = null;
+                    for (int attempt = 0; attempt < 3; attempt++)
                     {
-                        client.Headers[HttpRequestHeader.UserAgent] =
-                            "Bejeweled3Accessible-Updater/" + CurrentVersionString;
-                        client.DownloadFile(url, zipPath);
+                        try
+                        {
+                            using (WebClient client = new WebClient())
+                            {
+                                client.Headers[HttpRequestHeader.UserAgent] =
+                                    "Bejeweled3Accessible-Updater/" + CurrentVersionString;
+                                if (progressCallback != null)
+                                    client.DownloadProgressChanged += (s, e) => progressCallback(e);
+                                client.DownloadFile(url, zipPath);
+                            }
+                            lastError = null;
+                            break;
+                        }
+                        catch (Exception ex)
+                        {
+                            lastError = ex;
+                            System.Threading.Thread.Sleep(400); // reintenta: el archivo puede estar en uso un instante
+                        }
+                    }
+                    if (lastError != null)
+                    {
+                        try { if (File.Exists(zipPath)) File.Delete(zipPath); } catch { }
+                        result.Error = "descarga fallida: " + lastError.Message;
+                        return result;
                     }
                 }
 

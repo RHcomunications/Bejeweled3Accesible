@@ -33,6 +33,14 @@ namespace Bejeweled3Accessible.UI
         private string _latestTag = null;
         private string _latestNotesRaw = null;
         private bool _updatePromptActive = false;
+        private readonly object _dlLock = new object();
+        private long _dlTotal = 0;
+        private long _dlReceived = 0;
+        private double _dlSpeed = 0;
+        private long _dlLastBytes = 0;
+        private DateTime _dlLastTime = DateTime.MinValue;
+        private int _dlNextAnnounce = 10;
+        private int _updateInfoMode = 0; // 0: tamano, 1: descargado/total, 2: velocidad/tiempo restante
         private bool _loadingComplete = false;
 
         private int _menuIdx = 0;
@@ -626,52 +634,129 @@ namespace Bejeweled3Accessible.UI
 
         // Download + install flow: prepares the update in %TEMP% and hands over
         // to a hidden script that swaps the game folder and reopens the game.
+        private bool _updateBusy = false;
         private async void PerformUpdate()
         {
-            string tag = _latestTag;
-            if (tag == null) return;
-            _sound.PlaySound("button_press");
-            _speech.Speak(Localization.Get("UpdateDownloading"), true);
-
-            Updater.UpdateDownloadResult result = null;
+            if (_updateBusy) return; // doble pulsacion de Enter: solo una descarga
+            _updateBusy = true;
             try
             {
-                string exeDir = Path.GetDirectoryName(Application.ExecutablePath);
-                result = await Task.Run(() => Updater.PrepareUpdate(tag, exeDir));
-            }
-            catch (Exception ex)
-            {
-                _speech.Speak(Localization.Get("UpdateError", ex.Message), true);
-                return;
-            }
-
-            if (result == null || result.Error != null)
-            {
-                _speech.Speak(Localization.Get("UpdateError", result != null ? result.Error : "error"), true);
-                return;
-            }
-
-            _speech.Speak(Localization.Get("UpdateInstalling"), true);
-            try
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(result.ScriptPath)
+                string tag = _latestTag;
+                if (tag == null) return;
+                lock (_dlLock)
                 {
-                    WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
-                    UseShellExecute = true
+                    _dlTotal = 0; _dlReceived = 0; _dlSpeed = 0;
+                    _dlLastBytes = 0; _dlLastTime = DateTime.UtcNow; _dlNextAnnounce = 10;
+                }
+                _updateInfoMode = 0;
+                _sound.PlaySound("button_press");
+                _speech.Speak(Localization.Get("UpdateDownloading"), true);
+
+                Updater.UpdateDownloadResult result = null;
+                try
+                {
+                    string exeDir = Path.GetDirectoryName(Application.ExecutablePath);
+                    result = await Task.Run(() => Updater.PrepareUpdate(tag, exeDir, e => OnDownloadProgress(e)));
+                }
+                catch (Exception ex)
+                {
+                    _speech.Speak(Localization.Get("UpdateError", ex.Message), true);
+                    return;
+                }
+
+                if (result == null || result.Error != null)
+                {
+                    _speech.Speak(Localization.Get("UpdateError", result != null ? result.Error : "error"), true);
+                    return;
+                }
+
+                _speech.Speak(Localization.Get("UpdateInstalling"), true);
+                try
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(result.ScriptPath)
+                    {
+                        WindowStyle = System.Diagnostics.ProcessWindowStyle.Hidden,
+                        UseShellExecute = true
+                    });
+                }
+                catch (Exception ex)
+                {
+                    _speech.Speak(Localization.Get("UpdateError", ex.Message), true);
+                    return;
+                }
+
+                // Close the game: the script waits for this process to end, replaces
+                // the files and starts the new version by itself.
+                Task.Delay(1500).ContinueWith(_2 =>
+                {
+                    try { Invoke(new Action(() => Close())); } catch { }
                 });
             }
-            catch (Exception ex)
-            {
-                _speech.Speak(Localization.Get("UpdateError", ex.Message), true);
-                return;
-            }
+            finally { _updateBusy = false; }
+        }
 
-            // Close the game: the script waits for this process to end, replaces
-            // the files and starts the new version by itself.
-            Task.Delay(1500).ContinueWith(_2 =>
+        // Download progress callback (worker thread): keeps the status that the
+        // Space key reads and announces every 10% crossed (10, 20, ... 90).
+        private void OnDownloadProgress(System.Net.DownloadProgressChangedEventArgs e)
+        {
+            long recv = e.BytesReceived;
+            long total = e.TotalBytesToReceive;
+            DateTime now = DateTime.UtcNow;
+            lock (_dlLock)
             {
-                try { Invoke(new Action(() => Close())); } catch { }
-            });
+                if (_dlLastTime != DateTime.MinValue)
+                {
+                    double dt = (now - _dlLastTime).TotalSeconds;
+                    if (dt >= 0.25)
+                    {
+                        _dlSpeed = (recv - _dlLastBytes) / dt;
+                        _dlLastBytes = recv;
+                        _dlLastTime = now;
+                    }
+                }
+                else
+                {
+                    _dlLastBytes = recv;
+                    _dlLastTime = now;
+                }
+                _dlReceived = recv;
+                if (total > 0) _dlTotal = total;
+            }
+            int pct = total > 0 ? (int)(recv * 100.0 / total) : 0;
+            if (pct < 100 && pct >= _dlNextAnnounce)
+            {
+                int announced = (pct / 10) * 10;
+                try
+                {
+                    BeginInvoke((MethodInvoker)delegate
+                    {
+                        _speech.Speak(Localization.Get("UpdateProgress", announced), false);
+                    });
+                }
+                catch { }
+                lock (_dlLock) { _dlNextAnnounce = announced + 10; }
+            }
+        }
+
+        // Announces the download status queried with Space. Mode 1: total file
+        // size. Mode 2: downloaded so far out of the total. Mode 3: speed and
+        // remaining time.
+        private string BuildDownloadStatus()
+        {
+            long total, recv;
+            double speed;
+            lock (_dlLock) { total = _dlTotal; recv = _dlReceived; speed = _dlSpeed; }
+            bool es = Localization.CurrentLanguage == Language.Spanish;
+            if (total <= 0) return Localization.Get("UpdateDownloading");
+            if (_updateInfoMode == 0)
+                return Localization.Get("UpdateInfoOption", "1",
+                    Localization.Get("UpdateSize", Updater.FormatBytes(total, es)));
+            if (_updateInfoMode == 1)
+                return Localization.Get("UpdateInfoOption", "2",
+                    Localization.Get("UpdateDownloaded", Updater.FormatBytes(recv, es), Updater.FormatBytes(total, es)));
+            double eta = speed > 0 ? (total - recv) / speed : 0;
+            return Localization.Get("UpdateInfoOption", "3",
+                Localization.Get("UpdateSpeed", Updater.FormatSpeed(speed, es), Updater.FormatDuration(eta, es)));
         }
 
         private string[] GetGameOverItems()
@@ -803,6 +888,15 @@ namespace Bejeweled3Accessible.UI
                         try { Invoke(new Action(() => Close())); } catch { }
                     });
                 }
+            }
+            else if (e.KeyCode == Keys.Space && _updateBusy)
+            {
+                // During an update download: query the status. Each press
+                // cycles the announcement mode 1 (size), 2 (downloaded/total),
+                // 3 (speed and time remaining).
+                _updateInfoMode = (_updateInfoMode + 1) % 3;
+                _sound.PlaySound("button_press");
+                _speech.Speak(BuildDownloadStatus(), true);
             }
         }
 

@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using Bejeweled3Accessible.Engine;
@@ -1718,6 +1718,40 @@ namespace Bejeweled3Accessible.Tests
                 Assert.Equal("Bejeweled3Accesible-2026.8.9.1.zip",
                     Bejeweled3Accessible.Update.AutoUpdater.BuildZipAssetName("v2026.8.9.1"),
                     "el asset zip va sin la v, como en las releases publicadas");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Update: formato de bytes y velocidad en espanol", () =>
+            {
+                Assert.Equal("512 bytes", Bejeweled3Accessible.Update.AutoUpdater.FormatBytes(512, true), "bytes enteros");
+                Assert.Equal("1 kilobyte", Bejeweled3Accessible.Update.AutoUpdater.FormatBytes(1024, true), "un kilobyte");
+                Assert.Equal("2 kilobytes", Bejeweled3Accessible.Update.AutoUpdater.FormatBytes(2048, true), "kilobytes");
+                Assert.Equal("186 megabytes", Bejeweled3Accessible.Update.AutoUpdater.FormatBytes(186L * 1048576L, true), "megabytes");
+                Assert.Equal("1 megabyte", Bejeweled3Accessible.Update.AutoUpdater.FormatBytes(1048576L, true), "un megabyte");
+                Assert.Equal("1,9 gigabytes", Bejeweled3Accessible.Update.AutoUpdater.FormatBytes(2000000000L, true), "gigabytes con coma decimal");
+                Assert.Equal("5 megabytes por segundo", Bejeweled3Accessible.Update.AutoUpdater.FormatSpeed(5242880.0, true), "velocidad entera");
+                Assert.Equal("1,5 megabytes por segundo", Bejeweled3Accessible.Update.AutoUpdater.FormatSpeed(1572864.0, true), "velocidad con decimal");
+                Assert.Equal("200 kilobytes por segundo", Bejeweled3Accessible.Update.AutoUpdater.FormatSpeed(204800.0, true), "velocidad en kilobytes");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Update: formato de bytes y velocidad en ingles", () =>
+            {
+                Assert.Equal("512 bytes", Bejeweled3Accessible.Update.AutoUpdater.FormatBytes(512, false), "bytes enteros");
+                Assert.Equal("2 kilobytes", Bejeweled3Accessible.Update.AutoUpdater.FormatBytes(2048, false), "kilobytes");
+                Assert.Equal("1.9 gigabytes", Bejeweled3Accessible.Update.AutoUpdater.FormatBytes(2000000000L, false), "gigabytes con punto decimal");
+                Assert.Equal("5 megabytes per second", Bejeweled3Accessible.Update.AutoUpdater.FormatSpeed(5242880.0, false), "velocidad entera");
+                Assert.Equal("1.5 megabytes per second", Bejeweled3Accessible.Update.AutoUpdater.FormatSpeed(1572864.0, false), "velocidad con decimal");
+                Assert.Equal("200 kilobytes per second", Bejeweled3Accessible.Update.AutoUpdater.FormatSpeed(204800.0, false), "velocidad en kilobytes");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Update: formato de tiempo restante en ambos idiomas", () =>
+            {
+                Assert.Equal("menos de 1 segundo", Bejeweled3Accessible.Update.AutoUpdater.FormatDuration(0.5, true), "menos de un segundo ES");
+                Assert.Equal("less than 1 second", Bejeweled3Accessible.Update.AutoUpdater.FormatDuration(0.5, false), "menos de un segundo EN");
+                Assert.Equal("45 segundos", Bejeweled3Accessible.Update.AutoUpdater.FormatDuration(45.0, true), "segundos ES");
+                Assert.Equal("1 segundo", Bejeweled3Accessible.Update.AutoUpdater.FormatDuration(1.0, true), "un segundo");
+                Assert.Equal("1 minuto", Bejeweled3Accessible.Update.AutoUpdater.FormatDuration(60.0, true), "un minuto justo");
+                Assert.Equal("1 minuto y 15 segundos", Bejeweled3Accessible.Update.AutoUpdater.FormatDuration(75.0, true), "minuto y segundos ES");
+                Assert.Equal("2 minutes and 5 seconds", Bejeweled3Accessible.Update.AutoUpdater.FormatDuration(125.0, false), "minutos y segundos EN");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Update: GetLatestRelease no lanza y con red devuelve la ultima release", () =>

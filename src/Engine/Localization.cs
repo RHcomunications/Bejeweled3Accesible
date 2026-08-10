@@ -21,7 +21,7 @@ namespace Bejeweled3Accessible.Engine
         private static readonly Dictionary<string, Tuple<string, string>> _dict = new Dictionary<string, Tuple<string, string>>
         {
             // Loading Screen
-            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.8.10.0.", "Loading Bejeweled 3... Version 2026.8.10.0.") },
+            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.8.9.1.", "Loading Bejeweled 3... Version 2026.8.9.1.") },
             { "LoadingPrompt", new Tuple<string, string>("Presiona cualquier tecla para continuar", "Press any key to continue") },
 
             // Profile Screen
@@ -32,7 +32,7 @@ namespace Bejeweled3Accessible.Engine
             { "ProfileDelete", new Tuple<string, string>("Eliminar perfil actual", "Delete current profile") },
 
             // Menus
-            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.8.10.0", "Bejeweled 3 Accessible - Version 2026.8.10.0") },
+            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.8.9.1", "Bejeweled 3 Accessible - Version 2026.8.9.1") },
             { "MenuPlay", new Tuple<string, string>("Jugar Bejeweled 3", "Play Bejeweled 3") },
             { "MenuChangeUser", new Tuple<string, string>("Haz clic aquí para cambiar de usuario. Perfil actual: {0}", "Click here to change user. Current profile: {0}") },
             { "MenuLanguage", new Tuple<string, string>("Idioma: Español. Pulsa Enter para cambiar", "Language: English. Press Enter to switch to Spanish") },
@@ -59,6 +59,11 @@ namespace Bejeweled3Accessible.Engine
             { "UpdateDownloading", new Tuple<string, string>("Descargando la nueva versión, un momento...", "Downloading the new version, one moment...") },
             { "UpdateInstalling", new Tuple<string, string>("Versión descargada. El juego se cerrará, se instalará la actualización y se abrirá solo al terminar.", "Version downloaded. The game will close, install the update and open by itself when done.") },
             { "UpdateError", new Tuple<string, string>("No se pudo completar la actualización: {0}", "Could not complete the update: {0}") },
+            { "UpdateProgress", new Tuple<string, string>("Descarga: {0} por ciento completada", "Download: {0} percent complete") },
+            { "UpdateSize", new Tuple<string, string>("Tamaño del archivo: {0}", "File size: {0}") },
+            { "UpdateDownloaded", new Tuple<string, string>("Descargados {0} de {1}", "Downloaded {0} of {1}") },
+            { "UpdateSpeed", new Tuple<string, string>("Velocidad: {0}. Tiempo restante: {1}", "Speed: {0}. Time remaining: {1}") },
+            { "UpdateInfoOption", new Tuple<string, string>("Opción {0}: {1}", "Option {0}: {1}") },
             { "SelectMode", new Tuple<string, string>("Seleccionar Modo de Juego: ", "Select Game Mode: ") },
             { "BackToMain", new Tuple<string, string>("Volver al Menú Principal", "Back to Main Menu") },
 
