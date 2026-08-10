@@ -2066,6 +2066,7 @@ namespace Bejeweled3Accessible.UI
                         if (questCompleted)
                         {
                             int relicDoneBefore = _progress.CountCompletedInRelic(_activeQuest.RelicIndex);
+                            int relicsBefore = _progress.QuestRelicCount;
                             _progress.CompleteQuestMission(_activeQuestIndex);
                             int relicDone = _progress.CountCompletedInRelic(_activeQuest.RelicIndex);
                             if (relicDone == 4 && relicDoneBefore < 4)
@@ -2082,14 +2083,17 @@ namespace Bejeweled3Accessible.UI
                             _screen = GameScreen.QuestRelicScreen;
                             _relicIdx = _activeQuest.RelicIndex;
 
-                            // Authentic unlock: the first relic revealed (one
-                            // complete relicary) opens Diamond Mine.
-                            if (_progress.QuestRelicCount >= 1)
+                            // Authentic unlock: only the very first relicary
+                            // (relic count going 0 -> 1) opens Diamond Mine.
+                            // Once unlocked, later relicaries must NOT repeat
+                            // the unlock announcement.
+                            bool mineJustUnlocked = relicsBefore == 0 && _progress.QuestRelicCount >= 1;
+                            if (mineJustUnlocked)
                             {
                                 _sound.PlaySound("secretunlocked");
                             }
 
-                            string questAnnounce = _progress.QuestRelicCount >= 1
+                            string questAnnounce = mineJustUnlocked
                                 ? Localization.Get("UnlockDiamondMine") + " " + Localization.Get("QuestCompleteAnnounce", _activeQuestName)
                                 : Localization.Get("QuestCompleteAnnounce", _activeQuestName);
                             _speech.Speak(questAnnounce, true);

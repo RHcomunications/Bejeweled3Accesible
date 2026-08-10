@@ -51,6 +51,7 @@ namespace Bejeweled3Accessible.Tests
     {
         public static int Main(string[] args)
         {
+            bool noAudio = args != null && Array.IndexOf(args, "--no-audio") >= 0;
             if (args != null && args.Length > 0 && args[0] == "--hrtf-scan")
             {
                 RunHrtfScan();
@@ -58,12 +59,20 @@ namespace Bejeweled3Accessible.Tests
             }
 
             Console.WriteLine("=== SUITE DE TESTS UNITARIOS - BEJEWELED 3 ACCESIBLE ===");
+            if (noAudio) Console.WriteLine("Modo --no-audio: las pruebas que reproducen sonido se omiten.");
             List<Tuple<string, Action>> tests = BuildTestList();
             int passed = 0;
             int failed = 0;
+            int skipped = 0;
 
             foreach (var test in tests)
             {
+                if (noAudio && test.Item1.StartsWith("Sound:"))
+                {
+                    skipped++;
+                    Console.WriteLine("[OMITIDO] " + test.Item1);
+                    continue;
+                }
                 try
                 {
                     test.Item2();
@@ -78,7 +87,14 @@ namespace Bejeweled3Accessible.Tests
             }
 
             Console.WriteLine();
-            Console.WriteLine(string.Format("RESULTADO: {0} de {1} tests pasaron ({2} fallos).", passed, tests.Count, failed));
+            if (skipped > 0)
+            {
+                Console.WriteLine(string.Format("RESULTADO: {0} de {1} tests pasaron, {2} omitidos por --no-audio ({3} fallos).", passed, tests.Count - skipped, skipped, failed));
+            }
+            else
+            {
+                Console.WriteLine(string.Format("RESULTADO: {0} de {1} tests pasaron ({2} fallos).", passed, tests.Count, failed));
+            }
             return failed == 0 ? 0 : 1;
         }
 
