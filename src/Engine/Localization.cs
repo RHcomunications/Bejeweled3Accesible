@@ -21,7 +21,7 @@ namespace Bejeweled3Accessible.Engine
         private static readonly Dictionary<string, Tuple<string, string>> _dict = new Dictionary<string, Tuple<string, string>>
         {
             // Loading Screen
-            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.8.9.1.", "Loading Bejeweled 3... Version 2026.8.9.1.") },
+            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.8.9.2.", "Loading Bejeweled 3... Version 2026.8.9.2.") },
             { "LoadingPrompt", new Tuple<string, string>("Presiona cualquier tecla para continuar", "Press any key to continue") },
 
             // Profile Screen
@@ -32,7 +32,7 @@ namespace Bejeweled3Accessible.Engine
             { "ProfileDelete", new Tuple<string, string>("Eliminar perfil actual", "Delete current profile") },
 
             // Menus
-            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.8.9.1", "Bejeweled 3 Accessible - Version 2026.8.9.1") },
+            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.8.9.2", "Bejeweled 3 Accessible - Version 2026.8.9.2") },
             { "MenuPlay", new Tuple<string, string>("Jugar Bejeweled 3", "Play Bejeweled 3") },
             { "MenuChangeUser", new Tuple<string, string>("Haz clic aquí para cambiar de usuario. Perfil actual: {0}", "Click here to change user. Current profile: {0}") },
             { "MenuLanguage", new Tuple<string, string>("Idioma: Español. Pulsa Enter para cambiar", "Language: English. Press Enter to switch to Spanish") },
@@ -50,7 +50,7 @@ namespace Bejeweled3Accessible.Engine
             { "MenuExit", new Tuple<string, string>("Salir", "Exit") },
             { "MenuUpdateCheck", new Tuple<string, string>("Actualización: comprobar e instalar", "Update: check and install") },
             { "UpdateChecking", new Tuple<string, string>("Comprobando actualizaciones...", "Checking for updates...") },
-            { "UpdateNone", new Tuple<string, string>("No hay versiones nuevas del juego.", "No new game versions available.") },
+            { "UpdateNone", new Tuple<string, string>("No hay versiones nuevas. Estás en la versión {0}, la más reciente.", "No new versions available. You are on version {0}, the latest.") },
             { "UpdateAvailable", new Tuple<string, string>("Estás en la versión {0}. Hay una nueva versión {1} disponible. Novedades de esta versión: {2}. Puedes instalarla desde Actualización: comprobar e instalar en el menú principal.", "You are on version {0}. A new version {1} is available. What's new in this version: {2}. You can install it from Update: check and install in the main menu.") },
             { "UpdateAvailableNoNotes", new Tuple<string, string>("Estás en la versión {0}. Hay una nueva versión {1} disponible. Puedes instalarla desde Actualización: comprobar e instalar en el menú principal.", "You are on version {0}. A new version {1} is available. You can install it from Update: check and install in the main menu.") },
             { "UpdateFound", new Tuple<string, string>("Estás en la versión {0}. La nueva versión {1} está disponible. Novedades de esta versión: {2}. Pulsa Enter para descargar e instalar, o Escape para cancelar.", "You are on version {0}. The new version {1} is available. What's new in this version: {2}. Press Enter to download and install, or Escape to cancel.") },

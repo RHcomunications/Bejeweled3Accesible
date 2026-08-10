@@ -871,7 +871,7 @@ namespace Bejeweled3Accessible.UI
                     }
                     else if (_latestTag == null)
                     {
-                        _speech.Speak(Localization.Get("UpdateNone"), true);
+                        _speech.Speak(string.Format(Localization.Get("UpdateNone"), Updater.CurrentVersionString), true);
                     }
                     else
                     {
