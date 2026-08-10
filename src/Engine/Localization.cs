@@ -21,7 +21,7 @@ namespace Bejeweled3Accessible.Engine
         private static readonly Dictionary<string, Tuple<string, string>> _dict = new Dictionary<string, Tuple<string, string>>
         {
             // Loading Screen
-            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.8.9.4.", "Loading Bejeweled 3... Version 2026.8.9.4.") },
+            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.8.9.5.", "Loading Bejeweled 3... Version 2026.8.9.5.") },
             { "LoadingPrompt", new Tuple<string, string>("Presiona cualquier tecla para continuar", "Press any key to continue") },
 
             // Profile Screen
@@ -32,7 +32,7 @@ namespace Bejeweled3Accessible.Engine
             { "ProfileDelete", new Tuple<string, string>("Eliminar perfil actual", "Delete current profile") },
 
             // Menus
-            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.8.9.4", "Bejeweled 3 Accessible - Version 2026.8.9.4") },
+            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.8.9.5", "Bejeweled 3 Accessible - Version 2026.8.9.5") },
             { "MenuPlay", new Tuple<string, string>("Jugar Bejeweled 3", "Play Bejeweled 3") },
             { "MenuChangeUser", new Tuple<string, string>("Haz clic aquí para cambiar de usuario. Perfil actual: {0}", "Click here to change user. Current profile: {0}") },
             { "MenuLanguage", new Tuple<string, string>("Idioma: Español. Pulsa Enter para cambiar", "Language: English. Press Enter to switch to Spanish") },
@@ -63,7 +63,6 @@ namespace Bejeweled3Accessible.Engine
             { "UpdateSize", new Tuple<string, string>("Tamaño del archivo: {0}", "File size: {0}") },
             { "UpdateDownloaded", new Tuple<string, string>("Descargados {0} de {1}", "Downloaded {0} of {1}") },
             { "UpdateSpeed", new Tuple<string, string>("Velocidad: {0}. Tiempo restante: {1}", "Speed: {0}. Time remaining: {1}") },
-            { "UpdateInfoOption", new Tuple<string, string>("Opción {0}: {1}", "Option {0}: {1}") },
             { "SelectMode", new Tuple<string, string>("Seleccionar Modo de Juego: ", "Select Game Mode: ") },
             { "BackToMain", new Tuple<string, string>("Volver al Menú Principal", "Back to Main Menu") },
 

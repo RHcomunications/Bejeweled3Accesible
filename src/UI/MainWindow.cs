@@ -40,7 +40,6 @@ namespace Bejeweled3Accessible.UI
         private long _dlLastBytes = 0;
         private DateTime _dlLastTime = DateTime.MinValue;
         private int _dlNextAnnounce = 10;
-        private int _updateInfoMode = 0; // 0: tamano, 1: descargado/total, 2: velocidad/tiempo restante
         private bool _loadingComplete = false;
 
         private int _menuIdx = 0;
@@ -648,7 +647,6 @@ namespace Bejeweled3Accessible.UI
                     _dlTotal = 0; _dlReceived = 0; _dlSpeed = 0;
                     _dlLastBytes = 0; _dlLastTime = DateTime.UtcNow; _dlNextAnnounce = 10;
                 }
-                _updateInfoMode = 0;
                 _sound.PlaySound("button_press");
                 _speech.Speak(Localization.Get("UpdateDownloading"), true);
 
@@ -738,25 +736,23 @@ namespace Bejeweled3Accessible.UI
             }
         }
 
-        // Announces the download status queried with Space. Mode 1: total file
-        // size. Mode 2: downloaded so far out of the total. Mode 3: speed and
-        // remaining time.
-        private string BuildDownloadStatus()
+        // Announces a download detail queried with the number keys.
+        // Mode 1: total file size. Mode 2: downloaded so far out of the total.
+        // Mode 3: speed and remaining time. Space announces the overall
+        // percentage instead (UpdateProgress).
+        private string BuildDownloadStatus(int mode)
         {
             long total, recv;
             double speed;
             lock (_dlLock) { total = _dlTotal; recv = _dlReceived; speed = _dlSpeed; }
             bool es = Localization.CurrentLanguage == Language.Spanish;
             if (total <= 0) return Localization.Get("UpdateDownloading");
-            if (_updateInfoMode == 0)
-                return Localization.Get("UpdateInfoOption", "1",
-                    Localization.Get("UpdateSize", Updater.FormatBytes(total, es)));
-            if (_updateInfoMode == 1)
-                return Localization.Get("UpdateInfoOption", "2",
-                    Localization.Get("UpdateDownloaded", Updater.FormatBytes(recv, es), Updater.FormatBytes(total, es)));
+            if (mode == 1)
+                return Localization.Get("UpdateSize", Updater.FormatBytes(total, es));
+            if (mode == 2)
+                return Localization.Get("UpdateDownloaded", Updater.FormatBytes(recv, es), Updater.FormatBytes(total, es));
             double eta = speed > 0 ? (total - recv) / speed : 0;
-            return Localization.Get("UpdateInfoOption", "3",
-                Localization.Get("UpdateSpeed", Updater.FormatSpeed(speed, es), Updater.FormatDuration(eta, es)));
+            return Localization.Get("UpdateSpeed", Updater.FormatSpeed(speed, es), Updater.FormatDuration(eta, es));
         }
 
         private string[] GetGameOverItems()
@@ -891,12 +887,32 @@ namespace Bejeweled3Accessible.UI
             }
             else if (e.KeyCode == Keys.Space && _updateBusy)
             {
-                // During an update download: query the status. Each press
-                // cycles the announcement mode 1 (size), 2 (downloaded/total),
-                // 3 (speed and time remaining).
-                _updateInfoMode = (_updateInfoMode + 1) % 3;
+                // Estado general de la descarga: porcentaje actual.
+                long total, recv;
+                lock (_dlLock) { total = _dlTotal; recv = _dlReceived; }
                 _sound.PlaySound("button_press");
-                _speech.Speak(BuildDownloadStatus(), true);
+                int pct = total > 0 ? (int)(recv * 100.0 / total) : -1;
+                _speech.Speak(pct >= 0
+                    ? Localization.Get("UpdateProgress", Math.Min(99, pct))
+                    : Localization.Get("UpdateDownloading"), true);
+            }
+            else if (_updateBusy && (e.KeyCode == Keys.D1 || e.KeyCode == Keys.NumPad1))
+            {
+                // Detalle 1: tamano del archivo.
+                _sound.PlaySound("button_press");
+                _speech.Speak(BuildDownloadStatus(1), true);
+            }
+            else if (_updateBusy && (e.KeyCode == Keys.D2 || e.KeyCode == Keys.NumPad2))
+            {
+                // Detalle 2: descargado de total.
+                _sound.PlaySound("button_press");
+                _speech.Speak(BuildDownloadStatus(2), true);
+            }
+            else if (_updateBusy && (e.KeyCode == Keys.D3 || e.KeyCode == Keys.NumPad3))
+            {
+                // Detalle 3: velocidad y tiempo restante.
+                _sound.PlaySound("button_press");
+                _speech.Speak(BuildDownloadStatus(3), true);
             }
         }
 
