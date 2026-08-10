@@ -537,12 +537,14 @@ namespace Bejeweled3Accessible.Audio
         }
 
         // Music ducking: while a locution (voice_*) is sounding, the music
-        // lowers a little and returns gently, like the original game where the
-        // announcer talks over a quieter track. The attack/release ramp moves
-        // in small steps so the music never pumps or clicks.
-        private const float MUSIC_DUCK_FACTOR = 0.55f;
+        // drops deep (20% of its current volume, like the original where the
+        // track almost disappears under the announcer) and returns gently.
+        // The attack is fast so the track ducks right when the voice starts,
+        // and the release is slower so the music never pumps or clicks.
+        private const float MUSIC_DUCK_FACTOR = 0.20f;
         private const int DUCK_TICK_MS = 25;
-        private const float DUCK_STEP = 0.08f;
+        private const float DUCK_ATTACK_STEP = 0.12f;
+        private const float DUCK_RELEASE_STEP = 0.06f;
         private readonly object _duckLock = new object();
         private float _duckCurrent = 1.0f;
         private float _duckTarget = 1.0f;
@@ -572,9 +574,9 @@ namespace Bejeweled3Accessible.Audio
             lock (_duckLock)
             {
                 if (_duckCurrent < _duckTarget)
-                    _duckCurrent = Math.Min(_duckTarget, _duckCurrent + DUCK_STEP);
+                    _duckCurrent = Math.Min(_duckTarget, _duckCurrent + DUCK_RELEASE_STEP);
                 else if (_duckCurrent > _duckTarget)
-                    _duckCurrent = Math.Max(_duckTarget, _duckCurrent - DUCK_STEP);
+                    _duckCurrent = Math.Max(_duckTarget, _duckCurrent - DUCK_ATTACK_STEP);
 
                 if (Math.Abs(_duckCurrent - _duckTarget) < 0.001f)
                 {
@@ -593,9 +595,24 @@ namespace Bejeweled3Accessible.Audio
             {
                 if (_currentMusicChannel != 0 && _musicFadeTimer == null)
                 {
-                    try { BASS_ChannelSetAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, (float)MusicVol / 100.0f * apply); } catch { }
+                    try { BASS_ChannelSetAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, MusicChannelVolume(apply)); } catch { }
                 }
             }
+        }
+
+        // The music channel volume including the current duck factor. Every
+        // place that sets the music volume (duck tick, volume changes, fades)
+        // goes through here so the duck is never lost when a track change
+        // lands while a locution is on air.
+        private float MusicChannelVolume(float duck)
+        {
+            return (float)MusicVol / 100.0f * duck;
+        }
+
+        // Current duck level, 1.0 = full music volume, MUSIC_DUCK_FACTOR = deep.
+        internal float DuckCurrentLevel
+        {
+            get { lock (_duckLock) { return _duckCurrent; } }
         }
 
         // Measured duration of a locution in milliseconds, cached per name.
@@ -974,6 +991,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
 
         public void PlayMusic(string musicFileName)
         {
+            float duck = DuckCurrentLevel;
             lock (_musicLock)
             {
                 StopFadeTimer();
@@ -999,7 +1017,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     return;
                 }
                 _fadingOut = true;
-                _fadeVol = (float)MusicVol / 100.0f;
+                _fadeVol = MusicChannelVolume(duck);
                 _fadeVolPerStep = _fadeVol / FADE_STEPS;
                 _musicFadeTimer = new System.Threading.Timer(MusicFadeTick, null, FADE_TICK_MS, FADE_TICK_MS);
             }
@@ -1007,6 +1025,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
 
         private void MusicFadeTick(object state)
         {
+            float duck = DuckCurrentLevel;
             lock (_musicLock)
             {
                 if (_currentMusicChannel == 0)
@@ -1029,16 +1048,16 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     try { BASS_ChannelSetAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, _fadeVol); } catch { }
                     if (_pendingMusicChannel != 0)
                     {
-                        float up = (float)MusicVol / 100.0f - _fadeVol;
+                        float up = MusicChannelVolume(duck) - _fadeVol;
                         try { BASS_ChannelSetAttribute(_pendingMusicChannel, BASS_ATTRIB_VOL, up); } catch { }
                     }
                 }
                 else
                 {
                     _fadeVol += _fadeVolPerStep;
-                    if (_fadeVol >= (float)MusicVol / 100.0f)
+                    if (_fadeVol >= MusicChannelVolume(duck))
                     {
-                        try { BASS_ChannelSetAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, (float)MusicVol / 100.0f); } catch { }
+                        try { BASS_ChannelSetAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, MusicChannelVolume(duck)); } catch { }
                         // Never self-cancel with the waiting Timer.Dispose(WaitHandle):
                         // that would wait for this very callback to finish = deadlock.
                         StopFadeTimer();
@@ -1108,10 +1127,11 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             }
             _currentMusicChannel = handle;
 
-            // Fade-in ramp
+            // Fade-in ramp (respects an active duck so a voice speaking when a
+            // track starts is never covered by full-volume music).
             _fadingOut = false;
             _fadeVol = 0.0f;
-            _fadeVolPerStep = (float)MusicVol / 100.0f / FADE_STEPS;
+            _fadeVolPerStep = MusicChannelVolume(DuckCurrentLevel) / FADE_STEPS;
             _musicFadeTimer = new System.Threading.Timer(MusicFadeTick, null, FADE_TICK_MS, FADE_TICK_MS);
 
             EnsureMusicMonitor();
@@ -1315,7 +1335,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     {
                         float duck;
                         lock (_duckLock) { duck = _duckCurrent; }
-                        BASS_ChannelSetAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, (float)MusicVol / 100.0f * duck);
+                        BASS_ChannelSetAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, MusicChannelVolume(duck));
                     }
                 }
                 catch { }

@@ -1506,6 +1506,27 @@ namespace Bejeweled3Accessible.Tests
                 }
             }));
 
+            // Deep ducking: while a locution sounds, the music must drop to
+            // ~20% of its volume (like the original, where the track almost
+            // disappears under the announcer) and return to 100% afterwards.
+            tests.Add(Tuple.Create<string, Action>("Sound: el duck baja la musica al 20 por ciento y vuelve al 100", () =>
+            {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                using (SoundEngine sound = new SoundEngine(baseDir))
+                {
+                    Assert.Equal(1.0f, sound.DuckCurrentLevel, "Sin voces el duck debe estar al 100%");
+                    sound.PlaySound("voice_awesome");
+                    int waited = 0;
+                    while (sound.DuckCurrentLevel > 0.21f && waited < 3000) { System.Threading.Thread.Sleep(25); waited += 25; }
+                    Assert.True(sound.DuckCurrentLevel <= 0.21f, "Con una voz el duck debe bajar al ~20% (nivel real: " + sound.DuckCurrentLevel + ")");
+                    while (sound.IsVoiceBusy && waited < 10000) { System.Threading.Thread.Sleep(25); waited += 25; }
+                    waited = 0;
+                    while (sound.DuckCurrentLevel < 0.99f && waited < 3000) { System.Threading.Thread.Sleep(25); waited += 25; }
+                    Assert.Equal(1.0f, sound.DuckCurrentLevel, "Al terminar la voz el duck debe volver al 100%");
+                    sound.StopActiveVoices();
+                }
+            }));
+
             // Reproduccion real de voces simulando una rafaga de eventos de juego:
             // verifica que ninguna locucion se corta (dura su duracion completa,
             // llega a su final natural) ni se solapa con la siguiente.
