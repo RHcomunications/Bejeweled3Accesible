@@ -537,14 +537,15 @@ namespace Bejeweled3Accessible.Audio
         }
 
         // Music ducking: while a locution (voice_*) is sounding, the music
-        // drops deep (20% of its current volume, like the original where the
-        // track almost disappears under the announcer) and returns gently.
-        // The attack is fast so the track ducks right when the voice starts,
-        // and the release is slower so the music never pumps or clicks.
-        private const float MUSIC_DUCK_FACTOR = 0.20f;
+        // backs off (35% of its current volume, so it stays clearly audible
+        // under the announcer instead of almost disappearing) and returns
+        // gently. The ramps are intentionally smooth: a slow attack glides
+        // down without a "drop" and a much slower release avoids the music
+        // popping back up when the locution ends.
+        private const float MUSIC_DUCK_FACTOR = 0.35f;
         private const int DUCK_TICK_MS = 25;
-        private const float DUCK_ATTACK_STEP = 0.12f;
-        private const float DUCK_RELEASE_STEP = 0.06f;
+        private const float DUCK_ATTACK_STEP = 0.05f;
+        private const float DUCK_RELEASE_STEP = 0.02f;
         private readonly object _duckLock = new object();
         private float _duckCurrent = 1.0f;
         private float _duckTarget = 1.0f;

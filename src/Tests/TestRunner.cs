@@ -1506,10 +1506,10 @@ namespace Bejeweled3Accessible.Tests
                 }
             }));
 
-            // Deep ducking: while a locution sounds, the music must drop to
-            // ~20% of its volume (like the original, where the track almost
-            // disappears under the announcer) and return to 100% afterwards.
-            tests.Add(Tuple.Create<string, Action>("Sound: el duck baja la musica al 20 por ciento y vuelve al 100", () =>
+            // Deep ducking: while a locution sounds, the music must back off
+            // to ~35% of its volume (clearly audible, not disappeared) and
+            // return to 100% afterwards with a smooth release.
+            tests.Add(Tuple.Create<string, Action>("Sound: el duck baja la musica al 35 por ciento y vuelve al 100", () =>
             {
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
                 using (SoundEngine sound = new SoundEngine(baseDir))
@@ -1517,8 +1517,8 @@ namespace Bejeweled3Accessible.Tests
                     Assert.Equal(1.0f, sound.DuckCurrentLevel, "Sin voces el duck debe estar al 100%");
                     sound.PlaySound("voice_awesome");
                     int waited = 0;
-                    while (sound.DuckCurrentLevel > 0.21f && waited < 3000) { System.Threading.Thread.Sleep(25); waited += 25; }
-                    Assert.True(sound.DuckCurrentLevel <= 0.21f, "Con una voz el duck debe bajar al ~20% (nivel real: " + sound.DuckCurrentLevel + ")");
+                    while (sound.DuckCurrentLevel > 0.36f && waited < 3000) { System.Threading.Thread.Sleep(25); waited += 25; }
+                    Assert.True(sound.DuckCurrentLevel <= 0.36f, "Con una voz el duck debe bajar al ~35% (nivel real: " + sound.DuckCurrentLevel + ")");
                     while (sound.IsVoiceBusy && waited < 10000) { System.Threading.Thread.Sleep(25); waited += 25; }
                     waited = 0;
                     while (sound.DuckCurrentLevel < 0.99f && waited < 3000) { System.Threading.Thread.Sleep(25); waited += 25; }
