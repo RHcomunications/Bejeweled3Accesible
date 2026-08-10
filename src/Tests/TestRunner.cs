@@ -1789,6 +1789,60 @@ namespace Bejeweled3Accessible.Tests
                 }
             }));
 
+            // The download MUST report progress (total size and received bytes).
+            // A synchronous WebClient never raises DownloadProgressChanged in
+            // .NET Framework, which is exactly the bug that left the updater
+            // saying only "Descargando..." — this test catches a regression by
+            // serving a payload from a local HTTP server.
+            tests.Add(Tuple.Create<string, Action>("Update: la descarga reporta progreso (tamano total y bytes recibidos)", () =>
+            {
+                string tmp = Path.Combine(Path.GetTempPath(), "B3A_Test_Download_" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(tmp);
+                System.Net.HttpListener server = new System.Net.HttpListener();
+                try
+                {
+                    server.Prefixes.Add("http://localhost:18765/");
+                    server.Start();
+                    byte[] payload = new byte[3 * 1024 * 1024];
+                    new Random(42).NextBytes(payload);
+
+                    System.Threading.Tasks.Task accept = System.Threading.Tasks.Task.Run(() =>
+                    {
+                        System.Net.HttpListenerContext ctx = server.GetContext();
+                        ctx.Response.ContentLength64 = payload.Length;
+                        ctx.Response.OutputStream.Write(payload, 0, payload.Length);
+                        ctx.Response.OutputStream.Close();
+                    });
+
+                    bool haveSize = false;
+                    long lastBytes = 0;
+                    string dest = Path.Combine(tmp, "probe.bin");
+                    Bejeweled3Accessible.Update.AutoUpdater.DownloadToFile(
+                        "http://localhost:18765/probe.bin", dest, e =>
+                        {
+                            lock (server)
+                            {
+                                if (e.TotalBytesToReceive > 0) haveSize = true;
+                                lastBytes = e.BytesReceived;
+                            }
+                        });
+
+                    Assert.True(File.Exists(dest), "el archivo descargado debe existir");
+                    Assert.Equal((long)payload.Length, new FileInfo(dest).Length, "el archivo descargado debe tener el tamano exacto");
+                    lock (server)
+                    {
+                        Assert.True(haveSize, "el progreso debe conocer el tamano total (Content-Length)");
+                        Assert.True(lastBytes > 0, "el progreso debe reportar bytes recibidos");
+                    }
+                    try { accept.Wait(5000); } catch { }
+                }
+                finally
+                {
+                    try { server.Stop(); } catch { }
+                    try { Directory.Delete(tmp, true); } catch { }
+                }
+            }));
+
             return tests;
         }
 

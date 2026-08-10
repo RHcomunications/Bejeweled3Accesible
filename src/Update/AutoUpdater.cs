@@ -338,6 +338,32 @@ namespace Bejeweled3Accessible.Update
                 + (sec == 1 ? (spanish ? "segundo" : "second") : (spanish ? "segundos" : "seconds"));
         }
 
+        // Downloads a file reporting progress. MUST use the async WebClient
+        // API: the synchronous DownloadFile never raises DownloadProgressChanged
+        // in .NET Framework, so the UI would not receive a single event.
+        // Throws the original exception (unwrapped from AggregateException).
+        public static void DownloadToFile(string url, string destPath,
+            Action<DownloadProgressChangedEventArgs> progressCallback = null)
+        {
+            using (WebClient client = new WebClient())
+            {
+                client.Headers[HttpRequestHeader.UserAgent] =
+                    "Bejeweled3Accessible-Updater/" + CurrentVersionString;
+                if (progressCallback != null)
+                    client.DownloadProgressChanged += (s, e) => progressCallback(e);
+                try
+                {
+                    client.DownloadFileTaskAsync(url, destPath).Wait();
+                }
+                catch (AggregateException ag)
+                {
+                    Exception inner = ag.InnerException;
+                    while (inner is AggregateException) inner = inner.InnerException;
+                    throw inner ?? ag;
+                }
+            }
+        }
+
         public class UpdateDownloadResult
         {
             public string Error;       // null when everything is ready
@@ -375,14 +401,7 @@ namespace Bejeweled3Accessible.Update
                     {
                         try
                         {
-                            using (WebClient client = new WebClient())
-                            {
-                                client.Headers[HttpRequestHeader.UserAgent] =
-                                    "Bejeweled3Accessible-Updater/" + CurrentVersionString;
-                                if (progressCallback != null)
-                                    client.DownloadProgressChanged += (s, e) => progressCallback(e);
-                                client.DownloadFile(url, zipPath);
-                            }
+                            DownloadToFile(url, zipPath, progressCallback);
                             lastError = null;
                             break;
                         }
