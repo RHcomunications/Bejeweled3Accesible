@@ -634,8 +634,10 @@ namespace Bejeweled3Accessible.Audio
                 byte[] audioBytes = LoadAudioBytes(soundName);
                 if (audioBytes != null && audioBytes.Length > 0)
                 {
-                GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
-                int handle = BASS_StreamCreateFile(true, pinned.AddrOfPinnedObject(), 0, audioBytes.Length, BASS_SAMPLE_LOOP);
+                    GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
+                    // Pure measurement handle: no BASS_SAMPLE_LOOP (the stream is
+                    // never played, only measured and freed immediately).
+                    int handle = BASS_StreamCreateFile(true, pinned.AddrOfPinnedObject(), 0, audioBytes.Length, 0);
                     if (handle != 0)
                     {
                         long bytes = BASS_ChannelGetLength(handle, 0);
@@ -781,13 +783,11 @@ namespace Bejeweled3Accessible.Audio
                 if (_panSweeps.Count == 0 && _panSweepTimer != null)
                 {
                     // Stop the shared sweep timer when there is nothing to glide.
-                    // Checked inside with the lock; a new PlaySoundSpatialSweep
-                    // creates a fresh timer if it adds a sweep later.
-                    if ((_panSweeps.Count == 0))
-                    {
-                        try { _panSweepTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite); } catch { }
-                        _panSweepTimer = null;
-                    }
+                    // A new PlaySoundSpatialSweep creates a fresh timer if it
+                    // adds a sweep later.
+                    try { _panSweepTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite); } catch { }
+                    try { _panSweepTimer.Dispose(); } catch { }
+                    _panSweepTimer = null;
                 }
             }
         }

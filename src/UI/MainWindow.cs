@@ -1863,10 +1863,11 @@ namespace Bejeweled3Accessible.UI
 
                     bool levelUpVoicePlayed = false;
 
-                    // Pitch scales progressively with cascade depth, and the first
-                    // cascade gem glides (HRTF) from the swap origin to its landing
-                    // column, so the chain is heard sweeping the board.
-                    float pitchMult = 1.0f + ((_cascadeChain - 1) * 0.06f);
+                    // Pitch scales semitone-wise with cascade depth (2^((n-1)/12):
+                    // +1 semitone per cascade level, like the original), and the
+                    // first cascade gem glides (HRTF) from the swap origin to its
+                    // landing column, so the chain is heard sweeping the board.
+                    float pitchMult = (float)Math.Pow(2.0, (_cascadeChain - 1) / 12.0);
                     _sound.PlaySoundSpatialSweep("gem_hit", fromX, _cursorX, _cursorY, pitchMult);
                     await Task.Delay(110);
 
