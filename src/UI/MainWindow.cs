@@ -64,6 +64,8 @@ namespace Bejeweled3Accessible.UI
         private int _lightningTimeLeft = 60;
         private int _lightningMultiplier = 1;
         private int _lightningTankSeconds = 0;
+        private bool _lastHurrahActive = false;
+        private int _lastHurrahScore = 0;
 
         private int[] _iceColumns = new int[8]; // Column heights from 0 to 8 (uniform front)
         private int _iceRiseCounter = 0;
@@ -425,6 +427,8 @@ namespace Bejeweled3Accessible.UI
                     {
                         _lightningTimeLeft = _lightningTankSeconds;
                         _lightningTankSeconds = 0;
+                        _lastHurrahActive = true;
+                        _lastHurrahScore = 0;
                         _lightningMultiplier++;
                         _sound.PlaySound("lightning_tube_fill_10");
                         _sound.PlaySound("multiplier_appears");
@@ -1085,7 +1089,16 @@ namespace Bejeweled3Accessible.UI
                 "BadgeChromatic",
                 "BadgeBlaster",
                 "BadgeBejeweler",
+                "BadgeFinalFrenzy",
                 "BadgeHighVoltage",
+                "BadgeAnteUp",
+                "BadgeGambler",
+                "BadgeGlacialExplorer",
+                "BadgeIceBreaker",
+                "BadgeDiamondMine",
+                "BadgeRelicHunter",
+                "BadgeButterflyMonarch",
+                "BadgeButterflyBonanza",
                 "BadgeAnnihilator",
                 "BadgeSuperstar",
                 "BadgeLevelord",
@@ -1527,6 +1540,8 @@ namespace Bejeweled3Accessible.UI
                 _lightningTimeLeft = 60;
                 _lightningMultiplier = 1;
                 _lightningTankSeconds = 0;
+                _lastHurrahActive = false;
+                _lastHurrahScore = 0;
                 _lightningTimer.Start();
                 _sound.PlayMusic("07 - Lightning (aka Blitz).mp3");
                 startSpeech = Localization.Get("LightningStarted");
@@ -1934,6 +1949,16 @@ namespace Bejeweled3Accessible.UI
 
                     _score += addedScore;
 
+                    // Final Frenzy badge: the score piled up during the Last
+                    // Hurrah (the time tank's final charge) is tracked per game,
+                    // keeping the best frenzy score ever reached.
+                    if (_currentModeKey == "ModeLightning" && _lastHurrahActive)
+                    {
+                        _lastHurrahScore += addedScore;
+                        if (_lastHurrahScore > _progress.BestFrenzyScore)
+                            _progress.BestFrenzyScore = _lastHurrahScore;
+                    }
+
                     int rankBefore = RankSystem.GetRankLevel(_progress.TotalScore);
                     _progress.TotalScore += addedScore;
                     int rankAfter = RankSystem.GetRankLevel(_progress.TotalScore);
@@ -2165,6 +2190,7 @@ namespace Bejeweled3Accessible.UI
                         // special-gem blasts only push the front down a bit. Melted top
                         // columns disarm their rising internal (skull) column.
                         List<int> skullsDisarmed = new List<int>();
+                        int meltedThisMove = 0;
                         foreach (int col in res.MatchedColumns)
                         {
                             if (col < 0 || col >= 8 || _iceColumns[col] <= 0) continue;
@@ -2175,6 +2201,7 @@ namespace Bejeweled3Accessible.UI
                                 _iceColumns[col] = 0;
                                 _iceSkullTicks[col] = 0;
                                 _questIceColumnsBroken++;
+                                meltedThisMove++;
                                 if (hadSkull) skullsDisarmed.Add(col);
                                 _sound.PlaySound("ice_column_break");
                             }
@@ -2183,9 +2210,21 @@ namespace Bejeweled3Accessible.UI
                                 _iceColumns[col] = Math.Max(0, _iceColumns[col] - 2);
                                 if (_iceColumns[col] < 8) _iceSkullTicks[col] = 0;
                                 if (hadSkull && _iceSkullTicks[col] == 0) skullsDisarmed.Add(col);
-                                if (_iceColumns[col] == 0) _questIceColumnsBroken++;
+                                if (_iceColumns[col] == 0)
+                                {
+                                    _questIceColumnsBroken++;
+                                    meltedThisMove++;
+                                }
                                 _sound.PlaySound("Ice_Storm_ColumnCombo");
                             }
+                        }
+                        // Ice Breaker badge: 5/8/12/15 column combos in one move
+                        if (_currentModeKey == "ModeIceStorm")
+                        {
+                            if (meltedThisMove >= 15) AwardBadge("BadgeIceBreaker", BadgeTier.Platinum);
+                            else if (meltedThisMove >= 12) AwardBadge("BadgeIceBreaker", BadgeTier.Gold);
+                            else if (meltedThisMove >= 8) AwardBadge("BadgeIceBreaker", BadgeTier.Silver);
+                            else if (meltedThisMove >= 5) AwardBadge("BadgeIceBreaker", BadgeTier.Bronze);
                         }
                         if (skullsDisarmed.Count > 0)
                         {
@@ -2197,6 +2236,15 @@ namespace Bejeweled3Accessible.UI
                     {
                         if (res.ButterfliesFreed > 0)
                         {
+                            // Butterfly Bonanza badge: 4/6/8/10 butterflies in a single move
+                            if (_currentModeKey == "ModeButterflies")
+                            {
+                                if (res.ButterfliesFreed >= 10) AwardBadge("BadgeButterflyBonanza", BadgeTier.Platinum);
+                                else if (res.ButterfliesFreed >= 8) AwardBadge("BadgeButterflyBonanza", BadgeTier.Gold);
+                                else if (res.ButterfliesFreed >= 6) AwardBadge("BadgeButterflyBonanza", BadgeTier.Silver);
+                                else if (res.ButterfliesFreed >= 4) AwardBadge("BadgeButterflyBonanza", BadgeTier.Bronze);
+                            }
+
                             _sound.PlaySoundSpatial("butterflyescape", _cursorX, _cursorY);
                             _speech.Speak(Localization.Get("ButterflyFreed", res.ButterfliesFreed), true);
                         }
@@ -2307,6 +2355,8 @@ namespace Bejeweled3Accessible.UI
 
                                 if (hand == PokerHandType.Flush)
                                 {
+                                    // The Gambler badge only counts Poker-mode flushes
+                                    if (_currentModeKey == "ModePoker") _progress.TotalFlushes++;
                                     _sound.PlaySound("poker_flush");
                                     _sound.PlaySound("skullcoinwin");
                                 }
@@ -2368,6 +2418,15 @@ namespace Bejeweled3Accessible.UI
                         {
                             _diamondDepthMeters += 10;
                             _lightningTimeLeft += 30;
+                            // Relic Hunter badge: 5/8/12/15 artifacts dug in Diamond Mine
+                            if (_currentModeKey == "ModeDiamondMine")
+                            {
+                                _progress.TotalArtifactsCollected++;
+                                if (_progress.TotalArtifactsCollected >= 15) AwardBadge("BadgeRelicHunter", BadgeTier.Platinum);
+                                else if (_progress.TotalArtifactsCollected >= 12) AwardBadge("BadgeRelicHunter", BadgeTier.Gold);
+                                else if (_progress.TotalArtifactsCollected >= 8) AwardBadge("BadgeRelicHunter", BadgeTier.Silver);
+                                else if (_progress.TotalArtifactsCollected >= 5) AwardBadge("BadgeRelicHunter", BadgeTier.Bronze);
+                            }
                             _sound.PlaySound("diamond_mine_treasurefind");
                             _sound.PlaySound("diamond_mine_treasurefind_diamonds");
                             _sound.PlaySound("diamond_mine_artifact_showcase");
@@ -2559,7 +2618,7 @@ namespace Bejeweled3Accessible.UI
             else if (res.TotalGemsDestroyed >= 40) AwardBadge("BadgeBlaster", BadgeTier.Silver);
             else if (res.TotalGemsDestroyed >= 30) AwardBadge("BadgeBlaster", BadgeTier.Bronze);
 
-            // Bejeweler Badge (Classic Score: 50k, 150k, 300k, 500k)
+            // Bejeweler Badge (Classic score: 50k, 150k, 300k, 500k)
             if (_currentModeKey == "ModeClassic")
             {
                 if (_score >= 500000) AwardBadge("BadgeBejeweler", BadgeTier.Platinum);
@@ -2570,7 +2629,7 @@ namespace Bejeweled3Accessible.UI
                 if (_progress.ClassicLevel >= 10) AwardBadge("BadgeLevelord", BadgeTier.Platinum);
             }
 
-            // High Voltage Badge (Lightning Score: 100k, 300k, 500k, 750k)
+            // High Voltage Badge (Lightning score: 100k, 300k, 500k, 750k)
             if (_currentModeKey == "ModeLightning")
             {
                 if (_score >= 750000) AwardBadge("BadgeHighVoltage", BadgeTier.Platinum);
@@ -2579,26 +2638,68 @@ namespace Bejeweled3Accessible.UI
                 else if (_score >= 100000) AwardBadge("BadgeHighVoltage", BadgeTier.Bronze);
             }
 
-            // Inferno Badge (lifetime destroyed flame gems: 10, 25, 50, 100)
+            // Final Frenzy Badge (score during a Last Hurrah: 20k, 30k, 40k, 60k)
+            int frenzy = _progress.BestFrenzyScore;
+            if (frenzy >= 60000) AwardBadge("BadgeFinalFrenzy", BadgeTier.Platinum);
+            else if (frenzy >= 40000) AwardBadge("BadgeFinalFrenzy", BadgeTier.Gold);
+            else if (frenzy >= 30000) AwardBadge("BadgeFinalFrenzy", BadgeTier.Silver);
+            else if (frenzy >= 20000) AwardBadge("BadgeFinalFrenzy", BadgeTier.Bronze);
+
+            // Score badges per secret mode: the record ever reached, or the
+            // running score when playing that mode right now.
+            int pokerScore = Math.Max(_progress.PokerHighScore, _currentModeKey == "ModePoker" ? _score : 0);
+            if (pokerScore >= 750000) AwardBadge("BadgeAnteUp", BadgeTier.Platinum);
+            else if (pokerScore >= 500000) AwardBadge("BadgeAnteUp", BadgeTier.Gold);
+            else if (pokerScore >= 300000) AwardBadge("BadgeAnteUp", BadgeTier.Silver);
+            else if (pokerScore >= 100000) AwardBadge("BadgeAnteUp", BadgeTier.Bronze);
+
+            // The Gambler Badge (flushes in Poker: 10, 30, 60, 100)
+            if (_progress.TotalFlushes >= 100) AwardBadge("BadgeGambler", BadgeTier.Platinum);
+            else if (_progress.TotalFlushes >= 60) AwardBadge("BadgeGambler", BadgeTier.Gold);
+            else if (_progress.TotalFlushes >= 30) AwardBadge("BadgeGambler", BadgeTier.Silver);
+            else if (_progress.TotalFlushes >= 10) AwardBadge("BadgeGambler", BadgeTier.Bronze);
+
+            // Glacial Explorer Badge (Ice Storm score: 100k, 300k, 500k, 750k)
+            int iceScore = Math.Max(_progress.IceStormHighScore, _currentModeKey == "ModeIceStorm" ? _score : 0);
+            if (iceScore >= 750000) AwardBadge("BadgeGlacialExplorer", BadgeTier.Platinum);
+            else if (iceScore >= 500000) AwardBadge("BadgeGlacialExplorer", BadgeTier.Gold);
+            else if (iceScore >= 300000) AwardBadge("BadgeGlacialExplorer", BadgeTier.Silver);
+            else if (iceScore >= 100000) AwardBadge("BadgeGlacialExplorer", BadgeTier.Bronze);
+
+            // Diamond, Mine Badge (Diamond Mine score: 100k, 300k, 500k, 750k)
+            int mineScore = Math.Max(_progress.DiamondMineHighScore, _currentModeKey == "ModeDiamondMine" ? _score : 0);
+            if (mineScore >= 750000) AwardBadge("BadgeDiamondMine", BadgeTier.Platinum);
+            else if (mineScore >= 500000) AwardBadge("BadgeDiamondMine", BadgeTier.Gold);
+            else if (mineScore >= 300000) AwardBadge("BadgeDiamondMine", BadgeTier.Silver);
+            else if (mineScore >= 100000) AwardBadge("BadgeDiamondMine", BadgeTier.Bronze);
+
+            // Butterfly Monarch Badge (Butterflies score: 100k, 300k, 500k, 750k)
+            int butterflyScore = Math.Max(_progress.ButterfliesHighScore, _currentModeKey == "ModeButterflies" ? _score : 0);
+            if (butterflyScore >= 750000) AwardBadge("BadgeButterflyMonarch", BadgeTier.Platinum);
+            else if (butterflyScore >= 500000) AwardBadge("BadgeButterflyMonarch", BadgeTier.Gold);
+            else if (butterflyScore >= 300000) AwardBadge("BadgeButterflyMonarch", BadgeTier.Silver);
+            else if (butterflyScore >= 100000) AwardBadge("BadgeButterflyMonarch", BadgeTier.Bronze);
+
+            // Inferno Badge (lifetime flame gems: 50, 350, 1000, 2000)
             int flame = _progress.TotalFlameGemsDestroyed + res.FlameDestroyed;
-            if (flame >= 100) AwardBadge("BadgeInferno", BadgeTier.Platinum);
-            else if (flame >= 50) AwardBadge("BadgeInferno", BadgeTier.Gold);
-            else if (flame >= 25) AwardBadge("BadgeInferno", BadgeTier.Silver);
-            else if (flame >= 10) AwardBadge("BadgeInferno", BadgeTier.Bronze);
+            if (flame >= 2000) AwardBadge("BadgeInferno", BadgeTier.Platinum);
+            else if (flame >= 1000) AwardBadge("BadgeInferno", BadgeTier.Gold);
+            else if (flame >= 350) AwardBadge("BadgeInferno", BadgeTier.Silver);
+            else if (flame >= 50) AwardBadge("BadgeInferno", BadgeTier.Bronze);
 
-            // Stellar Badge (lifetime destroyed star gems: 5, 15, 30, 60)
+            // Stellar Badge (lifetime star gems: 25, 125, 400, 750)
             int stars = _progress.TotalStarGemsDestroyed + res.StarDestroyed;
-            if (stars >= 60) AwardBadge("BadgeStellar", BadgeTier.Platinum);
-            else if (stars >= 30) AwardBadge("BadgeStellar", BadgeTier.Gold);
-            else if (stars >= 15) AwardBadge("BadgeStellar", BadgeTier.Silver);
-            else if (stars >= 5) AwardBadge("BadgeStellar", BadgeTier.Bronze);
+            if (stars >= 750) AwardBadge("BadgeStellar", BadgeTier.Platinum);
+            else if (stars >= 400) AwardBadge("BadgeStellar", BadgeTier.Gold);
+            else if (stars >= 125) AwardBadge("BadgeStellar", BadgeTier.Silver);
+            else if (stars >= 25) AwardBadge("BadgeStellar", BadgeTier.Bronze);
 
-            // Chromatic Badge (lifetime destroyed hypercubes: 3, 8, 15, 30)
+            // Chromatic Badge (lifetime hypercubes: 25, 125, 400, 750)
             int hypers = _progress.TotalHypercubesDestroyed + res.HypercubeDestroyed;
-            if (hypers >= 30) AwardBadge("BadgeChromatic", BadgeTier.Platinum);
-            else if (hypers >= 15) AwardBadge("BadgeChromatic", BadgeTier.Gold);
-            else if (hypers >= 8) AwardBadge("BadgeChromatic", BadgeTier.Silver);
-            else if (hypers >= 3) AwardBadge("BadgeChromatic", BadgeTier.Bronze);
+            if (hypers >= 750) AwardBadge("BadgeChromatic", BadgeTier.Platinum);
+            else if (hypers >= 400) AwardBadge("BadgeChromatic", BadgeTier.Gold);
+            else if (hypers >= 125) AwardBadge("BadgeChromatic", BadgeTier.Silver);
+            else if (hypers >= 25) AwardBadge("BadgeChromatic", BadgeTier.Bronze);
 
             // Annihilator Badge (destroy the whole board with a hypercube swap)
             if (res.AnnihilatorUsed) AwardBadge("BadgeAnnihilator", BadgeTier.Platinum);

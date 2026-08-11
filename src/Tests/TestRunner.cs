@@ -1012,6 +1012,52 @@ namespace Bejeweled3Accessible.Tests
                 }
             }));
 
+            tests.Add(Tuple.Create<string, Action>("Quest: estructura autentica 5 relicarios x 8 misiones", () =>
+            {
+                QuestMission[] missions = QuestManager.Missions;
+                Assert.Equal(40, missions.Length, "40 misiones totales");
+                for (int relic = 0; relic < 5; relic++)
+                {
+                    QuestMission[] inRelic = QuestManager.GetRelicMissions(relic);
+                    Assert.Equal(8, inRelic.Length, "8 misiones por relicario " + relic);
+                    int difficulty = relic + 1;
+                    bool[] typesSeen = new bool[8];
+                    foreach (var m in inRelic)
+                    {
+                        Assert.Equal(relic, m.RelicIndex, "RelicIndex consistente");
+                        Assert.Equal(difficulty, m.Difficulty, "Dificultad = relicario + 1");
+                        Assert.False(typesSeen[(int)m.Type], "Cada tipo una sola vez por relicario");
+                        typesSeen[(int)m.Type] = true;
+                    }
+                }
+                for (int m = 1; m < 40; m++)
+                    Assert.Equal(m, missions[m].MissionIndex, "MissionIndex secuencial");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Progress: contadores de insignias roundtrip", () =>
+            {
+                string tempDir = Path.Combine(Path.GetTempPath(), "Bj3Tests_" + Guid.NewGuid().ToString("N"));
+                try
+                {
+                    GameProgress.OverrideDataDirectory = tempDir;
+                    GameProgress gp = new GameProgress();
+                    gp.TotalFlushes = 42;
+                    gp.TotalArtifactsCollected = 7;
+                    gp.BestFrenzyScore = 12345;
+                    gp.Save();
+                    GameProgress loaded = GameProgress.Load();
+                    Assert.Equal(42, loaded.TotalFlushes, "Flushes persistidos");
+                    Assert.Equal(7, loaded.TotalArtifactsCollected, "Artefactos persistidos");
+                    Assert.Equal(12345, loaded.BestFrenzyScore, "Mejor frenesi persistido");
+                    Assert.Equal(0, new GameProgress().TotalFlushes, "Defaults a 0");
+                }
+                finally
+                {
+                    GameProgress.OverrideDataDirectory = null;
+                    if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
+                }
+            }));
+
             tests.Add(Tuple.Create<string, Action>("Progress: archivo corrupto devuelve valores por defecto", () =>
             {
                 string tempDir = Path.Combine(Path.GetTempPath(), "Bj3Tests_" + Guid.NewGuid().ToString("N"));

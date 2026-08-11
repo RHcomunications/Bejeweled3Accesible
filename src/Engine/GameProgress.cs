@@ -23,6 +23,12 @@ namespace Bejeweled3Accessible.Engine
         public int TotalFlameGemsDestroyed { get; set; }
         public int TotalStarGemsDestroyed { get; set; }
         public int TotalHypercubesDestroyed { get; set; }
+        // Badge counters: flushes scored in Poker, artifacts dug in Diamond
+        // Mine, best score reached during a single Lightning Last Hurrah and
+        // best single-move feats (ice columns melted / butterflies freed).
+        public int TotalFlushes { get; set; }
+        public int TotalArtifactsCollected { get; set; }
+        public int BestFrenzyScore { get; set; }
         public bool[] QuestMissions { get; set; }
 
         public bool IsPokerUnlocked { get { return ClassicLevel >= 5; } }
@@ -47,6 +53,9 @@ namespace Bejeweled3Accessible.Engine
             TotalFlameGemsDestroyed = 0;
             TotalStarGemsDestroyed = 0;
             TotalHypercubesDestroyed = 0;
+            TotalFlushes = 0;
+            TotalArtifactsCollected = 0;
+            BestFrenzyScore = 0;
             QuestMissions = new bool[40];
         }
 
