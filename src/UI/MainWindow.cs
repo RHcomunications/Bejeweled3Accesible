@@ -1650,8 +1650,12 @@ namespace Bejeweled3Accessible.UI
 
         private void HandlePlayingKeys(KeyEventArgs e)
         {
+            // Swaps: W/A/S/D or Ctrl+arrow, symmetric in all four directions to match
+            // the original layout (WASD keys also move in 3D shooters using the
+            // same physical directions). Kept together so the plain keys never
+            // drop through to the query keys below.
             if (e.KeyCode == Keys.W || (e.Control && e.KeyCode == Keys.Up)) PerformSwap(0, -1);
-            else if (e.KeyCode == Keys.S && Control.ModifierKeys == Keys.Control) PerformSwap(0, 1);
+            else if (e.KeyCode == Keys.S || (e.Control && e.KeyCode == Keys.Down)) PerformSwap(0, 1);
             else if (e.KeyCode == Keys.A || (e.Control && e.KeyCode == Keys.Left)) PerformSwap(-1, 0);
             else if (e.KeyCode == Keys.D || (e.Control && e.KeyCode == Keys.Right)) PerformSwap(1, 0);
 
@@ -1698,10 +1702,6 @@ namespace Bejeweled3Accessible.UI
                     _speech.Speak(Localization.Get("QuestActiveStatus", _activeQuestName, _score), true);
                 else
                     _speech.Speak(Localization.Get("ScoreAnnouncement", _score, _level), true);
-            }
-            else if (e.KeyCode == Keys.S)
-            {
-                PerformSwap(0, 1);
             }
             else if (e.KeyCode == Keys.C) { AnnounceCurrentCell(); }
             else if (e.KeyCode == Keys.Q)
@@ -1863,10 +1863,11 @@ namespace Bejeweled3Accessible.UI
 
                     bool levelUpVoicePlayed = false;
 
-                    // Pitch scales progressively with cascade depth, and the first
-                    // cascade gem glides (HRTF) from the swap origin to its landing
-                    // column, so the chain is heard sweeping the board.
-                    float pitchMult = 1.0f + ((_cascadeChain - 1) * 0.06f);
+                    // Pitch scales semitone-wise with cascade depth (2^((n-1)/12):
+                    // +1 semitone per cascade level, like the original), and the
+                    // first cascade gem glides (HRTF) from the swap origin to its
+                    // landing column, so the chain is heard sweeping the board.
+                    float pitchMult = (float)Math.Pow(2.0, (_cascadeChain - 1) / 12.0);
                     _sound.PlaySoundSpatialSweep("gem_hit", fromX, _cursorX, _cursorY, pitchMult);
                     await Task.Delay(110);
 
@@ -1889,6 +1890,18 @@ namespace Bejeweled3Accessible.UI
                     _sound.PlaySound(comboSoundName);
 
                     int addedScore = res.BasePoints * (_currentModeKey == "ModeLightning" ? _lightningMultiplier * 5 : 1);
+
+                    // Annihilator: swapping two hypercubes wipes the whole board.
+                    // Authentic payoff — a massive detonation rumble and a hefty
+                    // bonus on top of the per-gem score.
+                    if (res.AnnihilatorUsed)
+                    {
+                        addedScore += 2500;
+                        _sound.PlaySound("preblast");
+                        _sound.PlaySoundSpatial("bomb_explode", fromX, _cursorY);
+                        _sound.PlaySound("hyperspace");
+                    }
+
                     _score += addedScore;
 
                     int rankBefore = RankSystem.GetRankLevel(_progress.TotalScore);
