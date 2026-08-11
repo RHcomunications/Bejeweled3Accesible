@@ -21,7 +21,7 @@ namespace Bejeweled3Accessible.Engine
         private static readonly Dictionary<string, Tuple<string, string>> _dict = new Dictionary<string, Tuple<string, string>>
         {
             // Loading Screen
-            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.08.11.1.", "Loading Bejeweled 3... Version 2026.08.11.1.") },
+            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.08.11.2.", "Loading Bejeweled 3... Version 2026.08.11.2.") },
             { "LoadingPrompt", new Tuple<string, string>("Presiona cualquier tecla para continuar", "Press any key to continue") },
 
             // Profile Screen
@@ -32,7 +32,7 @@ namespace Bejeweled3Accessible.Engine
             { "ProfileDelete", new Tuple<string, string>("Eliminar perfil actual", "Delete current profile") },
 
             // Menus
-            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.08.11.1", "Bejeweled 3 Accessible - Version 2026.08.11.1") },
+            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.08.11.2", "Bejeweled 3 Accessible - Version 2026.08.11.2") },
             { "MenuPlay", new Tuple<string, string>("Jugar Bejeweled 3", "Play Bejeweled 3") },
             { "MenuChangeUser", new Tuple<string, string>("Haz clic aquí para cambiar de usuario. Perfil actual: {0}", "Click here to change user. Current profile: {0}") },
             { "MenuLanguage", new Tuple<string, string>("Idioma: Español. Pulsa Enter para cambiar", "Language: English. Press Enter to switch to Spanish") },
