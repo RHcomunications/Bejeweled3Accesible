@@ -731,14 +731,14 @@ namespace Bejeweled3Accessible.Tests
 
             tests.Add(Tuple.Create<string, Action>("Poker: puntos por mano exactos", () =>
             {
-                Assert.Equal(2500, PokerHandEvaluator.GetHandPoints(PokerHandType.Flush), "Flush");
-                Assert.Equal(2000, PokerHandEvaluator.GetHandPoints(PokerHandType.FourOfAKind), "FourOfAKind");
-                Assert.Equal(1500, PokerHandEvaluator.GetHandPoints(PokerHandType.FullHouse), "FullHouse");
-                Assert.Equal(1000, PokerHandEvaluator.GetHandPoints(PokerHandType.ThreeOfAKind), "ThreeOfAKind");
-                Assert.Equal(750, PokerHandEvaluator.GetHandPoints(PokerHandType.TwoPair), "TwoPair");
-                Assert.Equal(500, PokerHandEvaluator.GetHandPoints(PokerHandType.Spectrum), "Spectrum");
-                Assert.Equal(250, PokerHandEvaluator.GetHandPoints(PokerHandType.Pair), "Pair");
-                Assert.Equal(100, PokerHandEvaluator.GetHandPoints(PokerHandType.HighCard), "HighCard");
+                Assert.Equal(50000, PokerHandEvaluator.GetHandPoints(PokerHandType.Flush), "Flush");
+                Assert.Equal(30000, PokerHandEvaluator.GetHandPoints(PokerHandType.FourOfAKind), "FourOfAKind");
+                Assert.Equal(15000, PokerHandEvaluator.GetHandPoints(PokerHandType.FullHouse), "FullHouse");
+                Assert.Equal(10000, PokerHandEvaluator.GetHandPoints(PokerHandType.ThreeOfAKind), "ThreeOfAKind");
+                Assert.Equal(7500, PokerHandEvaluator.GetHandPoints(PokerHandType.TwoPair), "TwoPair");
+                Assert.Equal(5000, PokerHandEvaluator.GetHandPoints(PokerHandType.Spectrum), "Spectrum");
+                Assert.Equal(2500, PokerHandEvaluator.GetHandPoints(PokerHandType.Pair), "Pair");
+                Assert.Equal(0, PokerHandEvaluator.GetHandPoints(PokerHandType.HighCard), "HighCard");
             }));
 
             // ======================= RANK SYSTEM =======================

@@ -1,6 +1,6 @@
 # AUDITORÍA — Bejeweled 3 Accesible
 
-Fecha: 2026-08-02 · Método: revisión de los 18 `*.cs` (~6.5k LOC), lectura de trazas, chequeo de teclas y traducción. Suite de referencia: **96/96 tests en verde** (MSBuild v4.0, `bin\Debug\Bejeweled3AccessibleTests.exe`).
+Fecha: 2026-08-02 · Método: revisión de los 18 `*.cs` (~6.5k LOC), lectura de trazas, chequeo de teclas y traducción. Suite de referencia: **96/96 tests en verde** (MSBuild v4.0, `bin\Debug\Bejeweled3AccessibleTests.exe`). Suite actual (2026-08-11): **137/137 tests en verde**.
 
 ## FASE 1 · Inventario
 
@@ -183,5 +183,29 @@ Suite de referencia actual: **102/102 tests en verde** (MSBuild v4.0; `bin\Debug
 | # | Item |
 |---|---|
 - Ningún pendiente de auditoría resta. Se cierran #5, #11, #14, #15, #16, #19, #20, #23 (aceptado), #27, F3 y F4.
+
+---
+
+## Estado de remediación (2026-08-11 · hotfix v2026.08.11.1 · puntuación y gemas especiales)
+
+Release: `v2026.08.11.1` (mismo día que `v2026.08.11.0`, hotfix). Suite: **137/137 en verde** (audio incluido; `--no-audio` deja 124/124 + 13 omitidos). Toca `Board.cs` (motor), `MainWindow.cs` (UI), `Localization.cs`, `TestRunner.cs`, `README.html`, `AssemblyInfo.cs`.
+
+### Puntuación fiel al manual de PopCap (v1.0.8)
+- **50 puntos por combinación** (`res.MatchesMade`, antes se puntuaba 50 por gema destruida: `TotalGemsDestroyed * 50`). `MatchesMade` cuenta cada racha de 3+ de cada pasada.
+- **Bonos de creación** en `BasePoints`: Fuego 100, Estrella 150, Hipercubo 500, Supernova 1.000.
+- **Bono de combinación doble** (forma T/L): 50 por cada racha + 50 de premio → `DoubleMatchBonus++` por codo detectado; se anuncia con las claves `MultipleMatchAnnounce` (ES/EN) y el efecto `doubleset` al terminar la jugada (`MainWindow.cs`).
+- **Detonaciones**: Fuego 20 + 20 por gema (explosión 3x3), Estrella y Supernova 50 + 50 por gema (cruz fila+columna y 3 filas + 3 columnas), Hipercubo 50 + 50 por gema del color (`HypercubeDetonationPoints`), aniquilador 100 + 50 por gema (`AnnihilatorPoints`, con el bono extra de 2.500 de la UI).
+- **Bono de cascada acumulativo** `50 * nivel * (nivel+1) / 2` (`CascadeBonus`), sustituye al bono plano anterior.
+- **Nuevos campos de `CascadeResult`**: `MatchesMade`, `DoubleMatchBonus`, `CascadeBonus`, `SupernovaDestroyed`, `FlameBlastGems`, `StarBlastGems`, `SupernovaBlastGems`, `HypercubeDetonationPoints`, `AnnihilatorPoints`, `HypercubeCreationPoints`.
+  - `HypercubeCreationPoints` (500 × Hipercubos creados) queda como campo informativo: su valor ya está integrado en `BasePoints`; la UI no lo anuncia por separado (documentado, no se elimina).
+  - `SimultaneousMatches` (campo muerto desde la auditoría) ahora se rellena en `Board.cs` con las combinaciones de la primera pasada (`MatchesMade - matchesBeforeThisPass` con `depth == 0`) y la UI lo usa en el anuncio de combinación doble.
+- **Gemas especiales**: las formas L, T y cruz crean la **Estrella** (`StarCreated` en el codo, explosión fila + columna), nunca la Supernova (antes T/L → Supernova era un error frente al manual; el cierre del hallazgo #23 de 2026-08-02 — Star dead code — queda definitivamente zanjado). La Supernova queda reservada a 6+ en línea. Sonido de creación de Estrella en la UI y atajo oculto **Shift+S** (junto a Shift+F/Shift+H/Shift+R) para colocarla en el cursor.
+- **Test**: "Board: forma T crea Estrella" sustituye al antiguo "forma T crea Supernova" (assert `StarCreated >= 1`). Sin tests nuevos: la suite sigue en **137**.
+- **README.html**: reglas ES/EN corregidas (Estrella en L/T/cruz, Supernova en 6+) y changelog del hotfix en ambos idiomas. Versión `2026.08.11.1` en `AssemblyInfo.cs` y `LoadingTitle`/`AppTitle`.
+
+### Verificación
+- Build Debug y Release sin errores (warnings preexistentes MSB3644/MSB3270 de las reference assemblies del Framework 4.5).
+- Suite completa 137/137 (incluye los 13 tests de sonido reales).
+- Release publicada en GitHub con el asset `Bejeweled3Accesible-2026.8.11.1.zip` (patrón del actualizador, sin ceros: fecha → `2026.8.11.1`), montado con exe+PDB de Release, `bass.dll`, `nvdaControllerClient32.dll` (Debug), `mscorlib.dll` + `norm*.nlp` + `es\`, `README.html`, `audio.pac` actual y `sounds\images\` completa.
 
 > Nota de inventario: ahora son **20 `.cs`** (añadidos `StoragePaths.cs`, `PacCipher.cs`) + 2 csproj. `MainWindow.cs` quedó en ~2295 líneas tras los fixes.

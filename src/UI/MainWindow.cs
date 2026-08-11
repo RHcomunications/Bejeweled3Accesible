@@ -87,6 +87,7 @@ namespace Bejeweled3Accessible.UI
         private int _questHandsScored = 0;
         private int _questIceColumnsBroken = 0;
         private int _pokerSkulls = 0;
+        private int _pokerHandBonus = 0;
         private int _pokerSkullCharge = 0;
         private int _shufflesRemaining = 3;
         private List<GemColor> _pokerCards = new List<GemColor>();
@@ -1089,6 +1090,7 @@ namespace Bejeweled3Accessible.UI
                 "BadgeSuperstar",
                 "BadgeLevelord",
                 "BadgeTopSecret",
+                "BadgeHeroes",
                 "OptBack"
             };
         }
@@ -1284,11 +1286,11 @@ namespace Bejeweled3Accessible.UI
         private string[] GetQuestRelicItems()
         {
             List<string> items = new List<string>();
-            for (int i = 1; i <= 10; i++)
+            for (int i = 1; i <= 5; i++)
             {
                 int relicIdx = i - 1;
                 int done = _progress.CountCompletedInRelic(relicIdx);
-                items.Add(Localization.Get("Relic" + i) + (done >= 4 ? Localization.Get("QuestCompletedMark") : " (" + done + " de 4)"));
+                items.Add(Localization.Get("Relic" + i) + (done >= 8 ? Localization.Get("QuestCompletedMark") : " (" + done + " de 8)"));
             }
             items.Add(Localization.Get("OptBack"));
             return items.ToArray();
@@ -1495,6 +1497,7 @@ namespace Bejeweled3Accessible.UI
             _iceRiseCounter = 0;
             _iceRiseInterval = 4;
             _diamondDepthMeters = 0;
+            _pokerHandBonus = 0;
 
             _board = new Board(new Random().Next());
             _screen = GameScreen.Playing;
@@ -1693,7 +1696,7 @@ namespace Bejeweled3Accessible.UI
             else if (e.KeyCode == Keys.R)
             {
                 if (_currentModeKey == "ModeLightning")
-                    _speech.Speak(Localization.Get("LightningScoreAnnouncement", _score, _lightningTimeLeft, _lightningMultiplier), true);
+                    _speech.Speak(Localization.Get("LightningScoreAnnouncement", _score, _lightningTimeLeft, _lightningMultiplier * 5), true);
                 else if (_currentModeKey == "ModeIceStorm")
                 {
                     int iceHeight = _iceColumns[_cursorX];
@@ -1895,7 +1898,28 @@ namespace Bejeweled3Accessible.UI
                     }
                     _sound.PlaySound(comboSoundName);
 
-                    int addedScore = res.BasePoints * (_currentModeKey == "ModeLightning" ? _lightningMultiplier * 5 : 1);
+                    // Official scoring per mode: Classic scales with the level,
+                    // Lightning applies the 5x multiplier to everything except
+                    // the Hypercube creation bonus (a flat 500 per cube) and
+                    // adds a speed bonus that grows +100 per chained match from
+                    // 200 up to 1000 points.
+                    int lightningSpeedBonus = 0;
+                    int addedScore;
+                    if (_currentModeKey == "ModeLightning")
+                    {
+                        lightningSpeedBonus = Math.Min(1000, 200 + (_cascadeChain - 1) * 100);
+                        addedScore = (res.BasePoints - res.HypercubeCreationPoints) * (_lightningMultiplier * 5)
+                                   + res.HypercubeCreationPoints
+                                   + lightningSpeedBonus;
+                    }
+                    else if (_currentModeKey == "ModeClassic")
+                    {
+                        addedScore = res.BasePoints * _level;
+                    }
+                    else
+                    {
+                        addedScore = res.BasePoints;
+                    }
 
                     // Annihilator: swapping two hypercubes wipes the whole board.
                     // Authentic payoff — a massive detonation rumble and a hefty
@@ -2094,6 +2118,20 @@ namespace Bejeweled3Accessible.UI
                                 _profileMgr.Save();
                             }
 
+                            // Heroes Welcome: the elite badge for restoring
+                            // all five relicaries (100% of Quest).
+                            bool allQuestsComplete = true;
+                            for (int m = 0; m < 40; m++)
+                            {
+                                if (!_progress.IsQuestMissionComplete(m))
+                                {
+                                    allQuestsComplete = false;
+                                    break;
+                                }
+                            }
+                            if (allQuestsComplete)
+                                AwardBadge("BadgeHeroes", BadgeTier.Platinum);
+
                             _sound.PlaySound("voice_challengecomplete");
                             _sound.PlaySound("quest_award_wreath");
                             _sound.PlaySound("QuestMenu_RelicComplete_object");
@@ -2221,11 +2259,17 @@ namespace Bejeweled3Accessible.UI
                             _sound.PlaySound("cardflip");
                         }
 
+                        // Authentic: special gems destroyed in the cascade boost
+                        // the hand being dealt (+100 per Flame, +250 per Star).
+                        _pokerHandBonus += res.FlameDestroyed * 100 + res.StarDestroyed * 250;
+
                         if (_pokerCards.Count >= 5)
                         {
                             PokerHandType hand = PokerHandEvaluator.Evaluate(_pokerCards);
-                            int handPts = PokerHandEvaluator.GetHandPoints(hand);
-                            bool isBadHand = hand == PokerHandType.HighCard || hand == PokerHandType.Pair || hand == PokerHandType.TwoPair;
+                            int handPts = PokerHandEvaluator.GetHandPoints(hand) + _pokerHandBonus;
+                            // Authentic: only a High Card (worth nothing) drops a
+                            // skull; every real hand scores.
+                            bool isBadHand = hand == PokerHandType.HighCard;
 
                             if (isBadHand)
                             {
@@ -2236,6 +2280,7 @@ namespace Bejeweled3Accessible.UI
                                 _sound.PlaySound("skull_appear");
                                 _sound.PlaySound("pokerchips");
                                 _pokerCards.Clear();
+                                _pokerHandBonus = 0;
 
                                 if (_pokerSkulls >= 5)
                                 {
@@ -2284,6 +2329,7 @@ namespace Bejeweled3Accessible.UI
                                 _sound.PlaySound("pokerchips");
                                 _speech.Speak(Localization.Get("PokerHandScored", Localization.GetPokerHandName(hand), handPts), true);
                                 _pokerCards.Clear();
+                                _pokerHandBonus = 0;
 
                                 // Skull Eliminator: scoring strongly charges the bar.
                                 // At 3 charges one skull is busted off the table.
@@ -2402,6 +2448,19 @@ namespace Bejeweled3Accessible.UI
                     string matchAnnounceText = res.CascadeDepth > 1
                         ? Localization.Get("CascadeAnnounce", res.CascadeDepth, res.TotalGemsDestroyed, _score)
                         : Localization.Get("MatchAnnounce", res.TotalGemsDestroyed, _score);
+
+                    // Double match (T / L shape): official 50-per-match bonus
+                    // announced on top of the regular score sheet.
+                    if (res.DoubleMatchBonus > 0)
+                    {
+                        _sound.PlaySound("doubleset");
+                        matchAnnounceText += " " + Localization.Get("MultipleMatchAnnounce", res.SimultaneousMatches, res.DoubleMatchBonus * 50);
+                    }
+
+                    if (lightningSpeedBonus > 0)
+                    {
+                        matchAnnounceText += " " + Localization.Get("SpeedBonusAnnounce", lightningSpeedBonus);
+                    }
 
                     // The score announcement goes to the screen reader (NVDA/SAPI),
                     // which is independent from the game voices: speak it right away
@@ -2625,7 +2684,7 @@ case Engine.QuestType.TimeBomb:
                     _speech.Speak(Localization.Get("ClassicStatus", _score, _level, _shufflesRemaining), true);
                     break;
                 case "ModeLightning":
-                    _speech.Speak(Localization.Get("LightningScoreAnnouncement", _score, _lightningTimeLeft, _lightningMultiplier), true);
+                    _speech.Speak(Localization.Get("LightningScoreAnnouncement", _score, _lightningTimeLeft, _lightningMultiplier * 5), true);
                     break;
                 case "ModeZen":
                     _speech.Speak(Localization.Get("ZenStatus", _score, _level), true);

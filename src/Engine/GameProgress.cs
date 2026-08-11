@@ -13,7 +13,7 @@ namespace Bejeweled3Accessible.Engine
         public int ButterfliesHighScore { get; set; }
         public int IceStormHighScore { get; set; }
         public int DiamondMineHighScore { get; set; }
-        // Number of question-reliquaries fully completed (4 missions each).
+        // Number of relicaries revealed (4 of their 8 mini-quests completed).
         // Serialized under the old name for backwards compatibility with
         // progress.xml files created by previous builds.
         [XmlElement("QuestRelic1Completed")]

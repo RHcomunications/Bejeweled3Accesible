@@ -20,8 +20,8 @@ namespace Bejeweled3Accessible.Engine
         public int Difficulty { get; set; }      // 1..5
         public int Objective { get; set; }
         public int MissionIndex { get; set; }    // 0..39
-        public int RelicIndex { get; set; }      // 0..9
-        public int PositionInRelic { get; set; } // 0..3
+        public int RelicIndex { get; set; }      // 0..4
+        public int PositionInRelic { get; set; } // 0..7
 
         public string GetName()
         {
@@ -30,8 +30,10 @@ namespace Bejeweled3Accessible.Engine
         }
     }
 
-    // Authentic Quest structure: 10 relics x 4 missions, 8 mission types
-    // with 5 levels of difficulty (40 missions total).
+    // Authentic Quest structure: 5 relicaries x 8 mini-quests (40 missions
+    // total). Every relicary holds all 8 quest types once, in a rotating
+    // order, and difficulty grows with the relicary (difficulty = relic + 1).
+    // Revealing a relicary takes 4 of its 8 missions; restoring it takes all 8.
     public static class QuestManager
     {
         private static readonly int[] ButterfliesObjectives = { 5, 8, 10, 12, 15 };
@@ -43,21 +45,17 @@ namespace Bejeweled3Accessible.Engine
         private static readonly int[] IceStormObjectives = { 2, 4, 6, 8, 10 };
         private static readonly int[] DiamondMineObjectives = { 10, 20, 30, 40, 50 };
 
-        private static readonly QuestType[] _evenRelicTypes = { QuestType.Butterflies, QuestType.GoldRush, QuestType.Alchemy, QuestType.TimeBomb };
-        private static readonly QuestType[] _oddRelicTypes = { QuestType.Avalanche, QuestType.Poker, QuestType.IceStorm, QuestType.DiamondMine };
-
         private static readonly QuestMission[] _missions = new QuestMission[40];
 
         static QuestManager()
         {
             int index = 0;
-            for (int relic = 0; relic < 10; relic++)
+            for (int relic = 0; relic < 5; relic++)
             {
-                int difficulty = (relic / 2) + 1; // relics 0-1 -> 1, 2-3 -> 2 ... 8-9 -> 5
-                QuestType[] types = (relic % 2 == 0) ? _evenRelicTypes : _oddRelicTypes;
-                for (int pos = 0; pos < 4; pos++)
+                int difficulty = relic + 1; // relicaries 0..4 -> difficulty 1..5
+                for (int pos = 0; pos < 8; pos++)
                 {
-                    QuestType t = types[pos];
+                    QuestType t = (QuestType)((pos + relic) % 8);
                     int objective = GetObjective(t, difficulty);
                     _missions[index] = new QuestMission
                     {

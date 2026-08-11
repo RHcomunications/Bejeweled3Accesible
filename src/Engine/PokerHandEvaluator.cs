@@ -49,18 +49,22 @@ namespace Bejeweled3Accessible.Engine
             return PokerHandType.HighCard;
         }
 
+        // Official Bejeweled 3 values (game manual): a High Card scores
+        // nothing and the hands go Pair 2.500, Spectrum 5.000, Two Pair
+        // 7.500, Three of a Kind 10.000, Full House 15.000, Four of a
+        // Kind 30.000 and Flush 50.000.
         public static int GetHandPoints(PokerHandType hand)
         {
             switch (hand)
             {
-                case PokerHandType.Flush: return 2500;
-                case PokerHandType.FourOfAKind: return 2000;
-                case PokerHandType.FullHouse: return 1500;
-                case PokerHandType.ThreeOfAKind: return 1000;
-                case PokerHandType.TwoPair: return 750;
-                case PokerHandType.Spectrum: return 500;
-                case PokerHandType.Pair: return 250;
-                default: return 100;
+                case PokerHandType.Flush: return 50000;
+                case PokerHandType.FourOfAKind: return 30000;
+                case PokerHandType.FullHouse: return 15000;
+                case PokerHandType.ThreeOfAKind: return 10000;
+                case PokerHandType.TwoPair: return 7500;
+                case PokerHandType.Spectrum: return 5000;
+                case PokerHandType.Pair: return 2500;
+                default: return 0;
             }
         }
     }

@@ -285,6 +285,7 @@ namespace Bejeweled3Accessible.Engine
                 bool[,] toDestroy = new bool[Rows, Cols];
                 List<Tuple<int, int, SpecialType, GemColor>> newSpecials = new List<Tuple<int, int, SpecialType, GemColor>>();
                 bool foundMatchThisPass = false;
+                int matchesBeforeThisPass = res.MatchesMade;
 
                 // Check horizontal matches
                 for (int y = 0; y < Rows; y++)
@@ -425,6 +426,11 @@ namespace Bejeweled3Accessible.Engine
                         res.DoubleMatchBonus++;
                     }
                 }
+
+                // Official rule: a double match (T or L shape) is worth 50 per
+                // match plus a 50 bonus; count the matches of the first pass as
+                // the "simultaneous matches" of the move.
+                if (depth == 0) res.SimultaneousMatches = res.MatchesMade - matchesBeforeThisPass;
 
                 if (!foundMatchThisPass || depth >= MAX_CASCADE_DEPTH) break;
 
