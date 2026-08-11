@@ -1650,8 +1650,9 @@ namespace Bejeweled3Accessible.UI
 
         private void HandlePlayingKeys(KeyEventArgs e)
         {
+            // Swaps: W/A/S/D or Ctrl+arrows, all four directions symmetric.
             if (e.KeyCode == Keys.W || (e.Control && e.KeyCode == Keys.Up)) PerformSwap(0, -1);
-            else if (e.KeyCode == Keys.S && Control.ModifierKeys == Keys.Control) PerformSwap(0, 1);
+            else if (e.KeyCode == Keys.S || (e.Control && e.KeyCode == Keys.Down)) PerformSwap(0, 1);
             else if (e.KeyCode == Keys.A || (e.Control && e.KeyCode == Keys.Left)) PerformSwap(-1, 0);
             else if (e.KeyCode == Keys.D || (e.Control && e.KeyCode == Keys.Right)) PerformSwap(1, 0);
 
@@ -1698,10 +1699,6 @@ namespace Bejeweled3Accessible.UI
                     _speech.Speak(Localization.Get("QuestActiveStatus", _activeQuestName, _score), true);
                 else
                     _speech.Speak(Localization.Get("ScoreAnnouncement", _score, _level), true);
-            }
-            else if (e.KeyCode == Keys.S)
-            {
-                PerformSwap(0, 1);
             }
             else if (e.KeyCode == Keys.C) { AnnounceCurrentCell(); }
             else if (e.KeyCode == Keys.Q)
