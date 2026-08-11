@@ -1650,7 +1650,10 @@ namespace Bejeweled3Accessible.UI
 
         private void HandlePlayingKeys(KeyEventArgs e)
         {
-            // Swaps: W/A/S/D or Ctrl+arrows, all four directions symmetric.
+            // Swaps: W/A/S/D or Ctrl+arrow, symmetric in all four directions to match
+            // the original layout (WASD keys also move in 3D shooters using the
+            // same physical directions). Kept together so the plain keys never
+            // drop through to the query keys below.
             if (e.KeyCode == Keys.W || (e.Control && e.KeyCode == Keys.Up)) PerformSwap(0, -1);
             else if (e.KeyCode == Keys.S || (e.Control && e.KeyCode == Keys.Down)) PerformSwap(0, 1);
             else if (e.KeyCode == Keys.A || (e.Control && e.KeyCode == Keys.Left)) PerformSwap(-1, 0);
