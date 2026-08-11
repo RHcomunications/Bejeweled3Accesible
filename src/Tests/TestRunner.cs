@@ -268,22 +268,22 @@ namespace Bejeweled3Accessible.Tests
                 Assert.True(res.FlameCreated >= 1, "Match-4 debe crear llama");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("Board: match-5 crea Supernova", () =>
+            tests.Add(Tuple.Create<string, Action>("Board: match-5 crea Hipercubo", () =>
             {
                 Board b = new Board(10);
                 FillCheckerboard(b);
                 for (int i = 0; i < 5; i++) b.SetGem(1 + i, 3, new Gem(GemColor.Red));
                 CascadeResult res = b.ProcessMatchesAndGravity();
-                Assert.True(res.SupernovaCreated >= 1, "Match-5 debe crear supernova");
+                Assert.True(res.HypercubeCreated >= 1, "Match-5 debe crear hipercubo");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("Board: match-6 crea Hipercubo", () =>
+            tests.Add(Tuple.Create<string, Action>("Board: match-6 crea Supernova", () =>
             {
                 Board b = new Board(11);
                 FillCheckerboard(b);
                 for (int i = 0; i < 6; i++) b.SetGem(1 + i, 3, new Gem(GemColor.Red));
                 CascadeResult res = b.ProcessMatchesAndGravity();
-                Assert.True(res.HypercubeCreated >= 1, "Match-6 debe crear hipercubo");
+                Assert.True(res.SupernovaCreated >= 1, "Match-6 debe crear supernova");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Board: forma T crea Supernova", () =>

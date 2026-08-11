@@ -1890,6 +1890,18 @@ namespace Bejeweled3Accessible.UI
                     _sound.PlaySound(comboSoundName);
 
                     int addedScore = res.BasePoints * (_currentModeKey == "ModeLightning" ? _lightningMultiplier * 5 : 1);
+
+                    // Annihilator: swapping two hypercubes wipes the whole board.
+                    // Authentic payoff — a massive detonation rumble and a hefty
+                    // bonus on top of the per-gem score.
+                    if (res.AnnihilatorUsed)
+                    {
+                        addedScore += 2500;
+                        _sound.PlaySound("preblast");
+                        _sound.PlaySoundSpatial("bomb_explode", fromX, _cursorY);
+                        _sound.PlaySound("hyperspace");
+                    }
+
                     _score += addedScore;
 
                     int rankBefore = RankSystem.GetRankLevel(_progress.TotalScore);

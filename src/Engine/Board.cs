@@ -294,7 +294,9 @@ namespace Bejeweled3Accessible.Engine
                                 for (int i = startX; i <= x; i++) toDestroy[y, i] = true;
 
                                 // Special Gem Creations (authentic Bejeweled 3)
-                                // 4 in a row = Flame, 5 in a row = Supernova, 6+ = Hypercube
+                                // 4 in a row = Flame, 5 in a row = Hypercube,
+                                // 6+ in a row = Supernova (L/T shapes below also
+                                // create Supernovas).
                                 GemColor c = _grid[y, startX].Color;
                                 if (runLen == 4)
                                 {
@@ -303,13 +305,13 @@ namespace Bejeweled3Accessible.Engine
                                 }
                                 else if (runLen == 5)
                                 {
-                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(startX + 2, y, SpecialType.Supernova, c));
-                                    res.SupernovaCreated++;
+                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(startX + 2, y, SpecialType.Hypercube, c));
+                                    res.HypercubeCreated++;
                                 }
                                 else if (runLen >= 6)
                                 {
-                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(startX + 2, y, SpecialType.Hypercube, c));
-                                    res.HypercubeCreated++;
+                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(startX + 2, y, SpecialType.Supernova, c));
+                                    res.SupernovaCreated++;
                                 }
                             }
                             runLen = 1;
@@ -352,13 +354,13 @@ namespace Bejeweled3Accessible.Engine
                                 }
                                 else if (runLen == 5)
                                 {
-                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(x, startY + 2, SpecialType.Supernova, c));
-                                    res.SupernovaCreated++;
+                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(x, startY + 2, SpecialType.Hypercube, c));
+                                    res.HypercubeCreated++;
                                 }
                                 else if (runLen >= 6)
                                 {
-                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(x, startY + 2, SpecialType.Hypercube, c));
-                                    res.HypercubeCreated++;
+                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(x, startY + 2, SpecialType.Supernova, c));
+                                    res.SupernovaCreated++;
                                 }
                             }
                             runLen = 1;
