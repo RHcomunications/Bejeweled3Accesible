@@ -9,12 +9,22 @@ namespace Bejeweled3Accessible.Engine
         public int TotalGemsDestroyed;
         public int CascadeDepth;
         public int SimultaneousMatches;
+        public int MatchesMade;
+        public int DoubleMatchBonus;
+        public int CascadeBonus;
         public int BasePoints;
         public int FlameCreated;
         public int StarCreated;
         public int HypercubeCreated;
         public bool HypercubeTriggered;
         public int SupernovaCreated;
+        public int SupernovaDestroyed;
+        public int FlameBlastGems;
+        public int StarBlastGems;
+        public int SupernovaBlastGems;
+        public int HypercubeDetonationPoints;
+        public int AnnihilatorPoints;
+        public int HypercubeCreationPoints;
         public int TimeGemsMatched;
         public int ExtraTimeSeconds;
         public bool ButterflyEscaped;
@@ -235,6 +245,7 @@ namespace Bejeweled3Accessible.Engine
                         }
                     }
                 }
+                res.AnnihilatorPoints = 100 + 50 * res.TotalGemsDestroyed;
                 ApplyGravity(isLightning, isButterflies);
             }
             else if (_hyperSwapPending)
@@ -247,6 +258,7 @@ namespace Bejeweled3Accessible.Engine
                     res.TotalGemsDestroyed++;
                     _grid[_hyperSwapY, _hyperSwapX] = null;
                 }
+                int colorGemsDestroyed = 0;
                 for (int y = 0; y < Rows; y++)
                 {
                     for (int x = 0; x < Cols; x++)
@@ -254,6 +266,7 @@ namespace Bejeweled3Accessible.Engine
                         if (_grid[y, x] != null && _grid[y, x].Color == _hyperTargetColor)
                         {
                             res.TotalGemsDestroyed++;
+                            colorGemsDestroyed++;
                             res.MatchedColors.Add(_hyperTargetColor);
                             if (!res.MatchedColumns.Contains(x)) res.MatchedColumns.Add(x);
                             res.ColumnDestroyedCount[x]++;
@@ -261,6 +274,9 @@ namespace Bejeweled3Accessible.Engine
                         }
                     }
                 }
+                // Official rule: detonating a Hypercube scores 50 points for the
+                // detonation plus 50 for every gem of the target color destroyed.
+                res.HypercubeDetonationPoints = 50 + 50 * colorGemsDestroyed;
                 ApplyGravity(isLightning, isButterflies);
             }
 
@@ -290,13 +306,14 @@ namespace Bejeweled3Accessible.Engine
                             if (runLen >= 3)
                             {
                                 foundMatchThisPass = true;
+                                res.MatchesMade++;
                                 int startX = x - runLen + 1;
                                 for (int i = startX; i <= x; i++) toDestroy[y, i] = true;
 
-                                // Special Gem Creations (authentic Bejeweled 3)
+                                // Special Gem Creations (official Bejeweled 3 rules)
                                 // 4 in a row = Flame, 5 in a row = Hypercube,
-                                // 6+ in a row = Supernova (L/T shapes below also
-                                // create Supernovas).
+                                // 6+ in a row = Supernova (the L/T shapes below
+                                // create the Star gem).
                                 GemColor c = _grid[y, startX].Color;
                                 if (runLen == 4)
                                 {
@@ -339,6 +356,7 @@ namespace Bejeweled3Accessible.Engine
                             if (runLen >= 3)
                             {
                                 foundMatchThisPass = true;
+                                res.MatchesMade++;
                                 int startY = y - runLen + 1;
                                 for (int j = startY; j <= y; j++) toDestroy[j, x] = true;
 
@@ -368,7 +386,8 @@ namespace Bejeweled3Accessible.Engine
                     }
                 }
 
-                // Detect T / L / square shapes and create Supernova gems at the "elbow" cell
+                // Detect T / L shapes and create Star gems at the "elbow" cell
+                // (official rule: a double match is worth 50 per match + 50 bonus).
                 HashSet<int> elbowCells = new HashSet<int>();
                 for (int y = 0; y < Rows; y++)
                 {
@@ -401,8 +420,9 @@ namespace Bejeweled3Accessible.Engine
                         if (alreadyNear) continue;
 
                         elbowCells.Add(y * Cols + x);
-                        newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(x, y, SpecialType.Supernova, c));
-                        res.SupernovaCreated++;
+                        newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(x, y, SpecialType.Star, c));
+                        res.StarCreated++;
+                        res.DoubleMatchBonus++;
                     }
                 }
 
@@ -423,34 +443,59 @@ namespace Bejeweled3Accessible.Engine
                             if (_grid[y, x].IsButterfly) res.ButterfliesFreed++;
                             if (_grid[y, x].Special == SpecialType.Time5) { res.TimeGemsMatched++; res.ExtraTimeSeconds += 5; }
                             if (_grid[y, x].Special == SpecialType.Time10) { res.TimeGemsMatched++; res.ExtraTimeSeconds += 10; }
-                            if (_grid[y, x].Special == SpecialType.Flame) res.FlameDestroyed++;
-                            else if (_grid[y, x].Special == SpecialType.Star) res.StarDestroyed++;
-                            else if (_grid[y, x].Special == SpecialType.Hypercube) res.HypercubeDestroyed++;
 
-                            // Flame explosion 3x3
+                            // Flame explosion 3x3 (official: 20 per detonation + 20 per gem)
                             if (_grid[y, x].Special == SpecialType.Flame)
                             {
+                                res.FlameDestroyed++;
+                                res.FlameBlastGems++;
                                 for (int dy = -1; dy <= 1; dy++)
                                     for (int dx = -1; dx <= 1; dx++)
                                         if (y + dy >= 0 && y + dy < Rows && x + dx >= 0 && x + dx < Cols)
+                                        {
+                                            if (_grid[y + dy, x + dx] != null && !toDestroy[y + dy, x + dx]) res.FlameBlastGems++;
                                             toDestroy[y + dy, x + dx] = true;
+                                        }
                             }
-                            // Star blast row & col
+                            // Star blast full row & column (official: 50 per gem in the cross)
                             else if (_grid[y, x].Special == SpecialType.Star)
                             {
-                                for (int r = 0; r < Rows; r++) toDestroy[r, x] = true;
-                                for (int c = 0; c < Cols; c++) toDestroy[y, c] = true;
+                                res.StarDestroyed++;
+                                res.StarBlastGems++;
+                                for (int r = 0; r < Rows; r++)
+                                {
+                                    if (r != y && _grid[r, x] != null && !toDestroy[r, x]) res.StarBlastGems++;
+                                    toDestroy[r, x] = true;
+                                }
+                                for (int c = 0; c < Cols; c++)
+                                {
+                                    if (_grid[y, c] != null && !toDestroy[y, c]) res.StarBlastGems++;
+                                    toDestroy[y, c] = true;
+                                }
                             }
-                            // Supernova blast 3 rows & 3 cols
+                            // Supernova blast 3 rows & 3 cols (official: 50 per gem)
                             else if (_grid[y, x].Special == SpecialType.Supernova)
                             {
+                                res.SupernovaDestroyed++;
+                                res.SupernovaBlastGems++;
                                 for (int dy = -1; dy <= 1; dy++)
                                     if (y + dy >= 0 && y + dy < Rows)
-                                        for (int c = 0; c < Cols; c++) toDestroy[y + dy, c] = true;
-
+                                        for (int c = 0; c < Cols; c++)
+                                        {
+                                            if (!(y + dy == y && c == x) && _grid[y + dy, c] != null && !toDestroy[y + dy, c]) res.SupernovaBlastGems++;
+                                            toDestroy[y + dy, c] = true;
+                                        }
                                 for (int dx = -1; dx <= 1; dx++)
                                     if (x + dx >= 0 && x + dx < Cols)
-                                        for (int r = 0; r < Rows; r++) toDestroy[r, x + dx] = true;
+                                        for (int r = 0; r < Rows; r++)
+                                        {
+                                            if (!(r == y && x + dx == x) && _grid[r, x + dx] != null && !toDestroy[r, x + dx]) res.SupernovaBlastGems++;
+                                            toDestroy[r, x + dx] = true;
+                                        }
+                            }
+                            else if (_grid[y, x].Special == SpecialType.Hypercube)
+                            {
+                                res.HypercubeDestroyed++;
                             }
                         }
                     }
@@ -543,7 +588,23 @@ namespace Bejeweled3Accessible.Engine
             }
 
             res.CascadeDepth = depth;
-            res.BasePoints = res.TotalGemsDestroyed * 50 + (depth > 1 ? (depth - 1) * 100 : 0);
+
+            // Official scoring (Bejeweled 3 manual): 50 points per match, creation
+            // bonuses (Flame 100, Star 150, Hypercube 500, Supernova 1000), a 50
+            // bonus per double match (T/L elbow), detonation bonuses (Flame
+            // 20 + 20 per gem destroyed; Star and Supernova 50 + 50 per gem;
+            // Hypercube 50 + 50 per gem of the color), and a cumulative cascade
+            // bonus of 50 x cascade level.
+            int baseScore = 50 * res.MatchesMade;
+            baseScore += 100 * res.FlameCreated + 150 * res.StarCreated + 500 * res.HypercubeCreated + 1000 * res.SupernovaCreated;
+            baseScore += 50 * res.DoubleMatchBonus;
+            baseScore += 20 * res.FlameDestroyed + 20 * res.FlameBlastGems;
+            baseScore += 50 * res.StarDestroyed + 50 * res.StarBlastGems;
+            baseScore += 50 * res.SupernovaDestroyed + 50 * res.SupernovaBlastGems;
+            baseScore += res.HypercubeDetonationPoints + res.AnnihilatorPoints;
+            res.CascadeBonus = 50 * depth * (depth + 1) / 2;
+            res.BasePoints = baseScore + res.CascadeBonus;
+            res.HypercubeCreationPoints = 500 * res.HypercubeCreated;
             return res;
         }
 

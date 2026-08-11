@@ -21,7 +21,7 @@ namespace Bejeweled3Accessible.Engine
         private static readonly Dictionary<string, Tuple<string, string>> _dict = new Dictionary<string, Tuple<string, string>>
         {
             // Loading Screen
-            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.08.11.0.", "Loading Bejeweled 3... Version 2026.08.11.0.") },
+            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.08.11.1.", "Loading Bejeweled 3... Version 2026.08.11.1.") },
             { "LoadingPrompt", new Tuple<string, string>("Presiona cualquier tecla para continuar", "Press any key to continue") },
 
             // Profile Screen
@@ -32,7 +32,7 @@ namespace Bejeweled3Accessible.Engine
             { "ProfileDelete", new Tuple<string, string>("Eliminar perfil actual", "Delete current profile") },
 
             // Menus
-            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.08.11.0", "Bejeweled 3 Accessible - Version 2026.08.11.0") },
+            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.08.11.1", "Bejeweled 3 Accessible - Version 2026.08.11.1") },
             { "MenuPlay", new Tuple<string, string>("Jugar Bejeweled 3", "Play Bejeweled 3") },
             { "MenuChangeUser", new Tuple<string, string>("Haz clic aquí para cambiar de usuario. Perfil actual: {0}", "Click here to change user. Current profile: {0}") },
             { "MenuLanguage", new Tuple<string, string>("Idioma: Español. Pulsa Enter para cambiar", "Language: English. Press Enter to switch to Spanish") },
@@ -327,6 +327,7 @@ namespace Bejeweled3Accessible.Engine
             { "NoMoreMovesScramble", new Tuple<string, string>("¡Sin más movimientos! Barajando tablero...", "No more moves! Scrambling board...") },
             { "HypercubeCreatedCell", new Tuple<string, string>("Hipercubo creado en casilla actual.", "Hypercube created at current cell.") },
             { "FlameCreatedCell", new Tuple<string, string>("Gema de Fuego creada en casilla actual.", "Flame Gem created at current cell.") },
+            { "StarCreatedCell", new Tuple<string, string>("Estrella creada en casilla actual.", "Star created at current cell.") },
             { "IceColumnStatus", new Tuple<string, string>("Puntuación: {0}. Hielo en columna actual: {1} de 8.", "Score: {0}. Ice in current column: {1} of 8.") },
             { "IceColumnCrestedStatus", new Tuple<string, string>("Puntuación: {0}. ¡La columna actual crestó el tablero! Cráneo activo: {1} segundos para congelarse.", "Score: {0}. Current column crested the board! Skull active: {1} seconds until freeze.") },
             { "QuestActiveStatus", new Tuple<string, string>("Misión activa: {0}. Puntuación: {1}.", "Active Mission: {0}. Score: {1}.") }

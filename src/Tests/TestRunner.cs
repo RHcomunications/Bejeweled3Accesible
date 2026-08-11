@@ -286,7 +286,7 @@ namespace Bejeweled3Accessible.Tests
                 Assert.True(res.SupernovaCreated >= 1, "Match-6 debe crear supernova");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("Board: forma T crea Supernova", () =>
+            tests.Add(Tuple.Create<string, Action>("Board: forma T crea Estrella", () =>
             {
                 Board b = new Board(12);
                 FillCheckerboard(b);
@@ -296,7 +296,7 @@ namespace Bejeweled3Accessible.Tests
                 b.SetGem(3, 2, new Gem(GemColor.Green));
                 b.SetGem(3, 4, new Gem(GemColor.Green));
                 CascadeResult res = b.ProcessMatchesAndGravity();
-                Assert.True(res.SupernovaCreated >= 1, "Forma T debe crear supernova");
+                Assert.True(res.StarCreated >= 1, "Forma T debe crear estrella");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Board: matches simultaneos cuentan gemas y colores", () =>

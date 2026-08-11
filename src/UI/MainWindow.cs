@@ -1676,6 +1676,12 @@ namespace Bejeweled3Accessible.UI
                 _sound.PlaySound("powergem_created");
                 _speech.Speak(Localization.Get("FlameCreatedCell"), true);
             }
+            else if (e.Shift && e.KeyCode == Keys.S)
+            {
+                _board.SetGem(_cursorX, _cursorY, new Gem(GemColor.Red, SpecialType.Star));
+                _sound.PlaySound("lasergem_created");
+                _speech.Speak(Localization.Get("StarCreatedCell"), true);
+            }
             else if (e.Shift && e.KeyCode == Keys.R)
             {
                 _sound.PlaySound("button_press");
@@ -2341,6 +2347,11 @@ namespace Bejeweled3Accessible.UI
                     {
                         _sound.PlaySound("hypercube_create");
                         _sound.PlaySound("hyperspace");
+                    }
+                    else if (res.StarCreated > 0)
+                    {
+                        _sound.PlaySound("lasergem_created");
+                        _sound.PlaySound("electro_explode");
                     }
                     else if (res.FlameCreated > 0)
                     {
