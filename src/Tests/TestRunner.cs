@@ -1300,6 +1300,35 @@ namespace Bejeweled3Accessible.Tests
                 }
             }));
 
+            tests.Add(Tuple.Create<string, Action>("MusicMap: cobertura completa disco <-> constantes", () =>
+            {
+                string repoRoot = AppDomain.CurrentDomain.BaseDirectory;
+                for (int i = 0; i < 4 && !Directory.Exists(Path.Combine(repoRoot, "music")); i++)
+                    repoRoot = Path.GetDirectoryName(repoRoot);
+                string musicDir = Path.Combine(repoRoot, "music");
+                Assert.True(Directory.Exists(musicDir), "Carpeta music localizable");
+
+                string[] onDisk = Directory.GetFiles(musicDir, "*.mp3")
+                    .Select(f => Path.GetFileNameWithoutExtension(f)).ToArray();
+                Assert.Equal(29, onDisk.Length, "29 mp3 en music");
+                Assert.Equal(29, MusicMap.TrackCount, "TrackCount coincide");
+
+                var missingOnDisk = new List<string>();
+                foreach (string key in MusicMap.AllTrackKeys)
+                    if (!onDisk.Contains(key)) missingOnDisk.Add(key);
+                Assert.Equal(0, missingOnDisk.Count, "Constantes sin pista en disco: " + string.Join(", ", missingOnDisk));
+
+                var missingInMap = new List<string>();
+                foreach (string name in onDisk)
+                    if (!MusicMap.AllTrackKeys.Contains(name)) missingInMap.Add(name);
+                Assert.Equal(0, missingInMap.Count, "Pistas sin constante en MusicMap: " + string.Join(", ", missingInMap));
+
+                Assert.Equal(onDisk.Length, new HashSet<string>(MusicMap.AllTrackKeys).Count, "Sin duplicados");
+                Assert.Equal("03 - Classic Mode - Part 1.mp3", MusicMap.FileName(MusicMap.ClassicParts[0]), "Clasico parte 1");
+                Assert.Equal("06 - Classic Mode - Part 4.mp3", MusicMap.FileName(MusicMap.ClassicParts[3]), "Clasico parte 4");
+                Assert.Equal("01 - Intro.mp3", MusicMap.FileName(MusicMap.Intro), "Helper FileName");
+            }));
+
             // ======================= HRTF / SPATIAL AUDIO =======================
             tests.Add(Tuple.Create<string, Action>("HRTF: columna A pan izquierdo completo (-0.85)", () =>
             {

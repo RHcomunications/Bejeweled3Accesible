@@ -208,7 +208,7 @@ namespace Bejeweled3Accessible.UI
             // advances to the menu on its own (like the original game).
             _sound.MusicRechained += Sound_MusicRechained;
 
-            _sound.PlayMusic("01 - Intro.mp3");
+            _sound.PlayMusic(MusicMap.FileName(MusicMap.Intro));
             _speech.Speak(Localization.Get("LoadingTitle"), true);
         }
 
@@ -276,7 +276,7 @@ namespace Bejeweled3Accessible.UI
                 _profileInputBuffer = "";
                 // First launch: the menu theme starts right when the
                 // "Welcome to Bejeweled 3" locution plays, like the original.
-                _sound.PlayMusic("02 - Bejeweled 3 Theme.mp3");
+                _sound.PlayMusic(MusicMap.FileName(MusicMap.MainTheme));
                 _sound.PlaySound(AudioMap.VoiceWelcometobejeweled);
                 _speech.Speak(Localization.Get("CreateProfileTitle") + ". " + Localization.Get("EnterNamePrompt"), true);
             }
@@ -284,8 +284,8 @@ namespace Bejeweled3Accessible.UI
             {
                 _screen = GameScreen.MainMenu;
                 // The menu theme is already chaining; just announce the return.
-                if (_sound.MusicNowPlaying != "02 - Bejeweled 3 Theme.mp3")
-                    _sound.PlayMusic("02 - Bejeweled 3 Theme.mp3");
+                if (_sound.MusicNowPlaying != MusicMap.FileName(MusicMap.MainTheme))
+                    _sound.PlayMusic(MusicMap.FileName(MusicMap.MainTheme));
                 if (speakWelcomeBack)
                 {
                     _sound.PlaySound(AudioMap.VoiceWelcomeback);
@@ -1543,7 +1543,7 @@ namespace Bejeweled3Accessible.UI
                 _lastHurrahActive = false;
                 _lastHurrahScore = 0;
                 _lightningTimer.Start();
-                _sound.PlayMusic("07 - Lightning (aka Blitz).mp3");
+                _sound.PlayMusic(MusicMap.FileName(MusicMap.Lightning));
                 startSpeech = Localization.Get("LightningStarted");
             }
             else if (modeKey == "ModeZen")
@@ -1553,13 +1553,13 @@ namespace Bejeweled3Accessible.UI
             }
             else if (modeKey == "ModePoker")
             {
-                _sound.PlayMusic("09 - Poker.mp3");
+                _sound.PlayMusic(MusicMap.FileName(MusicMap.Poker));
                 startSpeech = Localization.Get("PokerStarted");
             }
             else if (modeKey == "ModeButterflies")
             {
                 _board.InitializeButterfliesBoard();
-                _sound.PlayMusic("08 - Butterflies.mp3");
+                _sound.PlayMusic(MusicMap.FileName(MusicMap.Butterflies));
                 startSpeech = Localization.Get("ButterfliesStarted") + " " + Localization.Get("ButterflyStart", _board.GetButterflyCount());
             }
             else if (modeKey == "ModeIceStorm")
@@ -1572,7 +1572,7 @@ namespace Bejeweled3Accessible.UI
                 _iceRiseInterval = Math.Max(1, 6 - _level);
                 _iceRiseCounter = 0;
                 _lightningTimer.Start();
-                _sound.PlayMusic("10 - Ice Storm.mp3");
+                _sound.PlayMusic(MusicMap.FileName(MusicMap.IceStorm));
                 startSpeech = Localization.Get("IceStormStarted");
             }
             else if (modeKey == "ModeDiamondMine")
@@ -1583,7 +1583,7 @@ namespace Bejeweled3Accessible.UI
                 _lightningTankSeconds = 0;
                 _lightningTimer.Start();
                 _board.InitializeDiamondMineBoard();
-                _sound.PlayMusic("16 - Buried Treasure.mp3");
+                _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestBuriedTreasure));
                 startSpeech = Localization.Get("DiamondMineStarted");
             }
             else if (modeKey == "ModeQuest")
@@ -1594,18 +1594,18 @@ namespace Bejeweled3Accessible.UI
                     {
                         case Engine.QuestType.Butterflies:
                             _board.InitializeButterfliesBoard();
-                            _sound.PlayMusic("08 - Butterflies.mp3");
+                            _sound.PlayMusic(MusicMap.FileName(MusicMap.Butterflies));
                             break;
                         case Engine.QuestType.DiamondMine:
                         case Engine.QuestType.GoldRush:
                             _board.InitializeDiamondMineBoard();
-                            _sound.PlayMusic("16 - Buried Treasure.mp3");
+                            _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestBuriedTreasure));
                             break;
                         case Engine.QuestType.TimeBomb:
                             // Authentic: the first board is already armed with bombs
                             _board.InitializeBoard(true);
                             _sound.PlaySound(AudioMap.BombAppears);
-                            _sound.PlayMusic("19 - Time Bombs.mp3");
+                            _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestTimeBombs));
                             _lightningTimer.Start();
                             break;
                         case Engine.QuestType.IceStorm:
@@ -1617,22 +1617,22 @@ namespace Bejeweled3Accessible.UI
                             _iceRiseInterval = Math.Max(1, 6 - _level);
                             _iceRiseCounter = 0;
                             _lightningTimer.Start();
-                            _sound.PlayMusic("10 - Ice Storm.mp3");
+                            _sound.PlayMusic(MusicMap.FileName(MusicMap.IceStorm));
                             break;
                         case Engine.QuestType.Poker:
-                            _sound.PlayMusic("09 - Poker.mp3");
+                            _sound.PlayMusic(MusicMap.FileName(MusicMap.Poker));
                             break;
                         case Engine.QuestType.Avalanche:
-                            _sound.PlayMusic("18 - Turn by Turn.mp3");
+                            _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestTurnByTurn));
                             break;
                         default:
-                            _sound.PlayMusic("17 - Take Your Time.mp3");
+                            _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestTakeYourTime));
                             break;
                     }
                 }
                 else
                 {
-                    _sound.PlayMusic("17 - Take Your Time.mp3");
+                    _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestTakeYourTime));
                 }
 
                 startSpeech = Localization.Get("QuestMissionIntro", _activeQuestName);
@@ -1641,7 +1641,7 @@ namespace Bejeweled3Accessible.UI
             }
             else
             {
-                _sound.PlayMusic("03 - Classic Mode - Part 1.mp3");
+                _sound.PlayMusic(MusicMap.FileName(MusicMap.ClassicPart1));
                 startSpeech = Localization.Get("ClassicStarted");
             }
 
@@ -1999,8 +1999,7 @@ namespace Bejeweled3Accessible.UI
 
                             // Dynamic stage music progression in Classic Mode (Parts 1 to 4)
                             int stage = ((_level - 1) % 4) + 1;
-                            string classicTrack = string.Format("0{0} - Classic Mode - Part {1}.mp3", stage + 2, stage);
-                            _sound.PlayMusic(classicTrack);
+                            _sound.PlayMusic(MusicMap.FileName(MusicMap.ClassicParts[stage - 1]));
                         }
                         if (newLevel > _progress.ClassicLevel)
                         {

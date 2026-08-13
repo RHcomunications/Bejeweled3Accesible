@@ -48,10 +48,10 @@ namespace Bejeweled3Accessible.Engine
             int zenPart = ((level - 1) % 4) + 1;
             switch (zenPart)
             {
-                case 2: return "12 - Zen - Part 2 - Schein Zwei.mp3";
-                case 3: return "13 - Zen - Part 3 - The Return.mp3";
-                case 4: return "14 - Zen - Part 4.mp3";
-                default: return "11 - Zen - Part 1.mp3";
+                case 2: return MusicMap.FileName(MusicMap.ZenPart2);
+                case 3: return MusicMap.FileName(MusicMap.ZenPart3);
+                case 4: return MusicMap.FileName(MusicMap.ZenPart4);
+                default: return MusicMap.FileName(MusicMap.ZenPart1);
             }
         }
 
@@ -59,12 +59,12 @@ namespace Bejeweled3Accessible.Engine
         {
             switch (ambient)
             {
-                case AmbientType.Coastal: return "24 - Coastal.mp3";
-                case AmbientType.Crickets: return "25 - Crickets.mp3";
-                case AmbientType.Forest: return "26 - Forest.mp3";
-                case AmbientType.OceanSurf: return "27 - Ocean Surf.mp3";
-                case AmbientType.RainLeaves: return "28 - Rain Leaves.mp3";
-                case AmbientType.Waterfall: return "29 - Waterfall.mp3";
+                case AmbientType.Coastal: return MusicMap.FileName(MusicMap.AmbientCoastal);
+                case AmbientType.Crickets: return MusicMap.FileName(MusicMap.AmbientCrickets);
+                case AmbientType.Forest: return MusicMap.FileName(MusicMap.AmbientForest);
+                case AmbientType.OceanSurf: return MusicMap.FileName(MusicMap.AmbientOceanSurf);
+                case AmbientType.RainLeaves: return MusicMap.FileName(MusicMap.AmbientRainLeaves);
+                case AmbientType.Waterfall: return MusicMap.FileName(MusicMap.AmbientWaterfall);
                 default: return "";
             }
         }
