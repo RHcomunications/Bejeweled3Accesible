@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using Bejeweled3Accessible.Engine;
 using Bejeweled3Accessible.Audio;
 using Bejeweled3Accessible.Accessibility;
@@ -1264,6 +1265,38 @@ namespace Bejeweled3Accessible.Tests
                 {
                     if (Directory.Exists(tempDir)) Directory.Delete(tempDir, true);
                     if (extracted != null && File.Exists(extracted)) File.Delete(extracted);
+                }
+            }));
+
+            // ======================= AUDIOMAP =======================
+            tests.Add(Tuple.Create<string, Action>("AudioMap: cobertura completa disco <-> constantes", () =>
+            {
+                string repoRoot = AppDomain.CurrentDomain.BaseDirectory;
+                for (int i = 0; i < 4 && !Directory.Exists(Path.Combine(repoRoot, "sounds")); i++)
+                    repoRoot = Path.GetDirectoryName(repoRoot);
+                string soundsDir = Path.Combine(repoRoot, "sounds");
+                Assert.True(Directory.Exists(soundsDir), "Carpeta sounds localizable");
+
+                string[] onDisk = Directory.GetFiles(soundsDir, "*.ogg")
+                    .Select(f => Path.GetFileNameWithoutExtension(f)).ToArray();
+                Assert.Equal(189, onDisk.Length, "189 ogg en sounds raiz (sin anidar)");
+                Assert.Equal(189, AudioMap.SoundCount, "SoundCount coincide");
+
+                var missingOnDisk = new List<string>();
+                foreach (string key in AudioMap.AllSoundKeys)
+                    if (!onDisk.Contains(key)) missingOnDisk.Add(key);
+                Assert.Equal(0, missingOnDisk.Count, "Constantes sin fichero en disco: " + string.Join(", ", missingOnDisk));
+
+                var missingInMap = new List<string>();
+                foreach (string name in onDisk)
+                    if (!AudioMap.AllSoundKeys.Contains(name)) missingInMap.Add(name);
+                Assert.Equal(0, missingInMap.Count, "Ficheros sin constante en AudioMap: " + string.Join(", ", missingInMap));
+
+                HashSet<string> ids = new HashSet<string>();
+                foreach (string key in AudioMap.AllSoundKeys)
+                {
+                    string id = string.Concat(key.Split('_', ' ').Select(t => t.Length > 0 ? char.ToUpper(t[0]) + t.Substring(1) : ""));
+                    Assert.True(ids.Add(id), "Identificador duplicado: " + id);
                 }
             }));
 
