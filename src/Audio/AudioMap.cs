@@ -16,6 +16,7 @@ namespace Bejeweled3Accessible.Audio
         public const string HyperspaceGemLandZenPrefix = "hyperspace_gem_land_zen_";
         public const string HyperspaceShatterPrefix = "hyperspace_shatter_";
         public const string MultiplierUp2Prefix = "multiplier_up2_";
+        public const string ZenNecklacePrefix = "zen_necklace_";
 
         public static readonly string[] AllSoundKeys = new string[]
         {

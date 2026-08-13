@@ -267,8 +267,8 @@ namespace Bejeweled3Accessible.UI
             // Persist once when leaving gameplay, not on every turn.
             _profileMgr.Save();
 
-            _sound.PlaySound("backtomain");
-            _sound.PlaySound("menuspin");
+            _sound.PlaySound(AudioMap.Backtomain);
+            _sound.PlaySound(AudioMap.Menuspin);
 
             if (_profileMgr.Profiles.Count == 0)
             {
@@ -277,7 +277,7 @@ namespace Bejeweled3Accessible.UI
                 // First launch: the menu theme starts right when the
                 // "Welcome to Bejeweled 3" locution plays, like the original.
                 _sound.PlayMusic("02 - Bejeweled 3 Theme.mp3");
-                _sound.PlaySound("voice_welcometobejeweled");
+                _sound.PlaySound(AudioMap.VoiceWelcometobejeweled);
                 _speech.Speak(Localization.Get("CreateProfileTitle") + ". " + Localization.Get("EnterNamePrompt"), true);
             }
             else
@@ -288,7 +288,7 @@ namespace Bejeweled3Accessible.UI
                     _sound.PlayMusic("02 - Bejeweled 3 Theme.mp3");
                 if (speakWelcomeBack)
                 {
-                    _sound.PlaySound("voice_welcomeback");
+                    _sound.PlaySound(AudioMap.VoiceWelcomeback);
                     _speech.Speak(Localization.Get("Welcome"), true);
                 }
                 else
@@ -354,16 +354,16 @@ namespace Bejeweled3Accessible.UI
 
                     if (newSkullCols.Count > 0)
                     {
-                        _sound.PlaySound("tower_hits_top1");
-                        _sound.PlaySound("ice_warning");
-                        _sound.PlaySound("Ice_Storm_Steam_Build_Up");
+                        _sound.PlaySound(AudioMap.TowerHitsTop1);
+                        _sound.PlaySound(AudioMap.IceWarning);
+                        _sound.PlaySound(AudioMap.IceStormSteamBuildUp);
                         _speech.Speak(Localization.Get("IceSkullColumns", FormatColumns(newSkullCols)), false);
                     }
 
                     if (dangerCols.Count > 0)
                     {
-                        _sound.PlaySound("ice_warning");
-                        _sound.PlaySound("Ice_Storm_Steam_Build_Up");
+                        _sound.PlaySound(AudioMap.IceWarning);
+                        _sound.PlaySound(AudioMap.IceStormSteamBuildUp);
                         _speech.Speak(Localization.Get("IceDangerColumns", FormatColumns(dangerCols)), false);
                     }
                 }
@@ -384,12 +384,12 @@ namespace Bejeweled3Accessible.UI
                 {
                     _lightningTimer.Stop();
                     _screen = GameScreen.GameOver;
-                    _sound.PlaySound("Ice_Storm_Final_Thud");
-                    _sound.PlaySound("Ice_Storm_GameOver");
+                    _sound.PlaySound(AudioMap.IceStormFinalThud);
+                    _sound.PlaySound(AudioMap.IceStormGameOver);
                     if (_currentModeKey == "ModeIceStorm" && _score > _progress.IceStormHighScore)
                     {
                         _progress.IceStormHighScore = _score;
-                        _sound.PlaySound("rankup");
+                        _sound.PlaySound(AudioMap.Rankup);
                         _profileMgr.Save();
                     }
                     CheckSecretRecordsBadge();
@@ -403,8 +403,8 @@ namespace Bejeweled3Accessible.UI
                 int exploded = _board.TickBombs();
                 if (exploded > 0)
                 {
-                    _sound.PlaySound("skull_busted");
-                    _sound.PlaySound("gem_countdown_destroyed");
+                    _sound.PlaySound(AudioMap.SkullBusted);
+                    _sound.PlaySound(AudioMap.GemCountdownDestroyed);
                     _speech.Speak(Localization.Get("BombExploded"), true);
                 }
             }
@@ -413,11 +413,11 @@ namespace Bejeweled3Accessible.UI
                 _lightningTimeLeft--;
                 if (_lightningTimeLeft == 30)
                 {
-                    _sound.PlaySound("voice_thirtyseconds");
+                    _sound.PlaySound(AudioMap.VoiceThirtyseconds);
                 }
                 else if (_lightningTimeLeft <= 10 && _lightningTimeLeft > 0)
                 {
-                    _sound.PlaySound("countdown_warning");
+                    _sound.PlaySound(AudioMap.CountdownWarning);
                     _speech.Speak(_lightningTimeLeft.ToString(), false);
                 }
 
@@ -430,23 +430,23 @@ namespace Bejeweled3Accessible.UI
                         _lastHurrahActive = true;
                         _lastHurrahScore = 0;
                         _lightningMultiplier++;
-                        _sound.PlaySound("lightning_tube_fill_10");
-                        _sound.PlaySound("multiplier_appears");
-                        _sound.PlaySound("multiplier_hurrahed");
-                        _sound.PlaySound("Ice_Storm_Multipler_Up");
+                        _sound.PlaySound(AudioMap.LightningTubeFill10);
+                        _sound.PlaySound(AudioMap.MultiplierAppears);
+                        _sound.PlaySound(AudioMap.MultiplierHurrahed);
+                        _sound.PlaySound(AudioMap.IceStormMultiplerUp);
                         _speech.Speak(Localization.Get("TimeExtended", _lightningMultiplier), true);
                     }
                     else
                     {
                         _lightningTimer.Stop();
                         _screen = GameScreen.GameOver;
-                        _sound.PlaySound("voice_timeup");
-                        _sound.PlaySound("voice_gameover");
+                        _sound.PlaySound(AudioMap.VoiceTimeup);
+                        _sound.PlaySound(AudioMap.VoiceGameover);
 
                         if (_score > _progress.LightningHighScore)
                         {
                             _progress.LightningHighScore = _score;
-                            _sound.PlaySound("rankup");
+                            _sound.PlaySound(AudioMap.Rankup);
                             _profileMgr.Save();
                         }
 
@@ -461,11 +461,11 @@ namespace Bejeweled3Accessible.UI
                 _lightningTimeLeft--;
                 if (_lightningTimeLeft == 30)
                 {
-                    _sound.PlaySound("voice_thirtyseconds");
+                    _sound.PlaySound(AudioMap.VoiceThirtyseconds);
                 }
                 else if (_lightningTimeLeft <= 10 && _lightningTimeLeft > 0)
                 {
-                    _sound.PlaySound("countdown_warning");
+                    _sound.PlaySound(AudioMap.CountdownWarning);
                     _speech.Speak(_lightningTimeLeft.ToString(), false);
                 }
 
@@ -473,13 +473,13 @@ namespace Bejeweled3Accessible.UI
                 {
                     _lightningTimer.Stop();
                     _screen = GameScreen.GameOver;
-                    _sound.PlaySound("voice_timeup");
-                    _sound.PlaySound("voice_gameover");
+                    _sound.PlaySound(AudioMap.VoiceTimeup);
+                    _sound.PlaySound(AudioMap.VoiceGameover);
 
                     if (_score > _progress.DiamondMineHighScore)
                     {
                         _progress.DiamondMineHighScore = _score;
-                        _sound.PlaySound("rankup");
+                        _sound.PlaySound(AudioMap.Rankup);
                     }
                     _profileMgr.Save();
                     CheckSecretRecordsBadge();
@@ -510,7 +510,7 @@ namespace Bejeweled3Accessible.UI
                     _badgeMgr = BadgeManager.Load(newProfile.ProfileName);
                     _profileInputBuffer = "";
 
-                    _sound.PlaySound("button_press");
+                    _sound.PlaySound(AudioMap.ButtonPress);
                     TransitionToMainMenu(false);
                     return;
                 }
@@ -519,14 +519,14 @@ namespace Bejeweled3Accessible.UI
                     if (_profileInputBuffer.Length > 0)
                     {
                         _profileInputBuffer = _profileInputBuffer.Substring(0, _profileInputBuffer.Length - 1);
-                        _sound.PlaySound("select");
+                        _sound.PlaySound(AudioMap.Select);
                         _speech.Speak(_profileInputBuffer.Length > 0 ? _profileInputBuffer : Localization.Get("Empty"), true);
                     }
                 }
                 else if (!char.IsControl(e.KeyChar))
                 {
                     _profileInputBuffer += e.KeyChar;
-                    _sound.PlaySound("select");
+                    _sound.PlaySound(AudioMap.Select);
                     _speech.Speak(e.KeyChar.ToString(), true);
                 }
             }
@@ -544,7 +544,7 @@ namespace Bejeweled3Accessible.UI
                 else if (e.KeyCode == Keys.Escape)
                 {
                     _updatePromptActive = false;
-                    _sound.PlaySound("button_mouseover");
+                    _sound.PlaySound(AudioMap.ButtonMouseover);
                     _speech.Speak(Localization.Get("UpdateCancelled"), true);
                 }
                 return;
@@ -558,12 +558,12 @@ namespace Bejeweled3Accessible.UI
                     {
                         _screen = GameScreen.ProfileSelectScreen;
                         _profileSelectIdx = 0;
-                        _sound.PlaySound("button_press");
+                        _sound.PlaySound(AudioMap.ButtonPress);
                         _speech.Speak(Localization.Get("ProfileSelectTitle") + ". " + GetProfileSelectItems()[0], true);
                     }
                     else
                     {
-                        _sound.PlaySound("button_mouseover");
+                        _sound.PlaySound(AudioMap.ButtonMouseover);
                         _speech.Speak(Localization.Get("EnterNamePrompt"), true);
                     }
                 }
@@ -652,7 +652,7 @@ namespace Bejeweled3Accessible.UI
                     _dlTotal = 0; _dlReceived = 0; _dlSpeed = 0;
                     _dlLastBytes = 0; _dlLastTime = DateTime.UtcNow; _dlNextAnnounce = 10;
                 }
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 _speech.Speak(Localization.Get("UpdateDownloading"), true);
 
                 Updater.UpdateDownloadResult result = null;
@@ -776,24 +776,24 @@ namespace Bejeweled3Accessible.UI
             if (e.KeyCode == Keys.Down)
             {
                 _gameOverIdx = (_gameOverIdx + 1) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_gameOverIdx], true);
             }
             else if (e.KeyCode == Keys.Up)
             {
                 _gameOverIdx = (_gameOverIdx - 1 + items.Length) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_gameOverIdx], true);
             }
             else if (e.KeyCode == Keys.Enter)
             {
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 if (_gameOverIdx == 0) StartNewGame(_currentModeKey);
                 else TransitionToMainMenu();
             }
             else if (e.KeyCode == Keys.Escape)
             {
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 TransitionToMainMenu();
             }
         }
@@ -804,18 +804,18 @@ namespace Bejeweled3Accessible.UI
             if (e.KeyCode == Keys.Down)
             {
                 _menuIdx = (_menuIdx + 1) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_menuIdx], true);
             }
             else if (e.KeyCode == Keys.Up)
             {
                 _menuIdx = (_menuIdx - 1 + items.Length) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_menuIdx], true);
             }
             else if (e.KeyCode == Keys.Enter)
             {
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 if (_menuIdx == 0) // Play
                 {
                     _screen = GameScreen.GameSelect;
@@ -826,28 +826,28 @@ namespace Bejeweled3Accessible.UI
                 {
                     _screen = GameScreen.BadgesScreen;
                     _badgeIdx = 0;
-                    _sound.PlaySound("button_press");
+                    _sound.PlaySound(AudioMap.ButtonPress);
                     _speech.Speak(Localization.Get("MenuBadges") + ". " + GetBadgeListItems()[0], true);
                 }
                 else if (_menuIdx == 2) // Records
                 {
                     _screen = GameScreen.RecordsScreen;
                     _recordsIdx = 0;
-                    _sound.PlaySound("button_press");
+                    _sound.PlaySound(AudioMap.ButtonPress);
                     _speech.Speak(Localization.Get("MenuRecords") + ". " + GetRecordsItems()[0], true);
                 }
                 else if (_menuIdx == 3) // Tutorial
                 {
                     _screen = GameScreen.TutorialScreen;
                     _tutorialIdx = 0;
-                    _sound.PlaySound("button_press");
+                    _sound.PlaySound(AudioMap.ButtonPress);
                     _speech.Speak(Localization.Get("TutorialTitle") + ". " + GetTutorialItems()[0], true);
                 }
                 else if (_menuIdx == 4) // Change User
                 {
                     _screen = GameScreen.ProfileSelectScreen;
                     _profileSelectIdx = 0;
-                    _sound.PlaySound("button_press");
+                    _sound.PlaySound(AudioMap.ButtonPress);
                     _speech.Speak(Localization.Get("ProfileSelectTitle") + ". " + GetProfileSelectItems()[0], true);
                 }
                 else if (_menuIdx == 5) // Language
@@ -882,7 +882,7 @@ namespace Bejeweled3Accessible.UI
                 }
                 else if (_menuIdx == 8) // Exit
                 {
-                    _sound.PlaySound("voice_goodbye");
+                    _sound.PlaySound(AudioMap.VoiceGoodbye);
                     _speech.Speak(Localization.CurrentLanguage == Language.Spanish ? "¡Adiós!" : "Goodbye!", true);
                     Task.Delay(1200).ContinueWith(_2 =>
                     {
@@ -895,7 +895,7 @@ namespace Bejeweled3Accessible.UI
                 // Estado general de la descarga: porcentaje actual.
                 long total, recv;
                 lock (_dlLock) { total = _dlTotal; recv = _dlReceived; }
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 int pct = total > 0 ? (int)(recv * 100.0 / total) : -1;
                 _speech.Speak(pct >= 0
                     ? Localization.Get("UpdateProgress", Math.Min(99, pct))
@@ -904,19 +904,19 @@ namespace Bejeweled3Accessible.UI
             else if (_updateBusy && (e.KeyCode == Keys.D1 || e.KeyCode == Keys.NumPad1))
             {
                 // Detalle 1: tamano del archivo.
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 _speech.Speak(BuildDownloadStatus(1), true);
             }
             else if (_updateBusy && (e.KeyCode == Keys.D2 || e.KeyCode == Keys.NumPad2))
             {
                 // Detalle 2: descargado de total.
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 _speech.Speak(BuildDownloadStatus(2), true);
             }
             else if (_updateBusy && (e.KeyCode == Keys.D3 || e.KeyCode == Keys.NumPad3))
             {
                 // Detalle 3: velocidad y tiempo restante.
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 _speech.Speak(BuildDownloadStatus(3), true);
             }
         }
@@ -951,13 +951,13 @@ namespace Bejeweled3Accessible.UI
             if (e.KeyCode == Keys.Down)
             {
                 _optionsIdx = (_optionsIdx + 1) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_optionsIdx], true);
             }
             else if (e.KeyCode == Keys.Up)
             {
                 _optionsIdx = (_optionsIdx - 1 + items.Length) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_optionsIdx], true);
             }
             else if (e.KeyCode == Keys.Left || e.KeyCode == Keys.Right)
@@ -971,7 +971,7 @@ namespace Bejeweled3Accessible.UI
                 else if (_optionsIdx == 1)
                 {
                     _sound.SfxVol = (e.KeyCode == Keys.Right) ? Math.Min(100, _sound.SfxVol + 5) : Math.Max(0, _sound.SfxVol - 5);
-                    _sound.PlaySound("select");
+                    _sound.PlaySound(AudioMap.Select);
                     _speech.Speak(Localization.Get("OptSoundVol", _sound.SfxVol), true);
                 }
                 else if (_optionsIdx == 2)
@@ -983,7 +983,7 @@ namespace Bejeweled3Accessible.UI
                 {
                     _sound.SpatialBinauralEnabled = !_sound.SpatialBinauralEnabled;
                     _sound.UpdateSpatialAudioState();
-                    _sound.PlaySound(_sound.SpatialBinauralEnabled ? "select" : "badmove");
+                    _sound.PlaySound(_sound.SpatialBinauralEnabled ? AudioMap.Select : AudioMap.Badmove);
                     _speech.Speak(GetOptionsMenuItems()[3], true);
                 }
                 else if (_optionsIdx == 4)
@@ -991,14 +991,14 @@ namespace Bejeweled3Accessible.UI
                     // Cycle the spatial profile: Stage2D -> CleanArcade -> SimplePan
                     _sound.SpatialProfile = (Audio.SpatialProfile)(((int)_sound.SpatialProfile + 1) % 3);
                     _sound.UpdateSpatialAudioState();
-                    _sound.PlaySound("select");
+                    _sound.PlaySound(AudioMap.Select);
                     _speech.Speak(GetOptionsMenuItems()[4], true);
                 }
                 SaveOptionsState();
             }
             else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Escape)
             {
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 SaveOptionsState();
                 if (_optionsOriginScreen == GameScreen.PauseMenu)
                 {
@@ -1033,13 +1033,13 @@ namespace Bejeweled3Accessible.UI
             if (e.KeyCode == Keys.Down)
             {
                 _zenOptionsIdx = (_zenOptionsIdx + 1) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_zenOptionsIdx], true);
             }
             else if (e.KeyCode == Keys.Up)
             {
                 _zenOptionsIdx = (_zenOptionsIdx - 1 + items.Length) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_zenOptionsIdx], true);
             }
             else if (e.KeyCode == Keys.Left || e.KeyCode == Keys.Right)
@@ -1053,20 +1053,20 @@ namespace Bejeweled3Accessible.UI
 
                     _zenMgr.SelectedAmbient = (AmbientType)curAmb;
                     _zenMgr.AmbientEnabled = (_zenMgr.SelectedAmbient != AmbientType.None);
-                    _sound.PlaySound("zen_dropdownbutton");
-                    _sound.PlaySound(string.Format("zen_necklace_{0}", (curAmb % 4) + 1));
+                    _sound.PlaySound(AudioMap.ZenDropdownbutton);
+                    _sound.PlaySound(AudioMap.ZenNecklacePrefix + ((curAmb % 4) + 1));
                     _zenMgr.StartZenSession(_level);
                 }
                 else if (_zenOptionsIdx == 1) // Mantras
                 {
                     _zenMgr.MantrasEnabled = !_zenMgr.MantrasEnabled;
-                    _sound.PlaySound(_zenMgr.MantrasEnabled ? "zen_checkon" : "zen_checkoff");
+                    _sound.PlaySound(_zenMgr.MantrasEnabled ? AudioMap.ZenCheckon : AudioMap.ZenCheckoff);
                     _zenMgr.UpdateZenSessionState();
                 }
                 else if (_zenOptionsIdx == 2) // Breath
                 {
                     _zenMgr.BreathModulationEnabled = !_zenMgr.BreathModulationEnabled;
-                    _sound.PlaySound(_zenMgr.BreathModulationEnabled ? "zen_checkon" : "zen_checkoff");
+                    _sound.PlaySound(_zenMgr.BreathModulationEnabled ? AudioMap.ZenCheckon : AudioMap.ZenCheckoff);
                     _zenMgr.UpdateZenSessionState();
                 }
                 SaveOptionsState();
@@ -1074,7 +1074,7 @@ namespace Bejeweled3Accessible.UI
             }
             else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Escape)
             {
-                _sound.PlaySound("zen_menuclose");
+                _sound.PlaySound(AudioMap.ZenMenuclose);
                 _screen = GameScreen.PauseMenu;
                 _speech.Speak(GetPauseMenuItems()[_pauseIdx], true);
             }
@@ -1135,31 +1135,31 @@ namespace Bejeweled3Accessible.UI
             if (e.KeyCode == Keys.Down)
             {
                 _badgeIdx = (_badgeIdx + 1) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_badgeIdx], true);
             }
             else if (e.KeyCode == Keys.Up)
             {
                 _badgeIdx = (_badgeIdx - 1 + items.Length) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_badgeIdx], true);
             }
             else if (e.KeyCode == Keys.Enter)
             {
                 if (items[_badgeIdx] == Localization.Get("OptBack") || items[_badgeIdx] == Localization.Get("BadgeMenuHelp"))
                 {
-                    _sound.PlaySound("button_press");
+                    _sound.PlaySound(AudioMap.ButtonPress);
                     TransitionToMainMenu();
                 }
                 else
                 {
-                    _sound.PlaySound("button_press");
+                    _sound.PlaySound(AudioMap.ButtonPress);
                     _speech.Speak(items[_badgeIdx], true);
                 }
             }
             else if (e.KeyCode == Keys.Escape)
             {
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 TransitionToMainMenu();
             }
         }
@@ -1191,21 +1191,21 @@ namespace Bejeweled3Accessible.UI
             if (e.KeyCode == Keys.Down)
             {
                 _recordsIdx = (_recordsIdx + 1) % items.Length;
-                _sound.PlaySound("button_mouseover");
-                _sound.PlaySound("tooltip");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
+                _sound.PlaySound(AudioMap.Tooltip);
                 _speech.Speak(items[_recordsIdx], true);
             }
             else if (e.KeyCode == Keys.Up)
             {
                 _recordsIdx = (_recordsIdx - 1 + items.Length) % items.Length;
-                _sound.PlaySound("button_mouseover");
-                _sound.PlaySound("tooltip");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
+                _sound.PlaySound(AudioMap.Tooltip);
                 _speech.Speak(items[_recordsIdx], true);
             }
             else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Escape)
             {
-                _sound.PlaySound("button_release");
-                _sound.PlaySound("rank_countup");
+                _sound.PlaySound(AudioMap.ButtonRelease);
+                _sound.PlaySound(AudioMap.RankCountup);
                 TransitionToMainMenu();
             }
         }
@@ -1232,18 +1232,18 @@ namespace Bejeweled3Accessible.UI
             if (e.KeyCode == Keys.Down)
             {
                 _tutorialIdx = (_tutorialIdx + 1) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_tutorialIdx], true);
             }
             else if (e.KeyCode == Keys.Up)
             {
                 _tutorialIdx = (_tutorialIdx - 1 + items.Length) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_tutorialIdx], true);
             }
             else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Escape)
             {
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 TransitionToMainMenu();
             }
         }
@@ -1254,13 +1254,13 @@ namespace Bejeweled3Accessible.UI
             if (e.KeyCode == Keys.Down)
             {
                 _menuIdx = (_menuIdx + 1) % keys.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(Localization.Get(keys[_menuIdx]), true);
             }
             else if (e.KeyCode == Keys.Up)
             {
                 _menuIdx = (_menuIdx - 1 + keys.Length) % keys.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(Localization.Get(keys[_menuIdx]), true);
             }
             else if (e.KeyCode == Keys.Enter)
@@ -1268,12 +1268,12 @@ namespace Bejeweled3Accessible.UI
                 string selectedKey = keys[_menuIdx];
                 if (selectedKey.EndsWith("Locked"))
                 {
-                    _sound.PlaySound("badmove");
+                    _sound.PlaySound(AudioMap.Badmove);
                     _speech.Speak(Localization.Get(selectedKey), true);
                     return;
                 }
 
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 if (selectedKey == "BackToMain")
                 {
                     TransitionToMainMenu();
@@ -1291,7 +1291,7 @@ namespace Bejeweled3Accessible.UI
             }
             else if (e.KeyCode == Keys.Escape)
             {
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 TransitionToMainMenu();
             }
         }
@@ -1315,27 +1315,27 @@ namespace Bejeweled3Accessible.UI
             if (e.KeyCode == Keys.Down)
             {
                 _relicIdx = (_relicIdx + 1) % items.Length;
-                _sound.PlaySound("quest_menu_button_mouseover1");
+                _sound.PlaySound(AudioMap.QuestMenuButtonMouseover1);
                 _speech.Speak(items[_relicIdx], true);
             }
             else if (e.KeyCode == Keys.Up)
             {
                 _relicIdx = (_relicIdx - 1 + items.Length) % items.Length;
-                _sound.PlaySound("quest_menu_button_mouseover1");
+                _sound.PlaySound(AudioMap.QuestMenuButtonMouseover1);
                 _speech.Speak(items[_relicIdx], true);
             }
             else if (e.KeyCode == Keys.Enter)
             {
                 if (_relicIdx == items.Length - 1)
                 {
-                    _sound.PlaySound("button_press");
+                    _sound.PlaySound(AudioMap.ButtonPress);
                     _screen = GameScreen.GameSelect;
                     _speech.Speak(Localization.Get("SelectMode") + Localization.Get(GetGameModeKeys()[0]), true);
                 }
                 else
                 {
-                    _sound.PlaySound("quest_menu_button1");
-                    _sound.PlaySound("QuestMenu_RelicRevealed_object");
+                    _sound.PlaySound(AudioMap.QuestMenuButton1);
+                    _sound.PlaySound(AudioMap.QuestMenuRelicRevealedObject);
                     _screen = GameScreen.QuestChallengeScreen;
                     _questChallengeIdx = 0;
                     _speech.Speak(GetQuestChallengeItems()[0], true);
@@ -1343,7 +1343,7 @@ namespace Bejeweled3Accessible.UI
             }
             else if (e.KeyCode == Keys.Escape)
             {
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 _screen = GameScreen.GameSelect;
                 _speech.Speak(Localization.Get("SelectMode") + Localization.Get(GetGameModeKeys()[0]), true);
             }
@@ -1370,20 +1370,20 @@ namespace Bejeweled3Accessible.UI
             if (e.KeyCode == Keys.Down)
             {
                 _questChallengeIdx = (_questChallengeIdx + 1) % items.Length;
-                _sound.PlaySound("quest_menu_button_mouseover1");
+                _sound.PlaySound(AudioMap.QuestMenuButtonMouseover1);
                 _speech.Speak(items[_questChallengeIdx], true);
             }
             else if (e.KeyCode == Keys.Up)
             {
                 _questChallengeIdx = (_questChallengeIdx - 1 + items.Length) % items.Length;
-                _sound.PlaySound("quest_menu_button_mouseover1");
+                _sound.PlaySound(AudioMap.QuestMenuButtonMouseover1);
                 _speech.Speak(items[_questChallengeIdx], true);
             }
             else if (e.KeyCode == Keys.Enter)
             {
                 if (_questChallengeIdx == items.Length - 1)
                 {
-                    _sound.PlaySound("quest_menu_button1");
+                    _sound.PlaySound(AudioMap.QuestMenuButton1);
                     _screen = GameScreen.QuestRelicScreen;
                     _speech.Speak(GetQuestRelicItems()[_relicIdx], true);
                 }
@@ -1393,14 +1393,14 @@ namespace Bejeweled3Accessible.UI
                     _activeQuest = missions[_questChallengeIdx];
                     _activeQuestIndex = _activeQuest.MissionIndex;
                     _activeQuestName = _activeQuest.GetName();
-                    _sound.PlaySound("quest_orb1");
-                    _sound.PlaySound("quest_get");
+                    _sound.PlaySound(AudioMap.QuestOrb1);
+                    _sound.PlaySound(AudioMap.QuestGet);
                     StartNewGame("ModeQuest");
                 }
             }
             else if (e.KeyCode == Keys.Escape)
             {
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 _screen = GameScreen.QuestRelicScreen;
                 _speech.Speak(GetQuestRelicItems()[_relicIdx], true);
             }
@@ -1426,18 +1426,18 @@ namespace Bejeweled3Accessible.UI
             if (e.KeyCode == Keys.Down)
             {
                 _profileSelectIdx = (_profileSelectIdx + 1) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_profileSelectIdx], true);
             }
             else if (e.KeyCode == Keys.Up)
             {
                 _profileSelectIdx = (_profileSelectIdx - 1 + items.Length) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_profileSelectIdx], true);
             }
             else if (e.KeyCode == Keys.Enter)
             {
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 string selectedItem = items[_profileSelectIdx];
 
                 if (selectedItem == Localization.Get("ProfileCreateNew"))
@@ -1465,7 +1465,7 @@ namespace Bejeweled3Accessible.UI
                         _profileMgr.Save();
                         _screen = GameScreen.ProfileInput;
                         _profileInputBuffer = "";
-                        _sound.PlaySound("voice_welcometobejeweled");
+                        _sound.PlaySound(AudioMap.VoiceWelcometobejeweled);
                         _speech.Speak(Localization.Get("CreateProfileTitle") + ". " + Localization.Get("EnterNamePrompt"), true);
                     }
                 }
@@ -1483,7 +1483,7 @@ namespace Bejeweled3Accessible.UI
             }
             else if (e.KeyCode == Keys.Escape)
             {
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 TransitionToMainMenu();
             }
         }
@@ -1519,7 +1519,7 @@ namespace Bejeweled3Accessible.UI
             // Never let Zen timers/sounds leak into other modes
             if (_zenMgr != null) _zenMgr.StopZenSession();
 
-            _sound.PlaySound("voice_getready");
+            _sound.PlaySound(AudioMap.VoiceGetready);
             Task.Delay(1000).ContinueWith(_ =>
             {
                 try
@@ -1528,7 +1528,7 @@ namespace Bejeweled3Accessible.UI
                     {
                         if (IsDisposed || !IsHandleCreated) return;
                         if (_screen != GameScreen.Playing) return;
-                        _sound.PlaySound("voice_go");
+                        _sound.PlaySound(AudioMap.VoiceGo);
                     }));
                 }
                 catch { }
@@ -1604,7 +1604,7 @@ namespace Bejeweled3Accessible.UI
                         case Engine.QuestType.TimeBomb:
                             // Authentic: the first board is already armed with bombs
                             _board.InitializeBoard(true);
-                            _sound.PlaySound("bomb_appears");
+                            _sound.PlaySound(AudioMap.BombAppears);
                             _sound.PlayMusic("19 - Time Bombs.mp3");
                             _lightningTimer.Start();
                             break;
@@ -1677,32 +1677,32 @@ namespace Bejeweled3Accessible.UI
             else if (e.KeyCode == Keys.A || (e.Control && e.KeyCode == Keys.Left)) PerformSwap(-1, 0);
             else if (e.KeyCode == Keys.D || (e.Control && e.KeyCode == Keys.Right)) PerformSwap(1, 0);
 
-            else if (e.KeyCode == Keys.Left && _cursorX > 0) { _cursorX--; _sound.PlaySoundSpatial("select", _cursorX, _cursorY); AnnounceCurrentCell(); }
-            else if (e.KeyCode == Keys.Right && _cursorX < Board.Cols - 1) { _cursorX++; _sound.PlaySoundSpatial("select", _cursorX, _cursorY); AnnounceCurrentCell(); }
-            else if (e.KeyCode == Keys.Up && _cursorY > 0) { _cursorY--; _sound.PlaySoundSpatial("select", _cursorX, _cursorY); AnnounceCurrentCell(); }
-            else if (e.KeyCode == Keys.Down && _cursorY < Board.Rows - 1) { _cursorY++; _sound.PlaySoundSpatial("select", _cursorX, _cursorY); AnnounceCurrentCell(); }
+            else if (e.KeyCode == Keys.Left && _cursorX > 0) { _cursorX--; _sound.PlaySoundSpatial(AudioMap.Select, _cursorX, _cursorY); AnnounceCurrentCell(); }
+            else if (e.KeyCode == Keys.Right && _cursorX < Board.Cols - 1) { _cursorX++; _sound.PlaySoundSpatial(AudioMap.Select, _cursorX, _cursorY); AnnounceCurrentCell(); }
+            else if (e.KeyCode == Keys.Up && _cursorY > 0) { _cursorY--; _sound.PlaySoundSpatial(AudioMap.Select, _cursorX, _cursorY); AnnounceCurrentCell(); }
+            else if (e.KeyCode == Keys.Down && _cursorY < Board.Rows - 1) { _cursorY++; _sound.PlaySoundSpatial(AudioMap.Select, _cursorX, _cursorY); AnnounceCurrentCell(); }
 
             else if (e.Shift && e.KeyCode == Keys.H)
             {
                 _board.SetGem(_cursorX, _cursorY, new Gem(GemColor.Red, SpecialType.Hypercube));
-                _sound.PlaySound("hypercube_create");
+                _sound.PlaySound(AudioMap.HypercubeCreate);
                 _speech.Speak(Localization.Get("HypercubeCreatedCell"), true);
             }
             else if (e.Shift && e.KeyCode == Keys.F)
             {
                 _board.SetGem(_cursorX, _cursorY, new Gem(GemColor.Red, SpecialType.Flame));
-                _sound.PlaySound("powergem_created");
+                _sound.PlaySound(AudioMap.PowergemCreated);
                 _speech.Speak(Localization.Get("FlameCreatedCell"), true);
             }
             else if (e.Shift && e.KeyCode == Keys.S)
             {
                 _board.SetGem(_cursorX, _cursorY, new Gem(GemColor.Red, SpecialType.Star));
-                _sound.PlaySound("lasergem_created");
+                _sound.PlaySound(AudioMap.LasergemCreated);
                 _speech.Speak(Localization.Get("StarCreatedCell"), true);
             }
             else if (e.Shift && e.KeyCode == Keys.R)
             {
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 _board.InitializeBoard();
                 _score = 0;
                 _cascadeChain = 0;
@@ -1747,12 +1747,12 @@ namespace Bejeweled3Accessible.UI
                     else if (h.ToY > h.FromY) dirStr = Localization.Get("DirDown");
                     else if (h.ToY < h.FromY) dirStr = Localization.Get("DirUp");
 
-                    _sound.PlaySound("quest_notify");
+                    _sound.PlaySound(AudioMap.QuestNotify);
                     _speech.Speak(Localization.Get("HintFound", gemName, fromCell, dirStr), true);
                 }
                 else
                 {
-                    _sound.PlaySound("badmove");
+                    _sound.PlaySound(AudioMap.Badmove);
                     _speech.Speak(Localization.Get("NoHintFound"), true);
                 }
             }
@@ -1761,7 +1761,7 @@ namespace Bejeweled3Accessible.UI
                 _lightningTimer.Stop();
                 _screen = GameScreen.PauseMenu;
                 _pauseIdx = 0;
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 _speech.Speak(Localization.Get("PauseTitle") + ". " + GetPauseMenuItems()[0], true);
             }
         }
@@ -1788,18 +1788,18 @@ namespace Bejeweled3Accessible.UI
             if (e.KeyCode == Keys.Down)
             {
                 _pauseIdx = (_pauseIdx + 1) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_pauseIdx], true);
             }
             else if (e.KeyCode == Keys.Up)
             {
                 _pauseIdx = (_pauseIdx - 1 + items.Length) % items.Length;
-                _sound.PlaySound("button_mouseover");
+                _sound.PlaySound(AudioMap.ButtonMouseover);
                 _speech.Speak(items[_pauseIdx], true);
             }
             else if (e.KeyCode == Keys.Enter)
             {
-                _sound.PlaySound("button_press");
+                _sound.PlaySound(AudioMap.ButtonPress);
                 string itemText = items[_pauseIdx];
                 if (itemText == Localization.Get("PauseResume"))
                 {
@@ -1810,7 +1810,7 @@ namespace Bejeweled3Accessible.UI
                 else if (itemText == Localization.Get("PauseReset"))
                 {
                     // Rebuild the mode properly: correct board type, counters, timers and music
-                    _sound.PlaySound("button_press");
+                    _sound.PlaySound(AudioMap.ButtonPress);
                     StartNewGame(_currentModeKey);
                 }
                 else if (itemText == Localization.Get("PauseOptions"))
@@ -1822,7 +1822,7 @@ namespace Bejeweled3Accessible.UI
                 }
                 else if (itemText == Localization.Get("ZenOptionsTitle"))
                 {
-                    _sound.PlaySound("zen_menuopen");
+                    _sound.PlaySound(AudioMap.ZenMenuopen);
                     _screen = GameScreen.ZenOptionsScreen;
                     _speech.Speak(Localization.Get("ZenOptionsTitle") + ". " + GetZenOptionsMenuItems()[0], true);
                 }
@@ -1857,7 +1857,7 @@ namespace Bejeweled3Accessible.UI
 
             if (targetX < 0 || targetX >= Board.Cols || targetY < 0 || targetY >= Board.Rows)
             {
-                _sound.PlaySound("badmove");
+                _sound.PlaySound(AudioMap.Badmove);
                 _speech.Speak(Localization.Get("EdgeReached"), true);
                 _isSwapping = false;
                 return;
@@ -1873,7 +1873,7 @@ namespace Bejeweled3Accessible.UI
 
                 // Swap confirmation sound (start rotate) glides from the origin to the
                 // destination column (HRTF swipe), so the movement is heard.
-                _sound.PlaySoundSpatialSweep("start_rotate", fromX, _cursorX, _cursorY);
+                _sound.PlaySoundSpatialSweep(AudioMap.StartRotate, fromX, _cursorX, _cursorY);
 
                 bool isButterfliesMode = _currentModeKey == "ModeButterflies" || (_currentModeKey == "ModeQuest" && _activeQuest != null && _activeQuest.Type == Engine.QuestType.Butterflies);
                 bool isAlchemyMode = _currentModeKey == "ModeQuest" && _activeQuest != null && _activeQuest.Type == Engine.QuestType.Alchemy;
@@ -1892,7 +1892,7 @@ namespace Bejeweled3Accessible.UI
                     // first cascade gem glides (HRTF) from the swap origin to its
                     // landing column, so the chain is heard sweeping the board.
                     float pitchMult = (float)Math.Pow(2.0, (_cascadeChain - 1) / 12.0);
-                    _sound.PlaySoundSpatialSweep("gem_hit", fromX, _cursorX, _cursorY, pitchMult);
+                    _sound.PlaySoundSpatialSweep(AudioMap.GemHit, fromX, _cursorX, _cursorY, pitchMult);
                     await Task.Delay(110);
 
                     // Revalidate: the user may have paused / reset / restarted while
@@ -1905,11 +1905,11 @@ namespace Bejeweled3Accessible.UI
                     string comboSoundName;
                     if (_currentModeKey == "ModeZen" && _cascadeChain <= 2)
                     {
-                        comboSoundName = (_cascadeChain <= 1) ? "combo_1" : "zen_combo_2";
+                        comboSoundName = (_cascadeChain <= 1) ? AudioMap.Combo1 : AudioMap.ZenCombo2;
                     }
                     else
                     {
-                        comboSoundName = string.Format("combo_{0}", _cascadeChain);
+                        comboSoundName = AudioMap.ComboPrefix + _cascadeChain;
                     }
                     _sound.PlaySound(comboSoundName);
 
@@ -1942,9 +1942,9 @@ namespace Bejeweled3Accessible.UI
                     if (res.AnnihilatorUsed)
                     {
                         addedScore += 2500;
-                        _sound.PlaySound("preblast");
-                        _sound.PlaySoundSpatial("bomb_explode", fromX, _cursorY);
-                        _sound.PlaySound("hyperspace");
+                        _sound.PlaySound(AudioMap.Preblast);
+                        _sound.PlaySoundSpatial(AudioMap.BombExplode, fromX, _cursorY);
+                        _sound.PlaySound(AudioMap.Hyperspace);
                     }
 
                     _score += addedScore;
@@ -1967,7 +1967,7 @@ namespace Bejeweled3Accessible.UI
                     // spoken description of the rank just earned.
                     if (rankAfter > rankBefore)
                     {
-                        _sound.PlaySound("rankup");
+                        _sound.PlaySound(AudioMap.Rankup);
                         _speech.Speak(Localization.Get("RankUpAnnouncement", RankSystem.GetRankTitle(_progress.TotalScore)), true);
                         _profileMgr.Save();
                     }
@@ -1981,11 +1981,11 @@ namespace Bejeweled3Accessible.UI
                     {
                         // Play speedmatch sound scaling with cascade depth (speedmatch1 to speedmatch9)
                         int speedIdx = Math.Min(9, Math.Max(1, res.CascadeDepth));
-                        _sound.PlaySound(string.Format("speedmatch{0}", speedIdx));
+                        _sound.PlaySound(AudioMap.SpeedMatchPrefix + speedIdx);
 
                         if (res.CascadeDepth >= 4 || res.TotalGemsDestroyed >= 10)
                         {
-                            _sound.PlaySound("voice_blazingspeed");
+                            _sound.PlaySound(AudioMap.VoiceBlazingspeed);
                         }
                     }
                     else if (_currentModeKey == "ModeClassic")
@@ -1994,7 +1994,7 @@ namespace Bejeweled3Accessible.UI
                         if (newLevel > _level)
                         {
                             _level = newLevel;
-                            _sound.PlaySound("voice_levelcomplete");
+                            _sound.PlaySound(AudioMap.VoiceLevelcomplete);
                             levelUpVoicePlayed = true;
 
                             // Dynamic stage music progression in Classic Mode (Parts 1 to 4)
@@ -2006,7 +2006,7 @@ namespace Bejeweled3Accessible.UI
                         {
                             if (_progress.ClassicLevel < 5 && newLevel >= 5)
                             {
-                                _sound.PlaySound("secretunlocked");
+                                _sound.PlaySound(AudioMap.Secretunlocked);
                                 _speech.Speak(Localization.Get("UnlockPoker"), true);
                             }
                             _progress.ClassicLevel = newLevel;
@@ -2018,7 +2018,7 @@ namespace Bejeweled3Accessible.UI
                         if (newLevel > _level)
                         {
                             _level = newLevel;
-                            _sound.PlaySound("voice_levelcomplete");
+                            _sound.PlaySound(AudioMap.VoiceLevelcomplete);
                             levelUpVoicePlayed = true;
 
                             if (_zenMgr.AmbientEnabled && _zenMgr.SelectedAmbient != AmbientType.None)
@@ -2035,7 +2035,7 @@ namespace Bejeweled3Accessible.UI
                         {
                             if (_progress.ZenLevel < 5 && newLevel >= 5)
                             {
-                                _sound.PlaySound("secretunlocked");
+                                _sound.PlaySound(AudioMap.Secretunlocked);
                                 _speech.Speak(Localization.Get("UnlockButterflies"), true);
                             }
                             _progress.ZenLevel = newLevel;
@@ -2050,7 +2050,7 @@ namespace Bejeweled3Accessible.UI
                         {
                             _level = newLevel;
                             _iceRiseInterval = Math.Max(1, 6 - _level);
-                            _sound.PlaySound("voice_levelcomplete");
+                            _sound.PlaySound(AudioMap.VoiceLevelcomplete);
                             levelUpVoicePlayed = true;
                         }
                     }
@@ -2076,28 +2076,28 @@ namespace Bejeweled3Accessible.UI
                         switch (_activeQuest.Type)
                         {
                             case Engine.QuestType.Butterflies:
-                                _sound.PlaySound("butterfly_appear");
+                                _sound.PlaySound(AudioMap.ButterflyAppear);
                                 break;
                             case Engine.QuestType.Alchemy:
                                 if (res.GoldTilesConverted > 0)
                                 {
-                                    _sound.PlaySound("alchemy_convert");
+                                    _sound.PlaySound(AudioMap.AlchemyConvert);
                                     _speech.Speak(Localization.Get("GoldConvertedAnnounce", res.GoldTilesConverted), true);
                                 }
                                 break;
                             case Engine.QuestType.GoldRush:
                                 if (res.NuggetsMined > 0)
                                 {
-                                    _sound.PlaySound("diamond_mine_treasurefind");
-                                    _sound.PlaySound("sandstorm_treasure_reveal");
+                                    _sound.PlaySound(AudioMap.DiamondMineTreasurefind);
+                                    _sound.PlaySound(AudioMap.SandstormTreasureReveal);
                                     _speech.Speak(Localization.Get("NuggetFound"), true);
                                 }
                                 break;
                             case Engine.QuestType.TimeBomb:
                                 if (res.BombsDestroyed > 0)
                                 {
-                                    _sound.PlaySound("gem_countdown_destroyed");
-                                    _sound.PlaySound("skull_busted");
+                                    _sound.PlaySound(AudioMap.GemCountdownDestroyed);
+                                    _sound.PlaySound(AudioMap.SkullBusted);
                                 }
                                 break;
                         }
@@ -2157,10 +2157,10 @@ namespace Bejeweled3Accessible.UI
                             if (allQuestsComplete)
                                 AwardBadge("BadgeHeroes", BadgeTier.Platinum);
 
-                            _sound.PlaySound("voice_challengecomplete");
-                            _sound.PlaySound("quest_award_wreath");
-                            _sound.PlaySound("QuestMenu_RelicComplete_object");
-                            _sound.PlaySound("QuestMenu_RelicComplete_rumble");
+                            _sound.PlaySound(AudioMap.VoiceChallengecomplete);
+                            _sound.PlaySound(AudioMap.QuestAwardWreath);
+                            _sound.PlaySound(AudioMap.QuestMenuRelicCompleteObject);
+                            _sound.PlaySound(AudioMap.QuestMenuRelicCompleteRumble);
 
                             _screen = GameScreen.QuestRelicScreen;
                             _relicIdx = _activeQuest.RelicIndex;
@@ -2172,7 +2172,7 @@ namespace Bejeweled3Accessible.UI
                             bool mineJustUnlocked = relicsBefore == 0 && _progress.QuestRelicCount >= 1;
                             if (mineJustUnlocked)
                             {
-                                _sound.PlaySound("secretunlocked");
+                                _sound.PlaySound(AudioMap.Secretunlocked);
                             }
 
                             string questAnnounce = mineJustUnlocked
@@ -2203,7 +2203,7 @@ namespace Bejeweled3Accessible.UI
                                 _questIceColumnsBroken++;
                                 meltedThisMove++;
                                 if (hadSkull) skullsDisarmed.Add(col);
-                                _sound.PlaySound("ice_column_break");
+                                _sound.PlaySound(AudioMap.IceColumnBreak);
                             }
                             else
                             {
@@ -2215,7 +2215,7 @@ namespace Bejeweled3Accessible.UI
                                     _questIceColumnsBroken++;
                                     meltedThisMove++;
                                 }
-                                _sound.PlaySound("Ice_Storm_ColumnCombo");
+                                _sound.PlaySound(AudioMap.IceStormColumnCombo);
                             }
                         }
                         // Ice Breaker badge: 5/8/12/15 column combos in one move
@@ -2245,7 +2245,7 @@ namespace Bejeweled3Accessible.UI
                                 else if (res.ButterfliesFreed >= 4) AwardBadge("BadgeButterflyBonanza", BadgeTier.Bronze);
                             }
 
-                            _sound.PlaySoundSpatial("butterflyescape", _cursorX, _cursorY);
+                            _sound.PlaySoundSpatial(AudioMap.Butterflyescape, _cursorX, _cursorY);
                             _speech.Speak(Localization.Get("ButterflyFreed", res.ButterfliesFreed), true);
                         }
 
@@ -2273,12 +2273,12 @@ namespace Bejeweled3Accessible.UI
                             // The spider strikes at the far top of the board
                             List<int> bfCols = _board.GetButterflyColumns();
                             int deathCol = (bfCols.Count > 0) ? bfCols[0] : _cursorX;
-                            _sound.PlaySoundSpatial("butterfly_death1", deathCol, 0);
-                            _sound.PlaySound("voice_gameover");
+                            _sound.PlaySoundSpatial(AudioMap.ButterflyDeath1, deathCol, 0);
+                            _sound.PlaySound(AudioMap.VoiceGameover);
                             if (_currentModeKey == "ModeButterflies" && _score > _progress.ButterfliesHighScore)
                             {
                                 _progress.ButterfliesHighScore = _score;
-                                _sound.PlaySound("rankup");
+                                _sound.PlaySound(AudioMap.Rankup);
                                 _profileMgr.Save();
                             }
                             CheckSecretRecordsBadge();
@@ -2293,18 +2293,18 @@ namespace Bejeweled3Accessible.UI
                             // butterfly sits (row 1, right under the spider)
                             List<int> dangerCols = _board.GetButterflyDangerColumns();
                             int warnCol = (dangerCols.Count > 0) ? dangerCols[0] : _cursorX;
-                            _sound.PlaySoundSpatial("butterfly_appear", warnCol, 1);
+                            _sound.PlaySoundSpatial(AudioMap.ButterflyAppear, warnCol, 1);
                             _speech.Speak(Localization.Get("ButterflyDanger", FormatColumns(_board.GetButterflyDangerColumns())), true);
                         }
                     }
 
                     if (isPokerActive)
                     {
-                        _sound.PlaySound("carddeal");
+                        _sound.PlaySound(AudioMap.Carddeal);
                         foreach (var color in res.MatchedColors)
                         {
                             _pokerCards.Add(color);
-                            _sound.PlaySound("cardflip");
+                            _sound.PlaySound(AudioMap.Cardflip);
                         }
 
                         // Authentic: special gems destroyed in the cascade boost
@@ -2323,10 +2323,10 @@ namespace Bejeweled3Accessible.UI
                             {
                                 // Authentic: bad hands drop a skull on the table
                                 _pokerSkulls++;
-                                _sound.PlaySound("skullcoin_flip");
-                                _sound.PlaySound("skullcoinlose");
-                                _sound.PlaySound("skull_appear");
-                                _sound.PlaySound("pokerchips");
+                                _sound.PlaySound(AudioMap.SkullcoinFlip);
+                                _sound.PlaySound(AudioMap.Skullcoinlose);
+                                _sound.PlaySound(AudioMap.SkullAppear);
+                                _sound.PlaySound(AudioMap.Pokerchips);
                                 _pokerCards.Clear();
                                 _pokerHandBonus = 0;
 
@@ -2334,12 +2334,12 @@ namespace Bejeweled3Accessible.UI
                                 {
                                     _lightningTimer.Stop();
                                     _screen = GameScreen.GameOver;
-                                    _sound.PlaySound("skull_buster");
-                                    _sound.PlaySound("voice_gameover");
+                                    _sound.PlaySound(AudioMap.SkullBuster);
+                                    _sound.PlaySound(AudioMap.VoiceGameover);
                                     if (_currentModeKey == "ModePoker" && _score > _progress.PokerHighScore)
                                     {
                                         _progress.PokerHighScore = _score;
-                                        _sound.PlaySound("rankup");
+                                        _sound.PlaySound(AudioMap.Rankup);
                                         _profileMgr.Save();
                                     }
                                     CheckSecretRecordsBadge();
@@ -2357,26 +2357,26 @@ namespace Bejeweled3Accessible.UI
                                 {
                                     // The Gambler badge only counts Poker-mode flushes
                                     if (_currentModeKey == "ModePoker") _progress.TotalFlushes++;
-                                    _sound.PlaySound("poker_flush");
-                                    _sound.PlaySound("skullcoinwin");
+                                    _sound.PlaySound(AudioMap.PokerFlush);
+                                    _sound.PlaySound(AudioMap.Skullcoinwin);
                                 }
                                 else if (hand == PokerHandType.FullHouse)
                                 {
-                                    _sound.PlaySound("poker_fullhouse");
-                                    _sound.PlaySound("skullcoinlands");
+                                    _sound.PlaySound(AudioMap.PokerFullhouse);
+                                    _sound.PlaySound(AudioMap.Skullcoinlands);
                                 }
                                 else if (hand == PokerHandType.FourOfAKind)
                                 {
-                                    _sound.PlaySound("poker_4ofakind");
-                                    _sound.PlaySound("skullcoinwin");
+                                    _sound.PlaySound(AudioMap.Poker4ofakind);
+                                    _sound.PlaySound(AudioMap.Skullcoinwin);
                                 }
                                 else
                                 {
-                                    _sound.PlaySound("pokerscore");
-                                    _sound.PlaySound("skull_buster");
+                                    _sound.PlaySound(AudioMap.Pokerscore);
+                                    _sound.PlaySound(AudioMap.SkullBuster);
                                 }
 
-                                _sound.PlaySound("pokerchips");
+                                _sound.PlaySound(AudioMap.Pokerchips);
                                 _speech.Speak(Localization.Get("PokerHandScored", Localization.GetPokerHandName(hand), handPts), true);
                                 _pokerCards.Clear();
                                 _pokerHandBonus = 0;
@@ -2388,7 +2388,7 @@ namespace Bejeweled3Accessible.UI
                                 {
                                     _pokerSkulls--;
                                     _pokerSkullCharge = 0;
-                                    _sound.PlaySound("skull_buster");
+                                    _sound.PlaySound(AudioMap.SkullBuster);
                                     _speech.Speak(Localization.Get("PokerSkullEliminated", _pokerSkulls), true);
                                 }
                             }
@@ -2399,18 +2399,18 @@ namespace Bejeweled3Accessible.UI
                     {
                         if (res.NuggetsMined > 0)
                         {
-                            _sound.PlaySound("diamond_mine_treasurefind");
+                            _sound.PlaySound(AudioMap.DiamondMineTreasurefind);
                             _speech.Speak(Localization.Get("NuggetFound"), true);
                         }
                         else if (res.RockCleared > 0)
                         {
-                            _sound.PlaySound("diamond_mine_stone_cracked");
-                            _sound.PlaySound("diamond_mine_dig_line_hit");
+                            _sound.PlaySound(AudioMap.DiamondMineStoneCracked);
+                            _sound.PlaySound(AudioMap.DiamondMineDigLineHit);
                         }
                         else if (res.DirtCleared > 0)
                         {
-                            _sound.PlaySound("diamond_mine_dirt_cracked");
-                            _sound.PlaySound("diamond_mine_dig");
+                            _sound.PlaySound(AudioMap.DiamondMineDirtCracked);
+                            _sound.PlaySound(AudioMap.DiamondMineDig);
                         }
 
                         // If all dirt is cleared in screen, shift down and add depth + time
@@ -2427,10 +2427,10 @@ namespace Bejeweled3Accessible.UI
                                 else if (_progress.TotalArtifactsCollected >= 8) AwardBadge("BadgeRelicHunter", BadgeTier.Silver);
                                 else if (_progress.TotalArtifactsCollected >= 5) AwardBadge("BadgeRelicHunter", BadgeTier.Bronze);
                             }
-                            _sound.PlaySound("diamond_mine_treasurefind");
-                            _sound.PlaySound("diamond_mine_treasurefind_diamonds");
-                            _sound.PlaySound("diamond_mine_artifact_showcase");
-                            _sound.PlaySound("diamond_mine_dig_notify");
+                            _sound.PlaySound(AudioMap.DiamondMineTreasurefind);
+                            _sound.PlaySound(AudioMap.DiamondMineTreasurefindDiamonds);
+                            _sound.PlaySound(AudioMap.DiamondMineArtifactShowcase);
+                            _sound.PlaySound(AudioMap.DiamondMineDigNotify);
                             _speech.Speak(Localization.Get("ArtifactFound", _diamondDepthMeters), true);
 
                             _board.ShiftDiamondMineDown();
@@ -2441,47 +2441,47 @@ namespace Bejeweled3Accessible.UI
 
                     if (res.SupernovaCreated > 0)
                     {
-                        _sound.PlaySound("firework_launch");
-                        _sound.PlaySound("firework_thump");
-                        _sound.PlaySound("firework_crackle");
-                        _sound.PlaySound("lasergem_created");
-                        _sound.PlaySound("electro_explode");
+                        _sound.PlaySound(AudioMap.FireworkLaunch);
+                        _sound.PlaySound(AudioMap.FireworkThump);
+                        _sound.PlaySound(AudioMap.FireworkCrackle);
+                        _sound.PlaySound(AudioMap.LasergemCreated);
+                        _sound.PlaySound(AudioMap.ElectroExplode);
                         AwardBadge("BadgeSuperstar", BadgeTier.Platinum);
                     }
                     else if (res.HypercubeCreated > 0)
                     {
-                        _sound.PlaySound("hypercube_create");
-                        _sound.PlaySound("hyperspace");
+                        _sound.PlaySound(AudioMap.HypercubeCreate);
+                        _sound.PlaySound(AudioMap.Hyperspace);
                     }
                     else if (res.StarCreated > 0)
                     {
-                        _sound.PlaySound("lasergem_created");
-                        _sound.PlaySound("electro_explode");
+                        _sound.PlaySound(AudioMap.LasergemCreated);
+                        _sound.PlaySound(AudioMap.ElectroExplode);
                     }
                     else if (res.FlameCreated > 0)
                     {
-                        _sound.PlaySound("powergem_created");
-                        _sound.PlaySound("flamebonus");
-                        _sound.PlaySound("flamespeed1");
+                        _sound.PlaySound(AudioMap.PowergemCreated);
+                        _sound.PlaySound(AudioMap.Flamebonus);
+                        _sound.PlaySound(AudioMap.Flamespeed1);
                     }
 
                     // Special gem explosions (Flame 3x3, Star beam, Supernova, Coin bonus)
                     // Match impact sounds are panned to the move position (HRTF)
                     if (res.TotalGemsDestroyed >= 10)
                     {
-                        _sound.PlaySoundSpatial("electro_path", _cursorX, _cursorY);
-                        _sound.PlaySoundSpatial("electro_path2", _cursorX, _cursorY);
-                        _sound.PlaySoundSpatial("coin_created", _cursorX, _cursorY);
-                        _sound.PlaySoundSpatial("coinappear", _cursorX, _cursorY);
+                        _sound.PlaySoundSpatial(AudioMap.ElectroPath, _cursorX, _cursorY);
+                        _sound.PlaySoundSpatial(AudioMap.ElectroPath2, _cursorX, _cursorY);
+                        _sound.PlaySoundSpatial(AudioMap.CoinCreated, _cursorX, _cursorY);
+                        _sound.PlaySoundSpatial(AudioMap.Coinappear, _cursorX, _cursorY);
                     }
                     else if (res.TotalGemsDestroyed >= 4)
                     {
-                        _sound.PlaySoundSpatial("small_explode", _cursorX, _cursorY);
-                        _sound.PlaySoundSpatial("gem_shatters", _cursorX, _cursorY);
+                        _sound.PlaySoundSpatial(AudioMap.SmallExplode, _cursorX, _cursorY);
+                        _sound.PlaySoundSpatial(AudioMap.GemShatters, _cursorX, _cursorY);
                     }
                     else
                     {
-                        _sound.PlaySoundSpatial("gem_hit", _cursorX, _cursorY);
+                        _sound.PlaySoundSpatial(AudioMap.GemHit, _cursorX, _cursorY);
                     }
 
                     // Announce voice praise based on total gems destroyed or cascade depth across ALL modes.
@@ -2489,17 +2489,17 @@ namespace Bejeweled3Accessible.UI
                     if (!levelUpVoicePlayed)
                     {
                         if (res.TotalGemsDestroyed >= 25 || res.CascadeDepth >= 6)
-                        { _sound.PlaySound("voice_unbelievable"); }
+                        { _sound.PlaySound(AudioMap.VoiceUnbelievable); }
                         else if (res.TotalGemsDestroyed >= 20 || res.CascadeDepth >= 5)
-                        { _sound.PlaySound("voice_extraordinary"); }
+                        { _sound.PlaySound(AudioMap.VoiceExtraordinary); }
                         else if (res.TotalGemsDestroyed >= 15 || res.CascadeDepth >= 4)
-                        { _sound.PlaySound("voice_spectacular"); }
+                        { _sound.PlaySound(AudioMap.VoiceSpectacular); }
                         else if (res.TotalGemsDestroyed >= 12 || res.CascadeDepth >= 3)
-                        { _sound.PlaySound("voice_awesome"); }
+                        { _sound.PlaySound(AudioMap.VoiceAwesome); }
                         else if (res.TotalGemsDestroyed >= 8)
-                        { _sound.PlaySound("voice_excellent"); }
+                        { _sound.PlaySound(AudioMap.VoiceExcellent); }
                         else if (res.TotalGemsDestroyed >= 5)
-                        { _sound.PlaySound("voice_good"); }
+                        { _sound.PlaySound(AudioMap.VoiceGood); }
                     }
 
                     CheckBadgesEvaluation(res);
@@ -2512,7 +2512,7 @@ namespace Bejeweled3Accessible.UI
                     // announced on top of the regular score sheet.
                     if (res.DoubleMatchBonus > 0)
                     {
-                        _sound.PlaySound("doubleset");
+                        _sound.PlaySound(AudioMap.Doubleset);
                         matchAnnounceText += " " + Localization.Get("MultipleMatchAnnounce", res.SimultaneousMatches, res.DoubleMatchBonus * 50);
                     }
 
@@ -2530,14 +2530,14 @@ namespace Bejeweled3Accessible.UI
                     MoveHint? validHint = HintFinder.FindValidMove(_board);
                     if (!validHint.HasValue)
                     {
-                        _sound.PlaySound("voice_nomoremoves");
+                        _sound.PlaySound(AudioMap.VoiceNomoremoves);
                         if (_currentModeKey == "ModeClassic")
                         {
                             // Authentic Classic: only 3 reshuffles, then game over
                             if (_shufflesRemaining > 0)
                             {
                                 _shufflesRemaining--;
-                                _sound.PlaySound("scramble");
+                                _sound.PlaySound(AudioMap.Scramble);
                                 int left = _shufflesRemaining;
                                 _speech.Speak(Localization.Get("ShuffleAnnounce", left), true);
                                 _board.InitializeBoard();
@@ -2545,13 +2545,13 @@ namespace Bejeweled3Accessible.UI
                             else
                             {
                                 _screen = GameScreen.GameOver;
-                                _sound.PlaySound("voice_gameover");
+                                _sound.PlaySound(AudioMap.VoiceGameover);
                                 _speech.Speak(Localization.Get("NoShufflesLeft") + " " + Localization.Get("GameOver", _score), true);
                             }
                         }
                         else
                         {
-                            _sound.PlaySound("scramble");
+                            _sound.PlaySound(AudioMap.Scramble);
                             _speech.Speak(Localization.Get("NoMoreMovesScramble"), true);
                             if (isDiamondMineActive)
                             {
@@ -2587,7 +2587,7 @@ namespace Bejeweled3Accessible.UI
             else
                 {
                     _cascadeChain = 0;
-                    _sound.PlaySound("badmove");
+                    _sound.PlaySound(AudioMap.Badmove);
                     _speech.Speak(Localization.Get("InvalidMove"), true);
                 }
             }
@@ -2602,8 +2602,8 @@ namespace Bejeweled3Accessible.UI
             if (_badgeMgr.SetTierIfHigher(key, tier))
             {
                 _badgeMgr.Save(_profileMgr.CurrentProfile.ProfileName);
-                _sound.PlaySound("badgeawarded");
-                _sound.PlaySound("badgefall");
+                _sound.PlaySound(AudioMap.Badgeawarded);
+                _sound.PlaySound(AudioMap.Badgefall);
                 string bName = Localization.Get(key);
                 string tName = Localization.Get(string.Format("Tier{0}", tier.ToString()));
                 _speech.Speak(Localization.Get("BadgeUnlockedAnnounce", bName, tName), true);
