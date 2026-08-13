@@ -1,13 +1,13 @@
-﻿using System.Reflection;
+using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("Bejeweled 3 Accesible")]
-[assembly: AssemblyDescription("EdiciÃ³n accesible de Bejeweled 3 con lectores de pantalla y soporte total por teclado")]
+[assembly: AssemblyDescription("Edición accesible de Bejeweled 3 con lectores de pantalla y soporte total por teclado")]
 [assembly: AssemblyConfiguration("")]
 [assembly: AssemblyCompany("Narayan Projects")]
 [assembly: AssemblyProduct("Bejeweled 3 Accesible")]
-[assembly: AssemblyCopyright("Copyright Â© Narayan Projects 2026")]
+[assembly: AssemblyCopyright("Copyright © Narayan Projects 2026")]
 [assembly: AssemblyTrademark("")]
 [assembly: AssemblyCulture("")]
 
