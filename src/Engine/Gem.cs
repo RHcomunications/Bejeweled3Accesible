@@ -61,30 +61,30 @@ namespace Bejeweled3Accessible.Engine
             if (Special == SpecialType.Dirt) return Localization.Get("TileDirt");
             if (Special == SpecialType.HardRock) return Localization.Get("TileHardRock", RockDurability);
             if (Special == SpecialType.GoldNugget) return Localization.Get("TileGoldNugget");
+            if (Special == SpecialType.Hypercube) return Localization.Get("Hypercube");
 
-            string cStr = "";
+            string shapeStr = "";
             switch (Color)
             {
-                case GemColor.Red: cStr = Localization.Get("ColorRed"); break;
-                case GemColor.Yellow: cStr = Localization.Get("ColorYellow"); break;
-                case GemColor.Green: cStr = Localization.Get("ColorGreen"); break;
-                case GemColor.Blue: cStr = Localization.Get("ColorBlue"); break;
-                case GemColor.Purple: cStr = Localization.Get("ColorPurple"); break;
-                case GemColor.White: cStr = Localization.Get("ColorWhite"); break;
-                case GemColor.Orange: cStr = Localization.Get("ColorOrange"); break;
+                case GemColor.Red: shapeStr = Localization.Get("ShapeRuby"); break;
+                case GemColor.Yellow: shapeStr = Localization.Get("ShapeTopaz"); break;
+                case GemColor.Green: shapeStr = Localization.Get("ShapeEmerald"); break;
+                case GemColor.Blue: shapeStr = Localization.Get("ShapeSapphire"); break;
+                case GemColor.Purple: shapeStr = Localization.Get("ShapeAmethyst"); break;
+                case GemColor.White: shapeStr = Localization.Get("ShapeDiamond"); break;
+                case GemColor.Orange: shapeStr = Localization.Get("ShapeAmber"); break;
             }
 
-            if (Special == SpecialType.Hypercube) return Localization.Get("Hypercube");
-            if (Special == SpecialType.Supernova) return Localization.Get("Supernova") + cStr;
-            if (Special == SpecialType.Flame) return Localization.Get("Flame") + cStr;
-            if (Special == SpecialType.Gold) return Localization.Get("Gold") + cStr;
-            if (Special == SpecialType.Star) return Localization.Get("Star") + cStr;
-            if (Special == SpecialType.Time5) return Localization.Get("Time5") + cStr;
-            if (Special == SpecialType.Time10) return Localization.Get("Time10") + cStr;
-            if (IsButterfly) return Localization.Get("Butterfly") + cStr;
-            if (Special == SpecialType.Bomb) return Localization.Get("Bomb", cStr, BombTimer);
+            if (IsButterfly) return Localization.Get("ButterflyShape", shapeStr);
+            if (Special == SpecialType.Supernova) return Localization.Get("SupernovaShape", shapeStr);
+            if (Special == SpecialType.Flame) return Localization.Get("FlameShape", shapeStr);
+            if (Special == SpecialType.Star) return Localization.Get("StarShape", shapeStr);
+            if (Special == SpecialType.Gold) return Localization.Get("GoldShape", shapeStr);
+            if (Special == SpecialType.Time5) return Localization.Get("Time5Shape", shapeStr);
+            if (Special == SpecialType.Time10) return Localization.Get("Time10Shape", shapeStr);
+            if (Special == SpecialType.Bomb) return Localization.Get("BombShape", shapeStr, BombTimer);
 
-            return Localization.Get("Gem") + cStr;
+            return shapeStr;
         }
     }
 }

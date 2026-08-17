@@ -94,18 +94,36 @@ namespace Bejeweled3Accessible.Engine
             { "ModeDiamondMine", new Tuple<string, string>("Mina de Diamantes. Excava en la tierra destruyendo gemas inferiores antes del tiempo.", "Diamond Mine Mode. Dig into the ground destroying lower gems before time runs out.") },
             { "ModeDiamondMineLocked", new Tuple<string, string>("Modo Mina de Diamantes (Bloqueado - Completa 4 desafíos en Quest)", "Diamond Mine Mode (Locked - Complete 4 challenges in Quest)") },
 
-            // Colors
-            { "ColorRed", new Tuple<string, string>("Roja", "Red") },
-            { "ColorYellow", new Tuple<string, string>("Amarilla", "Yellow") },
-            { "ColorGreen", new Tuple<string, string>("Verde", "Green") },
-            { "ColorBlue", new Tuple<string, string>("Azul", "Blue") },
-            { "ColorPurple", new Tuple<string, string>("Púrpura", "Purple") },
-            { "ColorWhite", new Tuple<string, string>("Blanca", "White") },
-            { "ColorOrange", new Tuple<string, string>("Naranja", "Orange") },
+            // Colors & Authentic Bejeweled 3 Geometric Shapes
+            { "ShapeRuby", new Tuple<string, string>("Cuadrado rojo", "Red square") },
+            { "ShapeTopaz", new Tuple<string, string>("Triángulo amarillo", "Yellow triangle") },
+            { "ShapeEmerald", new Tuple<string, string>("Hexágono verde", "Green hexagon") },
+            { "ShapeSapphire", new Tuple<string, string>("Diamante azul", "Blue diamond") },
+            { "ShapeAmethyst", new Tuple<string, string>("Octágono púrpura", "Purple octagon") },
+            { "ShapeDiamond", new Tuple<string, string>("Gema circular blanca", "White sphere diamond") },
+            { "ShapeAmber", new Tuple<string, string>("Rombo naranja", "Orange rhombus") },
 
-            // Gems
+            // Colors
+            { "ColorRed", new Tuple<string, string>("rojo", "red") },
+            { "ColorYellow", new Tuple<string, string>("amarillo", "yellow") },
+            { "ColorGreen", new Tuple<string, string>("verde", "green") },
+            { "ColorBlue", new Tuple<string, string>("azul", "blue") },
+            { "ColorPurple", new Tuple<string, string>("púrpura", "purple") },
+            { "ColorWhite", new Tuple<string, string>("blanco", "white") },
+            { "ColorOrange", new Tuple<string, string>("naranja", "orange") },
+
+            // Gems & Specials with Shape Inheritance
             { "Gem", new Tuple<string, string>("Gema ", "Gem ") },
             { "Hypercube", new Tuple<string, string>("Hipercubo", "Hypercube") },
+            { "SupernovaShape", new Tuple<string, string>("Supernova {0}", "{0} supernova") },
+            { "FlameShape", new Tuple<string, string>("{0} de fuego", "Flame {0}") },
+            { "StarShape", new Tuple<string, string>("{0} estela", "Star {0}") },
+            { "Time5Shape", new Tuple<string, string>("{0} más 5 segundos", "{0} plus 5 seconds") },
+            { "Time10Shape", new Tuple<string, string>("{0} más 10 segundos", "{0} plus 10 seconds") },
+            { "ButterflyShape", new Tuple<string, string>("Mariposa {0}", "{0} butterfly") },
+            { "BombShape", new Tuple<string, string>("Bomba {0} en {1} turnos", "{0} bomb in {1} turns") },
+            { "GoldShape", new Tuple<string, string>("{0} de oro", "Gold {0}") },
+
             { "Supernova", new Tuple<string, string>("Gema Supernova ", "Supernova Gem ") },
             { "Flame", new Tuple<string, string>("Gema de Fuego ", "Flame Gem ") },
             { "Star", new Tuple<string, string>("Gema Estela ", "Star Gem ") },
