@@ -55,9 +55,17 @@ namespace Bejeweled3Accessible.UI
         private int _gameOverIdx = 0;
         private int _cursorX = 3, _cursorY = 3;
         private int _score = 0, _level = 1;
+        private int _levelProgressPoints = 0; // Points accumulated in current level bar
         private int _cascadeChain = 0;
         private bool _isSwapping = false;
         private string _currentModeKey = "ModeClassic";
+
+        private int GetLevelTargetPoints(int level)
+        {
+            // Authentic Bejeweled 3: Level 1 target ~2500 base, scaling with Level
+            // e.g. L1: 2500, L2: 5000, L5: 12500, L12: 30000 pts per level
+            return 2500 * Math.Max(1, level);
+        }
 
         private string _profileInputBuffer = "";
 
@@ -1492,6 +1500,7 @@ namespace Bejeweled3Accessible.UI
         {
             _score = 0;
             _level = 1;
+            _levelProgressPoints = 0;
             _cascadeChain = 0;
             _cursorX = 3;
             _cursorY = 3;
@@ -1990,33 +1999,40 @@ namespace Bejeweled3Accessible.UI
                     }
                     else if (_currentModeKey == "ModeClassic")
                     {
-                        int newLevel = (_score / 5000) + 1;
-                        if (newLevel > _level)
+                        _levelProgressPoints += addedScore;
+                        int targetPoints = GetLevelTargetPoints(_level);
+                        if (_levelProgressPoints >= targetPoints)
                         {
-                            _level = newLevel;
+                            _levelProgressPoints -= targetPoints;
+                            _level++;
+                            int newLevel = _level;
                             _sound.PlaySound(AudioMap.VoiceLevelcomplete);
                             levelUpVoicePlayed = true;
 
                             // Dynamic stage music progression in Classic Mode (Parts 1 to 4)
                             int stage = ((_level - 1) % 4) + 1;
                             _sound.PlayMusic(MusicMap.FileName(MusicMap.ClassicParts[stage - 1]));
-                        }
-                        if (newLevel > _progress.ClassicLevel)
-                        {
-                            if (_progress.ClassicLevel < 5 && newLevel >= 5)
+
+                            if (newLevel > _progress.ClassicLevel)
                             {
-                                _sound.PlaySound(AudioMap.Secretunlocked);
-                                _speech.Speak(Localization.Get("UnlockPoker"), true);
+                                if (_progress.ClassicLevel < 5 && newLevel >= 5)
+                                {
+                                    _sound.PlaySound(AudioMap.Secretunlocked);
+                                    _speech.Speak(Localization.Get("UnlockPoker"), true);
+                                }
+                                _progress.ClassicLevel = newLevel;
                             }
-                            _progress.ClassicLevel = newLevel;
                         }
                     }
                     else if (_currentModeKey == "ModeZen")
                     {
-                        int newLevel = (_score / 5000) + 1;
-                        if (newLevel > _level)
+                        _levelProgressPoints += addedScore;
+                        int targetPoints = GetLevelTargetPoints(_level);
+                        if (_levelProgressPoints >= targetPoints)
                         {
-                            _level = newLevel;
+                            _levelProgressPoints -= targetPoints;
+                            _level++;
+                            int newLevel = _level;
                             _sound.PlaySound(AudioMap.VoiceLevelcomplete);
                             levelUpVoicePlayed = true;
 
@@ -2029,15 +2045,16 @@ namespace Bejeweled3Accessible.UI
                                 // Dynamic stage music progression in Zen Mode (Parts 1 to 4)
                                 _sound.PlayMusic(Engine.ZenManager.GetZenTrackForLevel(_level));
                             }
-                        }
-                        if (newLevel > _progress.ZenLevel)
-                        {
-                            if (_progress.ZenLevel < 5 && newLevel >= 5)
+
+                            if (newLevel > _progress.ZenLevel)
                             {
-                                _sound.PlaySound(AudioMap.Secretunlocked);
-                                _speech.Speak(Localization.Get("UnlockButterflies"), true);
+                                if (_progress.ZenLevel < 5 && newLevel >= 5)
+                                {
+                                    _sound.PlaySound(AudioMap.Secretunlocked);
+                                    _speech.Speak(Localization.Get("UnlockButterflies"), true);
+                                }
+                                _progress.ZenLevel = newLevel;
                             }
-                            _progress.ZenLevel = newLevel;
                         }
                     }
                     else if (_currentModeKey == "ModeIceStorm")
@@ -2781,13 +2798,13 @@ case Engine.QuestType.TimeBomb:
             switch (_currentModeKey)
             {
                 case "ModeClassic":
-                    _speech.Speak(Localization.Get("ClassicStatus", _score, _level, _shufflesRemaining), true);
+                    _speech.Speak(Localization.Get("ClassicStatus", _score, _level, _levelProgressPoints, GetLevelTargetPoints(_level), _shufflesRemaining), true);
                     break;
                 case "ModeLightning":
                     _speech.Speak(Localization.Get("LightningScoreAnnouncement", _score, _lightningTimeLeft, _lightningMultiplier * 5), true);
                     break;
                 case "ModeZen":
-                    _speech.Speak(Localization.Get("ZenStatus", _score, _level), true);
+                    _speech.Speak(Localization.Get("ZenStatus", _score, _level, _levelProgressPoints, GetLevelTargetPoints(_level)), true);
                     break;
                 case "ModePoker":
                     _speech.Speak(Localization.Get("PokerStatus", _score, _pokerCards.Count, _pokerSkulls, _pokerSkullCharge), true);

@@ -21,7 +21,7 @@ namespace Bejeweled3Accessible.Engine
         private static readonly Dictionary<string, Tuple<string, string>> _dict = new Dictionary<string, Tuple<string, string>>
         {
             // Loading Screen
-            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.08.16.1.", "Loading Bejeweled 3... Version 2026.08.16.1.") },
+            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.08.16.2.", "Loading Bejeweled 3... Version 2026.08.16.2.") },
             { "LoadingPrompt", new Tuple<string, string>("Presiona cualquier tecla para continuar", "Press any key to continue") },
 
             // Profile Screen
@@ -32,7 +32,7 @@ namespace Bejeweled3Accessible.Engine
             { "ProfileDelete", new Tuple<string, string>("Eliminar perfil actual", "Delete current profile") },
 
             // Menus
-            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.08.16.1", "Bejeweled 3 Accessible - Version 2026.08.16.1") },
+            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.08.16.2", "Bejeweled 3 Accessible - Version 2026.08.16.2") },
             { "MenuPlay", new Tuple<string, string>("Jugar Bejeweled 3", "Play Bejeweled 3") },
             { "MenuChangeUser", new Tuple<string, string>("Haz clic aquí para cambiar de usuario. Perfil actual: {0}", "Click here to change user. Current profile: {0}") },
             { "MenuLanguage", new Tuple<string, string>("Idioma: Español. Pulsa Enter para cambiar", "Language: English. Press Enter to switch to Spanish") },
@@ -320,8 +320,8 @@ namespace Bejeweled3Accessible.Engine
             { "QuestStatusInactive", new Tuple<string, string>("No estás en Modo Búsqueda (Quest). Misión inactiva.", "Not in Quest Mode. Mission inactive.") },
 
             // Per-mode playing status (press Q)
-            { "ClassicStatus", new Tuple<string, string>("Modo Clásico. Puntuación: {0}. Nivel: {1}. Barajadas restantes: {2}.", "Classic Mode. Score: {0}. Level: {1}. Shuffles left: {2}.") },
-            { "ZenStatus", new Tuple<string, string>("Modo Zen. Puntuación: {0}. Nivel: {1}.", "Zen Mode. Score: {0}. Level: {1}.") },
+            { "ClassicStatus", new Tuple<string, string>("Modo Clásico. Puntuación: {0}. Nivel: {1}. Progreso de nivel: {2} de {3} puntos. Barajadas restantes: {4}.", "Classic Mode. Score: {0}. Level: {1}. Level progress: {2} of {3} points. Shuffles left: {4}.") },
+            { "ZenStatus", new Tuple<string, string>("Modo Zen. Puntuación: {0}. Nivel: {1}. Progreso de nivel: {2} de {3} puntos.", "Zen Mode. Score: {0}. Level: {1}. Level progress: {2} of {3} points.") },
             { "PokerStatus", new Tuple<string, string>("Modo Póker. Puntuación: {0}. Cartas en la mano: {1} de 5. Calaveras en la mesa: {2}. Barra eliminadora: {3} de 3.", "Poker Mode. Score: {0}. Cards in hand: {1} of 5. Skulls on the table: {2}. Skull eliminator: {3} of 3.") },
             { "ButterfliesModeStatus", new Tuple<string, string>("Modo Mariposas. Puntuación: {0}. Mariposas en el tablero: {1}. Columnas: {2}.", "Butterflies Mode. Score: {0}. Butterflies on the board: {1}. Columns: {2}.") },
             { "IceStormModeStatus", new Tuple<string, string>("Tormenta de Hielo. Puntuación: {0}. Columnas desheladas: {1}. {2}", "Ice Storm. Score: {0}. Columns melted: {1}. {2}") },
