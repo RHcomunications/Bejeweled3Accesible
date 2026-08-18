@@ -1313,22 +1313,48 @@ namespace Bejeweled3Accessible.Tests
                 string musicDir = Path.Combine(repoRoot, "music");
                 Assert.True(Directory.Exists(musicDir), "Carpeta music localizable");
 
+                // Desde la v2026.08.18.0 la musica es el modulo real del juego
+                // (Bejeweled3_suite.mo3) + las 6 ambientales reales como fichero.
+                Assert.True(File.Exists(Path.Combine(musicDir, MusicMap.ModuleFile)), "Modulo real presente: " + MusicMap.ModuleFile);
+
                 string[] onDisk = Directory.GetFiles(musicDir, "*.mp3")
                     .Select(f => Path.GetFileNameWithoutExtension(f)).ToArray();
-                Assert.Equal(29, onDisk.Length, "29 mp3 en music");
-                Assert.Equal(29, MusicMap.TrackCount, "TrackCount coincide");
+                Assert.Equal(6, onDisk.Length, "6 ambientales (fichero) en music");
 
                 var missingOnDisk = new List<string>();
                 foreach (string key in MusicMap.AllTrackKeys)
+                {
+                    if (MusicMap.OrderForTrack(key) >= 0) continue;
                     if (!onDisk.Contains(key)) missingOnDisk.Add(key);
-                Assert.Equal(0, missingOnDisk.Count, "Constantes sin pista en disco: " + string.Join(", ", missingOnDisk));
+                }
+                Assert.Equal(0, missingOnDisk.Count, "Ambientales sin fichero en disco: " + string.Join(", ", missingOnDisk));
 
                 var missingInMap = new List<string>();
                 foreach (string name in onDisk)
                     if (!MusicMap.AllTrackKeys.Contains(name)) missingInMap.Add(name);
-                Assert.Equal(0, missingInMap.Count, "Pistas sin constante en MusicMap: " + string.Join(", ", missingInMap));
+                Assert.Equal(0, missingInMap.Count, "Ficheros sin constante en MusicMap: " + string.Join(", ", missingInMap));
 
-                Assert.Equal(onDisk.Length, new HashSet<string>(MusicMap.AllTrackKeys).Count, "Sin duplicados");
+                Assert.Equal(29, new HashSet<string>(MusicMap.AllTrackKeys).Count, "Sin duplicados en MusicMap");
+
+                // Offsets del mapa musical real (music.xml del juego original)
+                Assert.Equal(2, MusicMap.OrderForTrack(MusicMap.Intro), "Intro = LoadingScreen 02");
+                Assert.Equal(4, MusicMap.OrderForTrack(MusicMap.MainTheme), "Menu = MainMenu 04");
+                Assert.Equal(45, MusicMap.OrderForTrack(MusicMap.ClassicPart1), "Clasico 45");
+                Assert.Equal(45, MusicMap.OrderForTrack(MusicMap.ClassicPart2), "Clasico parte 2 comparte offset");
+                Assert.Equal(84, MusicMap.OrderForTrack(MusicMap.ZenPart1), "Zen 84");
+                Assert.Equal(12, MusicMap.OrderForTrack(MusicMap.Lightning), "Lightning/Speed 12");
+                Assert.Equal(149, MusicMap.OrderForTrack(MusicMap.IceStorm), "Icestorm 149");
+                Assert.Equal(163, MusicMap.OrderForTrack(MusicMap.Butterflies), "Butterflies 163");
+                Assert.Equal(176, MusicMap.OrderForTrack(MusicMap.Poker), "Poker 176");
+                Assert.Equal(34, MusicMap.OrderForTrack(MusicMap.QuestTimeBombs), "TimeBombs/QuestBomb 34");
+                Assert.Equal(133, MusicMap.OrderForTrack(MusicMap.QuestTakeYourTime), "TakeYourTime 133");
+                Assert.Equal(188, MusicMap.OrderForTrack(MusicMap.QuestTurnByTurn), "TurnByTurn 188");
+                Assert.Equal(201, MusicMap.OrderForTrack(MusicMap.QuestBuriedTreasure), "BuriedTreasure 201");
+                Assert.Equal(-1, MusicMap.OrderForTrack(MusicMap.AmbientCoastal), "Ambiental = fichero, no modulo");
+                Assert.Equal(4, MusicMap.NextOffsetAfter(2), "Siguiente cancion tras el intro");
+                Assert.Equal(84, MusicMap.NextOffsetAfter(45), "Siguiente cancion tras el clasico");
+                Assert.Equal(-1, MusicMap.NextOffsetAfter(213), "Sin cancion tras la ultima");
+
                 Assert.Equal("03 - Classic Mode - Part 1.mp3", MusicMap.FileName(MusicMap.ClassicParts[0]), "Clasico parte 1");
                 Assert.Equal("06 - Classic Mode - Part 4.mp3", MusicMap.FileName(MusicMap.ClassicParts[3]), "Clasico parte 4");
                 Assert.Equal("01 - Intro.mp3", MusicMap.FileName(MusicMap.Intro), "Helper FileName");
@@ -1560,6 +1586,28 @@ namespace Bejeweled3Accessible.Tests
                     Assert.True(stayedActive, "El canal de musica nunca debe quedar inactivo (sin vacio)");
                     Assert.True(sound.MusicChannelActive, "Musica reproduciendose tras el reencadenado");
                     Assert.True(sound.MusicLoopArmed, "El monitor debe re-armarse tras el reencadenado");
+                    Assert.NoThrow(() => sound.StopMusic(), "Stop music");
+                }
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Sound: modulo real (MO3) reproduce con salto por orden", () =>
+            {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                using (SoundEngine sound = new SoundEngine(baseDir))
+                {
+                    sound.MusicVol = 100;
+                    // Speed (Lightning) = orden 12 del modulo; el juego salta
+                    // por offset igual que el original con su music.xml.
+                    sound.PlayMusic("07 - Lightning (aka Blitz).mp3");
+                    System.Threading.Thread.Sleep(900);
+                    Assert.True(sound.MusicChannelActive, "El modulo debe estar sonando");
+                    Assert.True(sound.MusicLoopArmed, "El monitor debe estar armado tras el fade-in");
+
+                    // Salto de orden a otra cancion (crossfade): el motor debe
+                    // seguir vivo con dos push-streams en paralelo.
+                    sound.PlayMusic("01 - Intro.mp3");
+                    System.Threading.Thread.Sleep(700);
+                    Assert.True(sound.MusicChannelActive, "Musica tras el salto de orden");
                     Assert.NoThrow(() => sound.StopMusic(), "Stop music");
                 }
             }));

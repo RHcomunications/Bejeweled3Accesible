@@ -2,11 +2,23 @@
 // Nomenclatura intacta: el valor de cada constante es el nombre EXACTO de la pista
 // en music\ SIN la extension .mp3 (el helper FileName la anade). La numeracion
 // estricta 01-29 elimina cualquier colision de subcadenas.
+//
+// Desde la v2026.08.18.0 la musica real del juego es un unico modulo
+// (Bejeweled3_suite.mo3 extraido de main.pak): las pistas 01-23 son entradas
+// de ese modulo con el offset del mapa real (music.xml del juego original),
+// mientras que las pistas ambientales 24-29 se reproducen como ficheros
+// independientes (los ambient\*.ogg reales, renombrados .mp3).
+using System;
+
 namespace Bejeweled3Accessible.Audio
 {
     public static class MusicMap
     {
         public const int TrackCount = 29;
+
+        // Modulo musical real (62 minutos, 214 ordenes). BASS no decodifica
+        // MO3: lo reproduce libopenmpt alimentando un push-stream BASS.
+        public const string ModuleFile = "Bejeweled3_suite.mo3";
 
         public const string Mp3Extension = ".mp3";
 
@@ -112,6 +124,79 @@ namespace Bejeweled3Accessible.Audio
         public const string AmbientOceanSurf = "27 - Ocean Surf";
         public const string AmbientRainLeaves = "28 - Rain Leaves";
         public const string AmbientWaterfall = "29 - Waterfall";
+        #endregion
+
+        #region Modulo real: offsets por pista (music.xml del juego original)
+        // Cada pista 01-23 se reproduce saltando la reproduccion del modulo a
+        // este offset de la lista de ordenes; la suite sigue sonando en cadena
+        // igual que en el juego original (la musica de cada modo evoluciona).
+        // Las 4 partes de Clasico y Zen comparten offset: el propio modulo ya
+        // hace avanzar la musica; PlayMusic no reinicia cuando el offset es el
+        // mismo. Las ambientales (24-29) no estan en el modulo (son ficheros).
+        private static readonly System.Collections.Generic.Dictionary<string, int> ModuleOffsets =
+            new System.Collections.Generic.Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase)
+            {
+                { Intro, 2 },                    // LoadingScreen
+                { MainTheme, 4 },                // MainMenu
+                { Lightning, 12 },               // Speed
+                { ClassicPart1, 45 },            // Classic
+                { ClassicPart2, 45 },
+                { ClassicPart3, 45 },
+                { ClassicPart4, 45 },
+                { ZenPart1, 84 },                // Zen
+                { ZenPart2, 84 },
+                { ZenPart3, 84 },
+                { ZenPart4, 84 },
+                { QuestTheme, 147 },             // QuestMenu / SecretMenu
+                { QuestFinale, 147 },
+                { QuestTimeBombs, 34 },          // QuestBomb
+                { QuestTakeYourTime, 133 },      // QuestTimeBased
+                { QuestTurnByTurn, 188 },        // QuestTurnBased
+                { QuestBuriedTreasure, 201 },    // BuriedTreasure
+                { IceStorm, 149 },               // Icestorm
+                { Butterflies, 163 },            // Butterflies
+                { Poker, 176 },                  // Poker
+                { GemsOfGlass, 4 },
+                { FinalTurn, 4 },
+                { RemixMedley, 4 },
+            };
+
+        // Todos los offsets de cancion del mapa real, en orden (el resto de
+        // posiciones pertenecen a la misma cancion hasta el siguiente offset).
+        private static readonly int[] KnownOffsets =
+        {
+            2, 4, 12, 22, 34, 41, 43, 45, 84, 120, 133, 143, 145, 147, 149,
+            161, 163, 174, 176, 184, 186, 188, 197, 199, 201, 211, 213
+        };
+
+        // Offset de una pista en el modulo, o -1 si la pista es un fichero
+        // independiente (ambientales) o desconocida.
+        public static int OrderForTrack(string trackKey)
+        {
+            int order;
+            if (ModuleOffsets.TryGetValue(trackKey, out order)) return order;
+            return -1;
+        }
+
+        public static int OrderForFile(string musicFileName)
+        {
+            if (string.IsNullOrEmpty(musicFileName)) return -1;
+            string key = musicFileName;
+            if (key.EndsWith(Mp3Extension, StringComparison.OrdinalIgnoreCase))
+                key = key.Substring(0, key.Length - Mp3Extension.Length);
+            return OrderForTrack(key);
+        }
+
+        // Siguiente cancion conocida del mapa real tras `order`, o -1 si no
+        // hay ninguna (la ultima cancion llega hasta el final del modulo).
+        public static int NextOffsetAfter(int order)
+        {
+            foreach (int known in KnownOffsets)
+            {
+                if (known > order) return known;
+            }
+            return -1;
+        }
         #endregion
     }
 }

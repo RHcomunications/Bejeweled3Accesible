@@ -22,6 +22,10 @@ namespace Bejeweled3Accessible.Audio
         private static extern int BASS_StreamCreateFile(bool mem, IntPtr file, long offset, long length, uint flags);
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
+        private static extern int BASS_StreamCreate(uint freq, uint chans, uint flags,
+            [MarshalAs(UnmanagedType.FunctionPtr)] BassStreamProc proc, IntPtr user);
+
+        [DllImport("bass.dll", CharSet = CharSet.Auto)]
         private static extern bool BASS_ChannelPlay(int handle, bool restart);
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
@@ -58,10 +62,16 @@ namespace Bejeweled3Accessible.Audio
         private static extern bool BASS_FXSetParameters(int handle, IntPtr par);
 
         private const uint BASS_SAMPLE_LOOP = 4;
+        private const uint BASS_SAMPLE_FLOAT = 0x100;
         private const uint BASS_FX_DX8_REVERB = 8;
         private const int BASS_ATTRIB_FREQ = 1;
         private const int BASS_ATTRIB_VOL = 2;
         private const int BASS_ATTRIB_PAN = 3;
+
+        // Callback con el que BASS pide PCM de la musica del modulo real
+        // (BASS_StreamCreate con STREAMPROC). Devuelve bytes escritos.
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate uint BassStreamProc(int handle, IntPtr buffer, uint length, IntPtr user);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct BASS_DX8_REVERB
@@ -83,6 +93,16 @@ namespace Bejeweled3Accessible.Audio
         private int _musicReverbFx = 0;
         private GCHandle _pinnedMusicBytes;
         private readonly List<ActiveSfx> _activeSfxList = new List<ActiveSfx>();
+
+        // Reproduccion del modulo real (Bejeweled3_suite.mo3): libopenmpt
+        // decodifica y entrega el PCM a BASS_StreamCreate (STREAMPROC), de modo
+        // que ducking, fades y reverb siguen aplicandose igual que a cualquier
+        // otra pista. El callback solo marca un flag: los eventos MusicRechained
+        // se disparan desde el monitor para no llamar a BASS desde su propio hilo.
+        private ModuleMusicPlayer _currentModulePlayer;
+        private ModuleMusicPlayer _pendingModulePlayer;
+        private readonly BassStreamProc _moduleStreamProc;
+        private volatile bool _moduleEventPending;
 
         // Music crossfade state. The crossfade overlaps the incoming track with
         // the outgoing one (the new channel fades in while the old fades out),
@@ -454,6 +474,10 @@ namespace Bejeweled3Accessible.Audio
                 _bassReady = false;
                 LogAudioError("BASS_Init fallo: " + ex.Message);
             }
+
+            // Callback de BASS_StreamCreate para la musica del modulo: se
+            // conserva en un campo para que el GC nunca lo recolecte.
+            _moduleStreamProc = ModuleStreamProc;
         }
 
         private static string AudioManagerResolveLogDir()
@@ -997,6 +1021,18 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             {
                 StopFadeTimer();
                 EnsureMusicMonitor();
+
+                // El modulo ya suena en esta misma cancion (p. ej. las 4 partes
+                // de Clasico o Zen comparten offset): no reiniciar la musica,
+                // el propio modulo la hace evolucionar como en el juego real.
+                int order = MusicMap.OrderForFile(musicFileName);
+                if (order >= 0 && _currentMusicChannel != 0 && _currentModulePlayer != null
+                    && _pendingMusicChannel == 0 && _currentMusicFile != null
+                    && MusicMap.OrderForFile(_currentMusicFile) == order && MusicChannelActive)
+                {
+                    return;
+                }
+
                 if (_currentMusicChannel == 0)
                 {
                     StartMusic(musicFileName);
@@ -1009,12 +1045,18 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 if (_pendingMusicChannel != 0)
                 {
                     FreeChannel(_pendingMusicChannel, _pendingMusicPin);
+                    if (_pendingModulePlayer != null)
+                    {
+                        try { _pendingModulePlayer.Dispose(); } catch { }
+                        _pendingModulePlayer = null;
+                    }
                 }
                 _pendingMusicFile = musicFileName;
-                _pendingMusicChannel = CreateMusicChannel(musicFileName, out _pendingMusicPin);
+                _pendingMusicChannel = CreateChannelFor(musicFileName, out _pendingMusicPin, out _pendingModulePlayer);
                 if (_pendingMusicChannel == 0)
                 {
                     _pendingMusicFile = null;
+                    _pendingModulePlayer = null;
                     return;
                 }
                 _fadingOut = true;
@@ -1089,10 +1131,18 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             }
             catch { }
 
+            if (_currentModulePlayer != null)
+            {
+                try { _currentModulePlayer.Dispose(); } catch { }
+                _currentModulePlayer = null;
+            }
+
             if (_pendingMusicChannel != 0)
             {
                 _currentMusicChannel = _pendingMusicChannel;
                 _pinnedMusicBytes = _pendingMusicPin;
+                _currentModulePlayer = _pendingModulePlayer;
+                _pendingModulePlayer = null;
                 _pendingMusicChannel = 0;
                 if (_pendingMusicFile != null)
                 {
@@ -1120,10 +1170,15 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         private void StartMusic(string musicFileName)
         {
             _currentMusicFile = musicFileName;
-            int handle = CreateMusicChannel(musicFileName, out _pinnedMusicBytes);
+            int handle = CreateChannelFor(musicFileName, out _pinnedMusicBytes, out _currentModulePlayer);
             if (handle == 0)
             {
                 _currentMusicFile = null;
+                if (_currentModulePlayer != null)
+                {
+                    try { _currentModulePlayer.Dispose(); } catch { }
+                    _currentModulePlayer = null;
+                }
                 return;
             }
             _currentMusicChannel = handle;
@@ -1138,11 +1193,138 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             EnsureMusicMonitor();
         }
 
-        // Creates a ready-to-play music stream at zero volume. The track is
-        // re-chained with a crossfade when it approaches its end (like the
-        // original .mo3 files which chain segments automatically); the native
-        // BASS loop is a safety net in case the monitor ever misses a chain.
-        private int CreateMusicChannel(string musicFileName, out GCHandle pin)
+        // Crea el canal de musica para una pista: las del modulo real (01-23)
+        // se reproducen con libopenmpt sobre un push-stream; las ambientales
+        // (24-29) son ficheros normales cargados desde el PAC o la carpeta.
+        private int CreateChannelFor(string musicFileName, out GCHandle pin, out ModuleMusicPlayer player)
+        {
+            pin = new GCHandle();
+            player = null;
+            int order = MusicMap.OrderForFile(musicFileName);
+            if (order >= 0) return CreateModuleChannel(order, out player);
+            return CreateFileMusicChannel(musicFileName, out pin);
+        }
+
+        // Push-stream de la musica del modulo saltando a `order`. El relleno
+        // de PCM lo hace ModuleFillTick (50 ms por tick, buffer BASS 500 ms).
+        private int CreateModuleChannel(int order, out ModuleMusicPlayer player)
+        {
+            player = null;
+            try
+            {
+                byte[] mo3Bytes = null;
+
+                // 1. Load from encrypted audio.pac directly in RAM
+                if (_audioPac != null)
+                {
+                    mo3Bytes = _audioPac.GetFileBytes(MusicMap.ModuleFile);
+                }
+
+                // 2. Fallback to unencrypted folder
+                if (mo3Bytes == null)
+                {
+                    string modulePath = Path.Combine(_musicDir, MusicMap.ModuleFile);
+                    if (File.Exists(modulePath)) mo3Bytes = File.ReadAllBytes(modulePath);
+                }
+
+                if (mo3Bytes == null || mo3Bytes.Length == 0)
+                {
+                    LogAudioError("Modulo MO3 no disponible: " + MusicMap.ModuleFile);
+                    return 0;
+                }
+
+                player = ModuleMusicPlayer.TryCreate(mo3Bytes);
+                if (player == null || !player.IsValid)
+                {
+                    LogAudioError("libopenmpt no pudo abrir el modulo");
+                    if (player != null)
+                    {
+                        try { player.Dispose(); } catch { }
+                    }
+                    player = null;
+                    return 0;
+                }
+                player.SeekTo(order, MusicMap.NextOffsetAfter(order));
+
+                // Stream con callback: BASS pide el PCM al hilo de audio y el
+                // relleno es automatico (el push-stream no existe en esta build).
+                int handle = BASS_StreamCreate(ModuleMusicPlayer.SampleRate, 2, BASS_SAMPLE_FLOAT,
+                    _moduleStreamProc, player.UserToken);
+                if (handle == 0)
+                {
+                    LogAudioError("Stream musica modulo fallo, err=" + BASS_LastError());
+                    try { player.Dispose(); } catch { }
+                    player = null;
+                    return 0;
+                }
+
+                // Fade-in starts from silence
+                BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, 0.0f);
+                if (SpatialBinauralEnabled && SpatialProfile == SpatialProfile.Stage2D)
+                {
+                    // Enveloping 3D atmospheric binaural reverb soundscape for background music
+                    BASS_ChannelSetAttribute(handle, BASS_ATTRIB_PAN, 0.0f);
+
+                    int reverbFx = BASS_ChannelSetFX(handle, BASS_FX_DX8_REVERB, 0);
+                    if (reverbFx != 0)
+                    {
+                        BASS_DX8_REVERB rev = new BASS_DX8_REVERB
+                        {
+                            fInGain = 0.0f,
+                            fReverbMix = -5.0f,
+                            fReverbTime = 1400.0f,
+                            fHighFreqRttHFRatio = 0.001f
+                        };
+                        IntPtr ptr = Marshal.AllocHGlobal(Marshal.SizeOf(rev));
+                        Marshal.StructureToPtr(rev, ptr, false);
+                        BASS_FXSetParameters(reverbFx, ptr);
+                        Marshal.FreeHGlobal(ptr);
+                    }
+                }
+                BASS_ChannelPlay(handle, true);
+                return handle;
+            }
+            catch (Exception ex)
+            {
+                LogAudioError("CreateModuleChannel excepcion: " + ex.GetType().Name + ": " + ex.Message);
+                if (player != null)
+                {
+                    try { player.Dispose(); } catch { }
+                }
+                player = null;
+                return 0;
+            }
+        }
+
+        // Callback de BASS_StreamCreate: se ejecuta en el hilo de audio de BASS
+        // cuando el stream necesita PCM. Solo decodifica y escribe el buffer;
+        // detecta el avance de seccion (p. ej. el intro termina y empieza el
+        // menu) y el final del modulo completo (~62 min) marcando un flag que el
+        // monitor de musica convierte en MusicRechained fuera del hilo de BASS.
+        private uint ModuleStreamProc(int handle, IntPtr buffer, uint length, IntPtr user)
+        {
+            ModuleMusicPlayer player;
+            try
+            {
+                GCHandle token = GCHandle.FromIntPtr(user);
+                if (!token.IsAllocated) return 0;
+                player = token.Target as ModuleMusicPlayer;
+            }
+            catch { return 0; }
+            if (player == null) return 0;
+
+            bool replayed;
+            int frames = player.ReadInterleaved(buffer, (int)Math.Min(length / 8, (uint)ModuleMusicPlayer.MaxFrames), out replayed);
+            if (replayed || player.UpdateSectionAdvance()) _moduleEventPending = true;
+            return (uint)(frames * 8);
+        }
+
+        // Creates a ready-to-play music stream at zero volume for a file-based
+        // track (ambientales 24-29). The track is re-chained with a crossfade
+        // when it approaches its end (like the original .mo3 files which chain
+        // segments automatically); the native BASS loop is a safety net in case
+        // the monitor ever misses a chain.
+        private int CreateFileMusicChannel(string musicFileName, out GCHandle pin)
         {
             pin = new GCHandle();
             try
@@ -1253,7 +1435,22 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         {
             lock (_musicLock)
             {
+                // El callback del modulo marca un flag (avance de seccion o
+                // final de la suite); el evento se dispara aqui, fuera del hilo
+                // de audio de BASS, para no llamar a PlayMusic desde el callback.
+                if (_moduleEventPending)
+                {
+                    _moduleEventPending = false;
+                    if (MusicRechained != null)
+                    {
+                        try { MusicRechained(this, EventArgs.Empty); } catch { }
+                    }
+                }
                 if (_currentMusicChannel == 0 || _currentMusicFile == null) return;
+                // La musica del modulo se encadena sola (vuelve al inicio de la
+                // cancion al final del modulo y avanza de seccion); el monitor
+                // de pistas de fichero no debe tocarla.
+                if (_currentModulePlayer != null) return;
                 if (_pendingMusicChannel != 0 || _fadingOut || _musicFadeTimer != null) return;
 
                 try
@@ -1353,6 +1550,11 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
 
                 FreeChannel(_pendingMusicChannel, _pendingMusicPin);
                 _pendingMusicChannel = 0;
+                if (_pendingModulePlayer != null)
+                {
+                    try { _pendingModulePlayer.Dispose(); } catch { }
+                    _pendingModulePlayer = null;
+                }
 
                 try
                 {
@@ -1369,6 +1571,12 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     }
                 }
                 catch { }
+
+                if (_currentModulePlayer != null)
+                {
+                    try { _currentModulePlayer.Dispose(); } catch { }
+                    _currentModulePlayer = null;
+                }
             }
         }
 
