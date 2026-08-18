@@ -1272,10 +1272,15 @@ namespace Bejeweled3Accessible.Tests
             tests.Add(Tuple.Create<string, Action>("AudioMap: cobertura completa disco <-> constantes", () =>
             {
                 string repoRoot = AppDomain.CurrentDomain.BaseDirectory;
-                for (int i = 0; i < 4 && !Directory.Exists(Path.Combine(repoRoot, "sounds")); i++)
+                string soundsDir = null;
+                for (int i = 0; i < 6 && repoRoot != null; i++)
+                {
+                    string candidate = Path.Combine(repoRoot, "sounds");
+                    if (Directory.Exists(candidate) && Directory.GetFiles(candidate, "*.ogg").Length > 0)
+                    { soundsDir = candidate; break; }
                     repoRoot = Path.GetDirectoryName(repoRoot);
-                string soundsDir = Path.Combine(repoRoot, "sounds");
-                Assert.True(Directory.Exists(soundsDir), "Carpeta sounds localizable");
+                }
+                Assert.True(soundsDir != null, "Carpeta sounds localizable (con ogg)");
 
                 string[] onDisk = Directory.GetFiles(soundsDir, "*.ogg")
                     .Select(f => Path.GetFileNameWithoutExtension(f)).ToArray();
