@@ -1792,20 +1792,26 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
     // + stream de salida estéreo creado con BASS_StreamCreate (STREAMPROC).
     // El motor la usa en vez del canal directo cuando el HRTF binaural está
     // activo (perfiles Stage2D y CleanArcade con columna).
+    // Fuente de SFX binaural. NOTA DE ARQUITECTURA: esta bass.dll reducida NO
+    // decodifica streams BASS_STREAM_DECODE (BASS_ChannelGetData devuelve 0)
+    // y tampoco resamplea vía BASS_ATTRIB_FREQ, así que la ruta binaural no
+    // puede usar "decodificar -> renderizar -> push". En su lugar se usa el
+    // camino de reproducción directa que sí funciona en este build:
+    // BASS_StreamCreateFile reproduce el OGG a su tasa nativa (44.1 kHz o
+    // 22.05 kHz en los ficheros reales), y un DSP instalado en el canal
+    // sustituye el buffer estéreo por la salida del renderer binaural. El
+    // renderer se configura con la tasa real del fichero (BASS_ChannelGetInfo)
+    // para que su matemática ITD/aire sea correcta en ambos casos.
     internal sealed class BinauralSfxSource : IDisposable
     {
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
         private static extern int BASS_StreamCreateFile(bool mem, IntPtr file, long offset, long length, uint flags);
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern int BASS_StreamCreate(uint freq, uint chans, uint flags,
-            [MarshalAs(UnmanagedType.FunctionPtr)] BassStreamProc proc, IntPtr user);
-
-        [DllImport("bass.dll", CharSet = CharSet.Auto)]
         private static extern bool BASS_ChannelGetInfo(int handle, out BassChannelInfo info);
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern int BASS_ChannelGetData(int handle, IntPtr buffer, uint length);
+        private static extern bool BASS_ChannelSetDSP(int handle, [MarshalAs(UnmanagedType.FunctionPtr)] DspProc proc, IntPtr user, int priority);
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
         private static extern bool BASS_StreamFree(int handle);
@@ -1814,11 +1820,9 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         private static extern bool BASS_ChannelStop(int handle);
 
         private const uint BASS_SAMPLE_FLOAT = 0x100;
-        private const uint BASS_STREAM_DECODE = 0x00800000;
-        private const uint BASS_DATA_FLOAT = 0x80000000;
 
         // Máximo de frames por bloque de callback: ~186 ms a 44.1 kHz.
-        private const int MaxBlockFrames = 8192;
+        private const int BinauralSfxBlockFrames = 8192;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct BassChannelInfo
@@ -1831,90 +1835,82 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         }
 
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        private delegate uint BassStreamProc(int handle, IntPtr buffer, uint length, IntPtr user);
+        private delegate void DspProc(int handle, int channel, IntPtr buffer, int length, IntPtr user);
 
         public int OutputHandle { get; private set; }
 
         // Pose que anima el motor (swipes): el hilo de audio la lee por bloque.
         public BinauralRenderer Renderer { get; private set; }
 
-        private readonly int _decoderHandle;
         private readonly GCHandle _pin;      // OGG en RAM: vive con la fuente
         private readonly GCHandle _selfPin;  // token para el callback de BASS
-        private readonly BassStreamProc _proc;
+        private readonly DspProc _dsp;
         private readonly int _inChans;
-        private readonly float[] _inBuf;     // PCM intercalado leído del decodificador
+        private readonly float[] _inBuf;     // PCM intercalado visto por el DSP
         private readonly float[] _monoBuf;   // downmix mono (dual-mono sin pérdida)
         private readonly float[] _stereoBuf; // salida intercalada del renderer
-        private readonly GCHandle _inPin;
-        private readonly GCHandle _stereoPin;
 
         public BinauralSfxSource(byte[] oggBytes, GCHandle pin, float azimuthDeg, float depth)
         {
             _pin = pin;
-            _decoderHandle = BASS_StreamCreateFile(true, pin.AddrOfPinnedObject(), 0, oggBytes.Length, BASS_STREAM_DECODE);
-            if (_decoderHandle == 0) throw new InvalidOperationException("BASS decoder fallo");
+            OutputHandle = BASS_StreamCreateFile(true, pin.AddrOfPinnedObject(), 0, oggBytes.Length, BASS_SAMPLE_FLOAT);
+            if (OutputHandle == 0) throw new InvalidOperationException("BASS stream fallo");
 
             BassChannelInfo info;
-            if (!BASS_ChannelGetInfo(_decoderHandle, out info))
+            if (!BASS_ChannelGetInfo(OutputHandle, out info))
             {
-                BASS_StreamFree(_decoderHandle);
+                BASS_StreamFree(OutputHandle);
+                OutputHandle = 0;
                 throw new InvalidOperationException("BASS_ChannelGetInfo fallo");
             }
             _inChans = (info.chans == 1) ? 1 : 2;
 
-            Renderer = new BinauralRenderer { AzimuthDeg = azimuthDeg, Depth = depth };
+            // El DSP ve el buffer a la tasa nativa del fichero (sin
+            // resampleo): el renderer se configura con esa tasa para que su
+            // matemática de ITD/aire sea correcta también en los OGG a 22.05 kHz.
+            Renderer = new BinauralRenderer { SampleRate = info.freq, AzimuthDeg = azimuthDeg, Depth = depth };
 
-            _inBuf = new float[MaxBlockFrames * 2];
-            _monoBuf = new float[MaxBlockFrames];
-            _stereoBuf = new float[MaxBlockFrames * 2];
-            _inPin = GCHandle.Alloc(_inBuf, GCHandleType.Pinned);
-            _stereoPin = GCHandle.Alloc(_stereoBuf, GCHandleType.Pinned);
+            _inBuf = new float[BinauralSfxBlockFrames * 2];
+            _monoBuf = new float[BinauralSfxBlockFrames];
+            _stereoBuf = new float[BinauralSfxBlockFrames * 2];
 
-            _proc = StreamProc;
+            _dsp = Dsp;
             _selfPin = GCHandle.Alloc(this);
-            OutputHandle = BASS_StreamCreate((uint)BinauralRenderer.SampleRate, 2, BASS_SAMPLE_FLOAT,
-                _proc, GCHandle.ToIntPtr(_selfPin));
-            if (OutputHandle == 0)
+            if (!BASS_ChannelSetDSP(OutputHandle, _dsp, IntPtr.Zero, 0))
             {
                 try { _selfPin.Free(); } catch { }
-                try { _inPin.Free(); } catch { }
-                try { _stereoPin.Free(); } catch { }
-                try { BASS_StreamFree(_decoderHandle); } catch { }
-                throw new InvalidOperationException("BASS_StreamCreate de salida fallo");
+                try { BASS_StreamFree(OutputHandle); } catch { }
+                OutputHandle = 0;
+                throw new InvalidOperationException("BASS_ChannelSetDSP fallo");
             }
         }
 
-        // Callback del hilo de audio de BASS: pide PCM al decodificador, lo
-        // espacializa y entrega estéreo intercalado. Devuelve bytes escritos.
-        private uint StreamProc(int handle, IntPtr buffer, uint length, IntPtr user)
+        // Callback del hilo de audio de BASS: sustituye el buffer estéreo por
+        // la salida del renderer. El buffer llega a la tasa nativa del fichero
+        // (44.1 kHz o 22.05 kHz, igual que la del renderer), en float y
+        // estéreo intercalado.
+        private void Dsp(int handle, int channel, IntPtr buffer, int length, IntPtr user)
         {
-            int frames = (int)Math.Min(length / 8, (uint)MaxBlockFrames);
+            int frames = length / 8;
+            if (frames <= 0 || frames > BinauralSfxBlockFrames) return;
 
-            int got = BASS_ChannelGetData(_decoderHandle, _inPin.AddrOfPinnedObject(),
-                (uint)(frames * 4 * _inChans));
-            if (got < 0) got = 0;
-            int inFloats = got / 4;
-            int framesGot = inFloats / _inChans;
-            if (framesGot <= 0) return 0;
-
+            Marshal.Copy(buffer, _inBuf, 0, frames * _inChans);
             if (_inChans == 2)
             {
                 // Los ficheros reales del juego son estéreo dual-mono (L == R):
                 // el downmix no pierde nada y entrega la señal mono al renderer.
-                for (int i = 0; i < framesGot; i++)
+                for (int i = 0; i < frames; i++)
                 {
                     _monoBuf[i] = (_inBuf[i * 2] + _inBuf[i * 2 + 1]) * 0.5f;
                 }
-                Renderer.Process(_monoBuf, framesGot, _stereoBuf);
+                Renderer.Process(_monoBuf, frames, _stereoBuf);
             }
             else
             {
-                Renderer.Process(_inBuf, framesGot, _stereoBuf);
+                Renderer.Process(_inBuf, frames, _stereoBuf);
             }
 
-            Marshal.Copy(_stereoBuf, 0, buffer, framesGot * 2);
-            return (uint)(framesGot * 8);
+            Marshal.Copy(_stereoBuf, 0, buffer, frames * 2);
         }
 
         public void Dispose()
@@ -1925,18 +1921,9 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 try { BASS_StreamFree(OutputHandle); } catch { }
                 OutputHandle = 0;
             }
-            try { BASS_StreamFree(_decoderHandle); } catch { }
             if (_pin.IsAllocated)
             {
                 try { _pin.Free(); } catch { }
-            }
-            if (_inPin.IsAllocated)
-            {
-                try { _inPin.Free(); } catch { }
-            }
-            if (_stereoPin.IsAllocated)
-            {
-                try { _stereoPin.Free(); } catch { }
             }
             if (_selfPin.IsAllocated)
             {

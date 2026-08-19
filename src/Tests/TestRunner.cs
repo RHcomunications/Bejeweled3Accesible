@@ -58,6 +58,11 @@ namespace Bejeweled3Accessible.Tests
                 RunHrtfScan();
                 return 0;
             }
+            if (args != null && args.Length > 0 && args[0] == "--decode-probe")
+            {
+                RunDecodeProbe();
+                return 0;
+            }
 
             Console.WriteLine("=== SUITE DE TESTS UNITARIOS - BEJEWELED 3 ACCESIBLE ===");
             if (noAudio) Console.WriteLine("Modo --no-audio: las pruebas que reproducen sonido se omiten.");
@@ -2194,6 +2199,97 @@ namespace Bejeweled3Accessible.Tests
             return true;
         }
 
+        private static void RunDecodeProbe()
+        {
+            string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+            Console.WriteLine("=== PROBE DE DECODIFICACION Y PIPELINE BINAURAL ===");
+            using (SoundEngine sound = new SoundEngine(baseDir))
+            {
+                foreach (string name in new[] { "select", "combo_1", "combo_2", "tick" })
+                {
+                    string path = Path.Combine(baseDir, "sounds", name + ".ogg");
+                    if (!File.Exists(path))
+                    {
+                        Console.WriteLine(name + ": fichero " + path + " no existe");
+                        continue;
+                    }
+                    ProbeFile(name, path);
+                }
+            }
+        }
+
+        private static void ProbeFile(string name, string path)
+        {
+            Console.WriteLine("--- " + name + " ---");
+            byte[] data = File.ReadAllBytes(path);
+            System.Runtime.InteropServices.GCHandle pin = System.Runtime.InteropServices.GCHandle.Alloc(data, System.Runtime.InteropServices.GCHandleType.Pinned);
+            try
+            {
+                // 1) Referencia: stream directo (FLOAT, sin DECODE) + DSP capturador.
+                //    Valida que el DSP funciona en esta bass.dll y da la duración real.
+                int hDirect = BassProbe.BASS_StreamCreateFile(true, pin.AddrOfPinnedObject(), 0, data.Length,
+                    BassProbe.BASS_SAMPLE_FLOAT);
+                BassProbe.DspCapture refCap = new BassProbe.DspCapture();
+                BassProbe.BASS_ChannelSetDSP(hDirect, refCap.Proc, IntPtr.Zero, 0);
+                BassProbe.BASS_ChannelPlay(hDirect, true);
+                while (BassProbe.BASS_ChannelIsActive(hDirect) != 0) System.Threading.Thread.Sleep(5);
+                BassProbe.BASS_ChannelStop(hDirect);
+                WriteWav16(path + ".ref.wav", refCap.Samples, 2);
+                Console.WriteLine("  direct+DSP: frames=" + refCap.TotalFrames + " (" + (refCap.TotalFrames / 44100.0).ToString("F3") + " s) RMS L=" + refCap.RmsL.ToString("F4") + " R=" + refCap.RmsR.ToString("F4"));
+
+                // 2) Pipeline binaural REAL (BinauralSfxSource) + DSP capturador.
+                BinauralSfxSource src = new BinauralSfxSource(data, pin, 60.0f, 1.0f);
+                BassProbe.DspCapture binCap = new BassProbe.DspCapture();
+                BassProbe.BASS_ChannelSetDSP(src.OutputHandle, binCap.Proc, IntPtr.Zero, 0);
+                BassProbe.BASS_ChannelPlay(src.OutputHandle, true);
+                while (BassProbe.BASS_ChannelIsActive(src.OutputHandle) != 0) System.Threading.Thread.Sleep(5);
+                BassProbe.BASS_ChannelStop(src.OutputHandle);
+                WriteWav16(path + ".bin.wav", binCap.Samples, 2);
+                src.Dispose();
+                Console.WriteLine("  binaural:   frames=" + binCap.TotalFrames + " (" + (binCap.TotalFrames / 44100.0).ToString("F3") + " s) RMS L=" + binCap.RmsL.ToString("F4") + " R=" + binCap.RmsR.ToString("F4"));
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("  ERROR: " + ex.GetType().Name + ": " + ex.Message);
+            }
+            finally
+            {
+                if (pin.IsAllocated) pin.Free();
+            }
+        }
+
+        private static void WriteWav16(string path, float[] interleaved, int chans)
+        {
+            if (interleaved == null || interleaved.Length == 0) return;
+            short[] pcm = new short[interleaved.Length];
+            for (int i = 0; i < interleaved.Length; i++)
+            {
+                float v = interleaved[i];
+                if (v > 1.0f) v = 1.0f;
+                if (v < -1.0f) v = -1.0f;
+                pcm[i] = (short)(v * 32767.0f);
+            }
+            using (FileStream fs = new FileStream(path, FileMode.Create))
+            using (BinaryWriter w = new BinaryWriter(fs))
+            {
+                int dataBytes = pcm.Length * 2;
+                w.Write(System.Text.Encoding.ASCII.GetBytes("RIFF"));
+                w.Write(36 + dataBytes);
+                w.Write(System.Text.Encoding.ASCII.GetBytes("WAVE"));
+                w.Write(System.Text.Encoding.ASCII.GetBytes("fmt "));
+                w.Write(16);
+                w.Write((short)1);
+                w.Write((short)chans);
+                w.Write(44100);
+                w.Write(44100 * chans * 2);
+                w.Write((short)(chans * 2));
+                w.Write((short)16);
+                w.Write(System.Text.Encoding.ASCII.GetBytes("data"));
+                w.Write(dataBytes);
+                foreach (short s in pcm) w.Write(s);
+            }
+        }
+
         private static void RunHrtfScan()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -2211,6 +2307,88 @@ namespace Bejeweled3Accessible.Tests
                 System.Threading.Thread.Sleep(600);
             }
             Console.WriteLine("Escaneo HRTF completado. Deberias escuchar el sonido moverse de izquierda a derecha.");
+        }
+    }
+
+    internal static class BassProbe
+    {
+        internal const uint BASS_SAMPLE_FLOAT = 0x100;
+
+        [System.Runtime.InteropServices.DllImport("bass.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        internal static extern int BASS_StreamCreateFile(bool mem, IntPtr file, long offset, long length, uint flags);
+
+        [System.Runtime.InteropServices.DllImport("bass.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        internal static extern bool BASS_ChannelPlay(int handle, bool restart);
+
+        [System.Runtime.InteropServices.DllImport("bass.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        internal static extern bool BASS_ChannelStop(int handle);
+
+        [System.Runtime.InteropServices.DllImport("bass.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        internal static extern int BASS_ChannelIsActive(int handle);
+
+        [System.Runtime.InteropServices.DllImport("bass.dll", CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        internal static extern bool BASS_ChannelSetDSP(int handle, DspProc proc, IntPtr user, int priority);
+
+        internal delegate void DspProc(int handle, int channel, IntPtr buffer, int length, IntPtr user);
+
+        internal sealed class DspCapture
+        {
+            private float[] _samples = new float[65536];
+            private long _total;
+            private readonly DspProc _proc;
+
+            internal DspCapture()
+            {
+                _proc = Dsp;
+            }
+
+            internal DspProc Proc { get { return _proc; } }
+
+            private void Dsp(int handle, int channel, IntPtr buffer, int length, IntPtr user)
+            {
+                int n = length / 4;
+                if (n <= 0) return;
+                if (_total + n > _samples.Length)
+                {
+                    Array.Resize(ref _samples, Math.Max(_samples.Length * 2, _samples.Length + n));
+                }
+                System.Runtime.InteropServices.Marshal.Copy(buffer, _samples, (int)_total, n);
+                _total += n;
+            }
+
+            internal long TotalFrames { get { return _total / 2; } }
+
+            internal double RmsL
+            {
+                get
+                {
+                    double s = 0;
+                    int n = (int)(_total / 2);
+                    for (int i = 0; i < n; i++) { float v = _samples[i * 2]; s += v * v; }
+                    return Math.Sqrt(s / Math.Max(1, n));
+                }
+            }
+
+            internal double RmsR
+            {
+                get
+                {
+                    double s = 0;
+                    int n = (int)(_total / 2);
+                    for (int i = 0; i < n; i++) { float v = _samples[i * 2 + 1]; s += v * v; }
+                    return Math.Sqrt(s / Math.Max(1, n));
+                }
+            }
+
+            internal float[] Samples
+            {
+                get
+                {
+                    float[] r = new float[_total];
+                    Array.Copy(_samples, r, _total);
+                    return r;
+                }
+            }
         }
     }
 }

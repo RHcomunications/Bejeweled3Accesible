@@ -25,8 +25,12 @@ namespace Bejeweled3Accessible.Audio
     // se aplican por bloque, sin interrupciones ni glitches.
     public sealed class BinauralRenderer
     {
-        // Sample rate del stream de salida (el motor mezcla a 44.1 kHz).
-        public const float SampleRate = 44100.0f;
+        // Tasa de muestreo del stream que ve el DSP: 44.1 kHz por defecto.
+        // Los OGG reales del juego a 22.05 kHz se reproducen a su tasa nativa
+        // (la bass.dll reducida no resamplea vía BASS_ATTRIB_FREQ), así que el
+        // renderer se configura con la tasa real del fichero y la matemática
+        // de ITD/aire sigue siendo correcta.
+        public float SampleRate = 44100.0f;
 
         // Longitud del delay line por oído: cubre la ITD máxima (~0.58 ms a
         // ±75°, ~26 muestras a 44.1 kHz) con margen.
@@ -121,7 +125,7 @@ namespace Bejeweled3Accessible.Audio
         }
 
         // Coeficiente del paso-bajo de un polo para el corte fc a SampleRate.
-        private static float OnePoleCoeff(float cutoffHz)
+        private float OnePoleCoeff(float cutoffHz)
         {
             if (cutoffHz <= 0.0f) return 1.0f;
             float c = Math.Min(cutoffHz, SampleRate * 0.45f);

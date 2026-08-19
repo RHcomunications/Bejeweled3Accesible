@@ -76,6 +76,7 @@ bejeweled3_accessible/
 - **Profundidad por Fila como Distancia:** Las filas del fondo suenan más lejanas (volumen reducido y agudos absorbidos por el aire); las del frente plenas y cercanas. **El tono de los sonidos jamás cambia por profundidad** (la detonación del HRTF anterior se eliminó).
 - **Fidelidad Total a la Mezcla de PopCap:** Los 189 efectos reales son estéreo *dual-mono* (L==R), así que el render binaural los espacializa sin perder nada. La música del módulo real y las ambientales suenan **centradas, secas y sin procesar**; la reverberación DX8 que se añadía a la música fue retirada.
 - **Deslizamientos y Cascadas:** Los intercambios animan el azimut de la gema de una columna a otra (con realce de presencia solo en el perfil Escenario 2D, sin doppler de tono).
+- **Ruta de reproducción (DSP en el stream directo):** la `bass.dll` reducida no decodifica streams `BASS_STREAM_DECODE` (devuelve 0 muestras) ni resamplea vía `BASS_ATTRIB_FREQ`, así que la ruta binaural no puede usar "decodificar → renderizar → push". En su lugar, el OGG se reproduce por el camino directo que sí funciona (stream FLOAT a su tasa nativa) y un `BASS_ChannelSetDSP` sustituye el buffer estéreo por la salida del renderer; el renderer se configura con la tasa real del fichero (`BASS_ChannelGetInfo`), correcta tanto a 44.1 kHz como en los 6 OGG reales a 22.05 kHz (misma duración y tono originales, ITD/aire exactos).
 - **Perfiles Espaciales:** *Escenario 2D* (binaural completo con profundidad y realce), *Clásico Limpio* (por defecto: binaural lateral puro y seco) y *Simple* (pan clásico izquierda/derecha sin HRTF). Se recuerdan entre sesiones.
 - **Locuciones Centradas con Ducking:** La voz del locutor (*Good, Excellent, Awesome, Spectacular, Extraordinary, Unbelievable*) y el lector de pantalla se mantienen siempre centrados mientras la música baja automáticamente de volumen (*ducking*).
 
@@ -128,6 +129,9 @@ Las gemas incorporan las formas geométricas originales de PopCap y adaptan din�
 6. **El 404 del Auto-Actualizador:**
    - *Anécdota:* Una jugadora recibía 404 al actualizar; el zip se había subido como `Bejeweled3Accessible-v2026.08.18.0.zip` (con "v", doble "s" en "Accessible" y versión con ceros).
    - *Resolución:* El updater construye la URL como `Bejeweled3Accesible-<versión-sin-ceros>.zip` (`AutoUpdater.BuildZipAssetName`), así que todo zip de release debe llamarse exactamente así (una sola "s" en "Accesible", sin "v", sin ceros de relleno).
+7. **La bass.dll que "no decodificaba":**
+   - *Anécdota:* Con el HRTF nuevo (v2026.08.18.1), el select y los combos dejaron de oírse con el audio binaural activado. La ruta binaural "decodificaba → renderizaba → empujaba" con streams `BASS_STREAM_DECODE`, y en esa bass.dll reducida `BASS_ChannelGetData` devuelve 0 muestras siempre (sin error): el canal de salida recibía silencio y solo se notaba en los sonidos importantes (select y combos).
+   - *Resolución:* Se reescribió la ruta para reproducir el OGG por el camino directo (stream FLOAT a tasa nativa) e instalar un `BASS_ChannelSetDSP` que sustituye el buffer estéreo por la salida del renderer; el renderer usa la tasa real del fichero (44.1 o 22.05 kHz). Verificado con el modo `--decode-probe` de la suite: duraciones reales (select ~23 ms, combo_1 ~836 ms, tick ~43 ms), RMS > 0 y asimetría L/R correcta a azimut 60°. Suite 154/154 en verde.
 
 ---
 
