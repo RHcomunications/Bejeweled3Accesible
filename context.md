@@ -2,8 +2,8 @@
 
 **Proyecto:** Bejeweled 3 Accesible (Clon Fiel y Accesible de Bejeweled 3 para Jugadores Ciegos y con Baja Visión)  
 **Repositorio:** `RHcomunications/Bejeweled3Accesible`  
-**Versión Actual:** `v2026.08.16.1`  
-**Tecnología Base:** C# (.NET Framework 4.5), Windows Forms, BASS Audio Engine (P/Invoke nativo), SAPI 5 / NVDA Controller Client.
+**Versión Actual:** `v2026.08.18.1`  
+**Tecnología Base:** C# (.NET Framework 4.5), Windows Forms, BASS Audio Engine (P/Invoke nativo), libopenmpt (decodificador de módulos .mo3), SAPI 5 / NVDA Controller Client.
 
 ---
 
@@ -23,10 +23,11 @@ bejeweled3_accessible/
 │   ├── Accessibility/
 │   │   └── NvdaSpeech.cs          # Interfaz bidireccional NVDA Controller / SAPI 5 fallback
 │   ├── Audio/
-│   │   ├── SoundEngine.cs         # Motor BASS, colas de voz atómicas, ducking, reverb DX8
-│   │   ├── SpatialAudio.cs        # Curvas matemáticas HRTF (-0.85 a +0.85), profundidad y sweep
+│   │   ├── SoundEngine.cs         # Motor BASS, colas de voz atómicas, ducking, rutas espaciales (binaural y pan)
+│   │   ├── SpatialAudio.cs        # HRTF binaural paramétrico: azimut ±75°, ITD, ILD, sombra de cabeza, absorción de aire
+│   │   ├── BinauralRenderer.cs    # Render binaural por oído: delay fraccional (ITD) + one-pole LP por oído
 │   │   ├── AudioMap.cs            # Mapa canónico tipado de efectos de sonido (cero strings crudos)
-│   │   ├── MusicMap.cs            # Mapa canónico de las 29 pistas musicales originales
+│   │   ├── MusicMap.cs            # Mapa canónico de las pistas musicales originales (suite .mo3 + ambientales)
 │   │   ├── PacCipher.cs           # Cifrado XOR / obfuscación del contenedor audio.pac
 │   │   ├── PacPacker.cs           # Herramienta de empaquetado seguro en RAM
 │   │   └── PacReader.cs           # Lector directo en memoria de archivos PAC
@@ -48,7 +49,7 @@ bejeweled3_accessible/
 │   └── Update/
 │       └── AutoUpdater.cs         # Sistema de auto-actualización vía GitHub Releases API
 └── tests/
-    └── TestRunner.cs              # Suite de 141 pruebas unitarias integradas
+    └── TestRunner.cs              # Suite de 154 pruebas unitarias integradas
 ```
 
 ---
@@ -71,14 +72,26 @@ bejeweled3_accessible/
 
 ## 🎧 4. Innovación: Audio Espacial 3D (HRTF Binaural)
 
-- **Posicionamiento Horizontal (-0.85 a +0.85):** Cada una de las 8 columnas del tablero (A-H) está mapeada en el espectro estéreo para auriculares. Los intercambios y cascadas barren el espacio sonoro mediante curvas de paneo continuo (`PlaySoundSpatialSweep`).
-- **Profundidad Vertical:** Las filas superiores e inferiores modulan sutilmente volumen y filtrado de agudos para dar sensación de altura y lejanía.
-- **Reverb Binaural DX8 en Música:** La banda sonora cuenta con un procesador DSP de reverberación envolvente que dota a la música de una atmósfera profunda y relajante.
-- **Locuciones Centradas con Ducking:** La voz del locutor (*Good, Excellent, Awesome, Spectacular, Extraordinary, Unbelievable*) y el lector de pantalla se mantienen siempre centrados (mono/centro) mientras la música baja automáticamente de volumen (*ducking*) para garantizar la máxima comprensión auditiva.
+- **Azimut Real por Columna (±75°):** Cada columna del tablero (A-H) se oye como un azimut en el plano horizontal, calculado con un modelo paramétrico de oído humano (v2026.08.18.1): retardo interaural de Woodworth `(a/c)·(sinθ+θ)` (hasta ~0,58 ms a ±75°), atenuación ILD del oído lejano (hasta −6,7 dB), sombra de cabeza (paso-bajo de 6 kHz al frente a ~2,7 kHz a 75°) y absorción de aire (11 kHz al frente a 3,5 kHz al fondo). El oído cercano se mantiene pleno para preservar el carácter del sonido.
+- **Profundidad por Fila como Distancia:** Las filas del fondo suenan más lejanas (volumen reducido y agudos absorbidos por el aire); las del frente plenas y cercanas. **El tono de los sonidos jamás cambia por profundidad** (la detonación del HRTF anterior se eliminó).
+- **Fidelidad Total a la Mezcla de PopCap:** Los 189 efectos reales son estéreo *dual-mono* (L==R), así que el render binaural los espacializa sin perder nada. La música del módulo real y las ambientales suenan **centradas, secas y sin procesar**; la reverberación DX8 que se añadía a la música fue retirada.
+- **Deslizamientos y Cascadas:** Los intercambios animan el azimut de la gema de una columna a otra (con realce de presencia solo en el perfil Escenario 2D, sin doppler de tono).
+- **Perfiles Espaciales:** *Escenario 2D* (binaural completo con profundidad y realce), *Clásico Limpio* (por defecto: binaural lateral puro y seco) y *Simple* (pan clásico izquierda/derecha sin HRTF). Se recuerdan entre sesiones.
+- **Locuciones Centradas con Ducking:** La voz del locutor (*Good, Excellent, Awesome, Spectacular, Extraordinary, Unbelievable*) y el lector de pantalla se mantienen siempre centrados mientras la música baja automáticamente de volumen (*ducking*).
 
 ---
 
-## 💎 5. Formas Geométricas Auténticas y Verbalización
+## 🎼 5. Audio y Música Reales del Juego Original (v2026.08.18.0)
+
+- **189 efectos extraídos de `main.pak`** (vorbis 96-128 kb/s, byte-idénticos, sin remasterizar) sustituyen a los descargados; se reproducen desde el contenedor cifrado `audio.pac` (196 entradas, de 178 MB a 9 MB).
+- **Música real:** el módulo `Bejeweled3_suite.mo3` (62 minutos, extraído del propio juego) se decodifica con libopenmpt (BSD-3) y se reproduce en cadena saltando por los offsets del `music.xml` original, exactamente como el juego original (el intro avanza solo al menú a los 24 segundos).
+- **6 ambientaciones reales** (`ambient\*.ogg` del juego) completan el modo Zen.
+- **Infraestructura en `src\Audio`:** `MusicMap.cs` (offsets), `ModuleMusicPlayer.cs` (libopenmpt vía openmpt module API con `--extended` y `StreamCreate` STREAMPROC), `PacCipher/Packer/Reader` (cifrado XOR con clave `"Bejeweled3AccessibleProtectionKey2026"`), `bass.dll` reducida (sin `BASS_StreamCreatePush` ni `BASS_LastError`).
+- **Fallbacks:** módulo y ambientales cargan del PAC y, si falta, de `bin\music\`; los `libopenmpt*.dll` (5 ficheros) son obligatorios junto al exe.
+
+---
+
+## 💎 6. Formas Geométricas Auténticas y Verbalización
 
 Las gemas incorporan las formas geométricas originales de PopCap y adaptan dinámicamente sus modificadores:
 
@@ -95,7 +108,7 @@ Las gemas incorporan las formas geométricas originales de PopCap y adaptan din�
 
 ---
 
-## 📝 6. Anecdotario Técnico: Desafíos y Soluciones
+## 📝 7. Anecdotario Técnico: Desafíos y Soluciones
 
 1. **El "Falso Conflicto" de Candy Crush:**
    - *Anécdota:* Al desarrollar casi simultáneamente un proyecto de *Sugar Crush* y este clon de *Bejeweled 3*, existió la duda de si se habían mezclado mecánicas (como gelatinas o peces).
@@ -106,14 +119,21 @@ Las gemas incorporan las formas geométricas originales de PopCap y adaptan din�
 3. **El Parpadeo de Respiración en Modo Zen:**
    - *Anécdota:* Al desactivar y reactivar la modulación de respiración, el temporizador reiniciaba toda la sesión de audio deteniendo la música.
    - *Resolución:* Se desacopló el ciclo de temporizadores con el nuevo método `UpdateZenSessionState()`, permitiendo encender y apagar la respiración en caliente sin afectar la pista musical activa.
-4. **Activación Instantánea del Reverb Binaural:**
-   - *Anécdota:* Cambiar la opción de Audio Atmosférico no se apreciaba de inmediato en la pista musical que ya estaba en reproducción.
-   - *Resolución:* Se implementó `BASS_ChannelSetFX` y `BASS_ChannelRemoveFX` dinámicos en `SoundEngine.cs`, aplicando el efecto en caliente en el mismo milisegundo en que el usuario cambia la opción.
+4. **El HRTF que "detonaba" los sonidos reales:**
+   - *Anécdota:* El HRTF antiguo bajaba el tono de los efectos según la profundidad (hasta 0,965×), lo que con los sonidos reales de PopCap se percibía como una detonación artificial.
+   - *Resolución:* Se eliminó por completo el pitch por profundidad (`DepthPitch`); la profundidad ahora se expresa solo como volumen y absorción de aire, dejando el tono de los sonidos intacto (v2026.08.18.1).
+5. **El Descubrimiento del "Dual-Mono":**
+   - *Anécdota:* Antes de reescribir el HRTF se auditaron los 189 efectos reales con BASS: todos los estéreo (183) tienen los canales izquierdo y derecho idénticos (spread 0.0) y solo 6 son mono nativo.
+   - *Resolución:* Ese hallazgo garantiza que el downmix a mono y el render binaural posterior no pierden absolutamente nada de la mezcla de PopCap: los 189 efectos se espacializan con fidelidad total.
+6. **El 404 del Auto-Actualizador:**
+   - *Anécdota:* Una jugadora recibía 404 al actualizar; el zip se había subido como `Bejeweled3Accessible-v2026.08.18.0.zip` (con "v", doble "s" en "Accessible" y versión con ceros).
+   - *Resolución:* El updater construye la URL como `Bejeweled3Accesible-<versión-sin-ceros>.zip` (`AutoUpdater.BuildZipAssetName`), así que todo zip de release debe llamarse exactamente así (una sola "s" en "Accesible", sin "v", sin ceros de relleno).
 
 ---
 
-## 🏆 7. Estado Final del Proyecto
+## 🏆 8. Estado Final del Proyecto
 
 - **Compilación:** 0 Errores en configuraciones Debug y Release.
-- **Pruebas Automatizadas:** 141 tests de cobertura unitaria con validación en memoria, físicas de tablero, persistencia y accesibilidad.
-- **Git & Releases:** Tag canónico `v2026.08.16.1` publicado en GitHub con auto-actualizador integrado.
+- **Pruebas Automatizadas:** 154 tests de cobertura unitaria con validación en memoria, físicas de tablero, persistencia, accesibilidad y audio (incluidos los binaurales ITD/ILD/sombra/aire y el renderer estéreo).
+- **Git & Releases:** Tags `v2026.08.17.0`, `v2026.08.17.1`, `v2026.08.18.0` (audio y música reales) y `v2026.08.18.1` (HRTF binaural paramétrico) publicados en GitHub con auto-actualizador integrado. El asset de cada release debe nombrarse `Bejeweled3Accesible-<versión sin ceros>.zip` (ver anécdota 6).
+- **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); build Debug+Release; suite completa con audio; zip con exe/PDB Release + `bass.dll` + `nvdaControllerClient32.dll` + 5 `libopenmpt*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (196 entradas) + `sounds\images\` completa; `gh release create` + upload; limpiar `Temp\opencode` (conservando `extracted\`, `qbms\`, `bms\`, `libopenmpt\` como fuentes canónicas).
