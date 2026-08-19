@@ -53,34 +53,36 @@ namespace Bejeweled3Accessible.Audio
         private static extern int BASS_ChannelIsActive(int handle);
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern int BASS_ChannelSetFX(int handle, uint type, int priority);
+        private static extern bool BASS_ChannelGetInfo(int handle, out BassChannelInfo info);
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern bool BASS_ChannelRemoveFX(int handle, int fx);
-
-        [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern bool BASS_FXSetParameters(int handle, IntPtr par);
+        private static extern int BASS_ChannelGetData(int handle, IntPtr buffer, uint length);
 
         private const uint BASS_SAMPLE_LOOP = 4;
         private const uint BASS_SAMPLE_FLOAT = 0x100;
-        private const uint BASS_FX_DX8_REVERB = 8;
         private const int BASS_ATTRIB_FREQ = 1;
         private const int BASS_ATTRIB_VOL = 2;
         private const int BASS_ATTRIB_PAN = 3;
+
+        // Canal de decodificación puro (nunca suena): la ruta binaural decodifica
+        // el OGG a PCM flotante y lo espacializa en managed code.
+        private const uint BASS_STREAM_DECODE = 0x00800000;
+        private const uint BASS_DATA_FLOAT = 0x80000000;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct BassChannelInfo
+        {
+            public int freq;
+            public int chans;
+            public int flags;
+            public uint ctype;
+            public IntPtr filename;
+        }
 
         // Callback con el que BASS pide PCM de la musica del modulo real
         // (BASS_StreamCreate con STREAMPROC). Devuelve bytes escritos.
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         private delegate uint BassStreamProc(int handle, IntPtr buffer, uint length, IntPtr user);
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct BASS_DX8_REVERB
-        {
-            public float fInGain;
-            public float fReverbMix;
-            public float fReverbTime;
-            public float fHighFreqRttHFRatio;
-        }
 
         private readonly string _soundDir;
         private readonly string _musicDir;
@@ -90,7 +92,6 @@ namespace Bejeweled3Accessible.Audio
         private bool _bassReady = false;
 
         private int _currentMusicChannel = 0;
-        private int _musicReverbFx = 0;
         private GCHandle _pinnedMusicBytes;
         private readonly List<ActiveSfx> _activeSfxList = new List<ActiveSfx>();
 
@@ -286,6 +287,7 @@ namespace Bejeweled3Accessible.Audio
             public int Handle;
             public GCHandle Pin;
             public bool IsVoice;
+            public BinauralSfxSource Binaural;
         }
 
         private struct VoiceRequest
@@ -340,6 +342,10 @@ namespace Bejeweled3Accessible.Audio
             public float VolBase;
             public float FreqBase;
             public long StartMs;
+            // Ruta binaural: en vez de PAN se anima el azimuth del renderer.
+            public BinauralSfxSource Binaural;
+            public float FromAz;
+            public float ToAz;
         }
 
         // Diagnostic of a played locution: schedule (math) + real audio position
@@ -510,11 +516,20 @@ namespace Bejeweled3Accessible.Audio
                     {
                         if (BASS_ChannelIsActive(sfx.Handle) == 0) // Stopped or finished
                         {
-                            if (sfx.Pin.IsAllocated)
+                            if (sfx.Binaural != null)
                             {
-                                try { sfx.Pin.Free(); } catch { }
+                                // La fuente binaural libera el decodificador, el
+                                // pin del OGG y el stream de salida.
+                                try { sfx.Binaural.Dispose(); } catch { }
                             }
-                            BASS_StreamFree(sfx.Handle);
+                            else
+                            {
+                                if (sfx.Pin.IsAllocated)
+                                {
+                                    try { sfx.Pin.Free(); } catch { }
+                                }
+                                BASS_StreamFree(sfx.Handle);
+                            }
                             _activeSfxList.RemoveAt(i);
                         }
                     }
@@ -752,6 +767,29 @@ namespace Bejeweled3Accessible.Audio
             }
         }
 
+        // Glide binaural: anima el azimuth del renderer de A a B (y el bulge
+        // de Stage2D), en vez del PAN clásico.
+        private void ScheduleBinauralSweep(BinauralSfxSource source, float fromAz, float toAz)
+        {
+            lock (_panSweepLock)
+            {
+                _panSweeps.RemoveAll(s => s.Handle == source.OutputHandle);
+                _panSweeps.Add(new PanSweep
+                {
+                    Handle = source.OutputHandle,
+                    Binaural = source,
+                    FromAz = fromAz,
+                    ToAz = toAz,
+                    StartMs = _panClock.ElapsedMilliseconds
+                });
+
+                if (_panSweepTimer == null)
+                {
+                    _panSweepTimer = new System.Threading.Timer(PanSweepTick, null, PAN_SWEEP_TICK_MS, PAN_SWEEP_TICK_MS);
+                }
+            }
+        }
+
         private void PanSweepTick(object state)
         {
             lock (_panSweepLock)
@@ -777,26 +815,52 @@ namespace Bejeweled3Accessible.Audio
                     float elapsed = now - s.StartMs;
                     if (elapsed >= PAN_SWEEP_MS)
                     {
-                        try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_PAN, s.ToPan); } catch { }
-                        try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_VOL, s.VolBase); } catch { }
-                        try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_FREQ, s.FreqBase); } catch { }
+                        if (s.Binaural != null)
+                        {
+                            // La pose final queda clavada y el bulge vuelve a 1.0.
+                            try { s.Binaural.Renderer.AzimuthDeg = s.ToAz; } catch { }
+                            try { s.Binaural.Renderer.Bulge = 1.0f; } catch { }
+                        }
+                        else
+                        {
+                            try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_PAN, s.ToPan); } catch { }
+                            try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_VOL, s.VolBase); } catch { }
+                            try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_FREQ, s.FreqBase); } catch { }
+                        }
                         _panSweeps.RemoveAt(i);
                         continue;
                     }
 
                     float progress = elapsed / (float)PAN_SWEEP_MS;
+                    if (s.Binaural != null)
+                    {
+                        // El glide binaural anima el azimuth (ITD + ILD + sombra
+                        // van con el ángulo); el volumen del canal no se toca.
+                        try { s.Binaural.Renderer.AzimuthDeg = SpatialAudio.SweepAzimuth(s.FromAz, s.ToAz, progress); } catch { }
+                        if (SpatialProfile == SpatialProfile.Stage2D)
+                        {
+                            // Stage2D hincha el volumen al cruzar el centro; los
+                            // perfiles limpios glidean a volumen constante.
+                            try { s.Binaural.Renderer.Bulge = SpatialAudio.SweepPassBulge(progress); } catch { }
+                        }
+                        else
+                        {
+                            try { s.Binaural.Renderer.Bulge = 1.0f; } catch { }
+                        }
+                        continue;
+                    }
+
                     float pan = SpatialAudio.SweepPan(s.FromPan, s.ToPan, progress);
                     try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_PAN, pan); } catch { }
 
                     if (SpatialProfile == SpatialProfile.Stage2D)
                     {
-                        // The gem swells a little and brightens as it crosses
-                        // the middle of the glide, like it is sweeping past the
-                        // player. The clean profiles glide at a constant volume
-                        // and pitch so nothing ever sounds "swollen".
+                        // The gem swells a little as it crosses the middle of
+                        // the glide, like it is sweeping past the player. The
+                        // clean profiles glide at a constant volume and pitch
+                        // so nothing ever sounds "swollen".
                         float bulge = SpatialAudio.SweepPassBulge(progress);
                         try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_VOL, s.VolBase * bulge); } catch { }
-                        try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_FREQ, s.FreqBase * (1.0f + 0.015f * (float)Math.Sin(Math.PI * progress))); } catch { }
                     }
                     else
                     {
@@ -864,7 +928,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         // sweepToCol >= 0 desplaza el canal lateralmente desde la columna de
         // origen `col` hasta esa columna (glide A->B), para que el movimiento
         // de la gema se oiga y no solo su posicion final. `row` alimenta el
-        // plano de profundidad del HRTF (fila 0 = lejos, fila 7 = frente).
+        // plano de profundidad (fila 0 = lejos, fila 7 = frente).
         private void StartSfxStream(string soundName, int col, int row, float pitchMultiplier, int sweepToCol)
         {
             if (!_bassReady) return;
@@ -874,6 +938,16 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 if (audioBytes == null || audioBytes.Length == 0) return;
 
                 GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
+
+                // Ruta binaural: HRTF paramétrico (ITD + ILD + sombra de cabeza)
+                // para los efectos posicionados del tablero. El perfil SimplePan
+                // y los sonidos sin columna (UI) usan el pan clásico.
+                if (SpatialBinauralEnabled && SpatialProfile != SpatialProfile.SimplePan && col >= 0)
+                {
+                    StartBinauralSfx(audioBytes, pinned, col, row, pitchMultiplier, sweepToCol, soundName);
+                    return;
+                }
+
                 int handle = 0;
                 try
                 {
@@ -882,25 +956,29 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     if (handle == 0)
                     {
                         LogAudioError("SFX '" + soundName + "' StreamCreateFile fallo, err=" + BASS_LastError());
+                        if (pinned.IsAllocated)
+                        {
+                            try { pinned.Free(); } catch { }
+                        }
                         return;
                     }
 
-                    // Depth plane: a gem in the back rows (0..2) is quieter,
-                    // darker and closer to the center; the front rows keep the
-                    // full presence. Non-positional sounds (row < 0) stay flat.
+                    // Depth plane: a gem in the back rows (0..2) is quieter
+                    // and closer to the center; the front rows keep the full
+                    // presence. Non-positional sounds (row < 0) stay flat.
                     // The depth plane is a Stage2D theatrical effect: the clean
                     // profiles keep every row at full presence and pan only by
                     // column, so no gem is ever "pushed away" from the player.
+                    // El tono NUNCA cambia por profundidad: los sonidos reales
+                    // se escuchan afinados como los mezcló PopCap.
                     bool stage2dDepth = (SpatialProfile == SpatialProfile.Stage2D);
                     float depthVol = stage2dDepth ? SpatialAudio.DepthVolumeForRow(row) : 1.0f;
                     float panScale = stage2dDepth ? SpatialAudio.DepthPanScaleForRow(row) : 1.0f;
-                    float depthPitch = stage2dDepth ? SpatialAudio.DepthPitchForRow(row) : 1.0f;
 
                     BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, (float)SfxVol / 100.0f * depthVol);
 
-                    // Bejeweled-adapted HRTF: a sound without a column stays
-                    // centered (col=-1 => SpatialAudio.PanColumn) and a slide
-                    // animates the pan from the source column to the target.
+                    // A sound without a column stays centered (col=-1) and a
+                    // slide animates the pan from the source column to the target.
                     float fromPan = 0.0f;
                     if (SpatialBinauralEnabled)
                     {
@@ -912,18 +990,17 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                         BASS_ChannelSetAttribute(handle, BASS_ATTRIB_PAN, 0.0f);
                     }
 
-                    float effectivePitch = pitchMultiplier * depthPitch;
                     float currentFreq = 44100.0f;
-                    if (Math.Abs(effectivePitch - 1.0f) > 0.01f)
+                    if (Math.Abs(pitchMultiplier - 1.0f) > 0.01f)
                     {
                         if (BASS_ChannelGetAttribute(handle, BASS_ATTRIB_FREQ, ref currentFreq))
                         {
-                            BASS_ChannelSetAttribute(handle, BASS_ATTRIB_FREQ, currentFreq * effectivePitch);
+                            BASS_ChannelSetAttribute(handle, BASS_ATTRIB_FREQ, currentFreq * pitchMultiplier);
                         }
                     }
                     else if (BASS_ChannelGetAttribute(handle, BASS_ATTRIB_FREQ, ref currentFreq))
                     {
-                        // Just read the real frequency for the swipe's doppler.
+                        // Just read the real frequency for the swipe's glide.
                     }
 
                     BASS_ChannelPlay(handle, true);
@@ -938,8 +1015,15 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                             {
                                 ActiveSfx done = _activeSfxList[i];
                                 _activeSfxList.RemoveAt(i);
-                                if (done.Pin.IsAllocated) { try { done.Pin.Free(); } catch { } }
-                                try { BASS_StreamFree(done.Handle); } catch { }
+                                if (done.Binaural != null)
+                                {
+                                    try { done.Binaural.Dispose(); } catch { }
+                                }
+                                else
+                                {
+                                    if (done.Pin.IsAllocated) { try { done.Pin.Free(); } catch { } }
+                                    try { BASS_StreamFree(done.Handle); } catch { }
+                                }
                             }
                         }
 
@@ -952,8 +1036,15 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                             ActiveSfx oldest = _activeSfxList[0];
                             _activeSfxList.RemoveAt(0);
                             try { BASS_ChannelStop(oldest.Handle); } catch { }
-                            if (oldest.Pin.IsAllocated) { try { oldest.Pin.Free(); } catch { } }
-                            try { BASS_StreamFree(oldest.Handle); } catch { }
+                            if (oldest.Binaural != null)
+                            {
+                                try { oldest.Binaural.Dispose(); } catch { }
+                            }
+                            else
+                            {
+                                if (oldest.Pin.IsAllocated) { try { oldest.Pin.Free(); } catch { } }
+                                try { BASS_StreamFree(oldest.Handle); } catch { }
+                            }
                             _activeSfxList.Add(new ActiveSfx { Handle = handle, Pin = pinned, IsVoice = false });
                         }
                         else
@@ -995,6 +1086,95 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 }
             }
             catch { }
+        }
+
+        // Ruta binaural: el efecto se decodifica a PCM (BASS_STREAM_DECODE),
+        // el BinauralRenderer lo coloca en el azimuth de la columna (ITD, ILD
+        // y sombra de cabeza) y BASS_StreamCreate lo entrega al dispositivo.
+        private void StartBinauralSfx(byte[] audioBytes, GCHandle pinned, int col, int row, float pitchMultiplier, int sweepToCol, string soundName)
+        {
+            try
+            {
+                float depth = (row < 0) ? 1.0f : SpatialAudio.Depth(row, SpatialAudio.BoardRows);
+                BinauralSfxSource source = new BinauralSfxSource(audioBytes, pinned, SpatialAudio.AzimuthDeg(col), depth);
+                int handle = source.OutputHandle;
+                if (handle == 0)
+                {
+                    try { source.Dispose(); } catch { }
+                    return;
+                }
+
+                // El renderer aplica la profundidad (volumen + aire) y el bulge
+                // del glide por dentro; el canal solo lleva el volumen de SFX.
+                BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, (float)SfxVol / 100.0f);
+
+                if (Math.Abs(pitchMultiplier - 1.0f) > 0.01f)
+                {
+                    float currentFreq = 44100.0f;
+                    if (BASS_ChannelGetAttribute(handle, BASS_ATTRIB_FREQ, ref currentFreq))
+                    {
+                        BASS_ChannelSetAttribute(handle, BASS_ATTRIB_FREQ, currentFreq * pitchMultiplier);
+                    }
+                }
+
+                BASS_ChannelPlay(handle, true);
+
+                lock (_activeSfxList)
+                {
+                    for (int i = _activeSfxList.Count - 1; i >= 0; i--)
+                    {
+                        if (BASS_ChannelIsActive(_activeSfxList[i].Handle) == 0)
+                        {
+                            ActiveSfx done = _activeSfxList[i];
+                            _activeSfxList.RemoveAt(i);
+                            if (done.Binaural != null)
+                            {
+                                try { done.Binaural.Dispose(); } catch { }
+                            }
+                            else
+                            {
+                                if (done.Pin.IsAllocated) { try { done.Pin.Free(); } catch { } }
+                                try { BASS_StreamFree(done.Handle); } catch { }
+                            }
+                        }
+                    }
+
+                    if (_activeSfxList.Count >= 25)
+                    {
+                        ActiveSfx oldest = _activeSfxList[0];
+                        _activeSfxList.RemoveAt(0);
+                        try { BASS_ChannelStop(oldest.Handle); } catch { }
+                        if (oldest.Binaural != null)
+                        {
+                            try { oldest.Binaural.Dispose(); } catch { }
+                        }
+                        else
+                        {
+                            if (oldest.Pin.IsAllocated) { try { oldest.Pin.Free(); } catch { } }
+                            try { BASS_StreamFree(oldest.Handle); } catch { }
+                        }
+                        _activeSfxList.Add(new ActiveSfx { Handle = handle, IsVoice = false, Binaural = source });
+                    }
+                    else
+                    {
+                        _activeSfxList.Add(new ActiveSfx { Handle = handle, IsVoice = false, Binaural = source });
+                    }
+                }
+
+                // Glide binaural: anima el azimuth del renderer, no el PAN.
+                if (sweepToCol >= 0 && sweepToCol != col)
+                {
+                    ScheduleBinauralSweep(source, SpatialAudio.AzimuthDeg(col), SpatialAudio.AzimuthDeg(sweepToCol));
+                }
+            }
+            catch (Exception ex)
+            {
+                LogAudioError("SFX binaural '" + soundName + "' fallo: " + ex.GetType().Name + ": " + ex.Message);
+                if (pinned.IsAllocated)
+                {
+                    try { pinned.Free(); } catch { }
+                }
+            }
         }
 
         public void PlaySoundPitch(string soundName, float pitchMultiplier)
@@ -1258,29 +1438,10 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     return 0;
                 }
 
-                // Fade-in starts from silence
+                // Fade-in starts from silence. La música real del módulo se
+                // escucha centrada y seca: el mo3 ya lleva la atmósfera que
+                // mezcló PopCap, y el HRTF nunca la procesa.
                 BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, 0.0f);
-                if (SpatialBinauralEnabled && SpatialProfile == SpatialProfile.Stage2D)
-                {
-                    // Enveloping 3D atmospheric binaural reverb soundscape for background music
-                    BASS_ChannelSetAttribute(handle, BASS_ATTRIB_PAN, 0.0f);
-
-                    int reverbFx = BASS_ChannelSetFX(handle, BASS_FX_DX8_REVERB, 0);
-                    if (reverbFx != 0)
-                    {
-                        BASS_DX8_REVERB rev = new BASS_DX8_REVERB
-                        {
-                            fInGain = 0.0f,
-                            fReverbMix = -5.0f,
-                            fReverbTime = 1400.0f,
-                            fHighFreqRttHFRatio = 0.001f
-                        };
-                        IntPtr ptr = Marshal.AllocHGlobal(Marshal.SizeOf(rev));
-                        Marshal.StructureToPtr(rev, ptr, false);
-                        BASS_FXSetParameters(reverbFx, ptr);
-                        Marshal.FreeHGlobal(ptr);
-                    }
-                }
                 BASS_ChannelPlay(handle, true);
                 return handle;
             }
@@ -1359,29 +1520,9 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     return 0;
                 }
 
-                // Fade-in starts from silence
+                // Fade-in starts from silence. Las ambientales reales también se
+                // escuchan centradas y secas, tal cuál PopCap las mezcló.
                 BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, 0.0f);
-                if (SpatialBinauralEnabled && SpatialProfile == SpatialProfile.Stage2D)
-                {
-                    // Enveloping 3D atmospheric binaural reverb soundscape for background music
-                    BASS_ChannelSetAttribute(handle, BASS_ATTRIB_PAN, 0.0f);
-
-                    int reverbFx = BASS_ChannelSetFX(handle, BASS_FX_DX8_REVERB, 0);
-                    if (reverbFx != 0)
-                    {
-                        BASS_DX8_REVERB rev = new BASS_DX8_REVERB
-                        {
-                            fInGain = 0.0f,
-                            fReverbMix = -5.0f,
-                            fReverbTime = 1400.0f,
-                            fHighFreqRttHFRatio = 0.001f
-                        };
-                        IntPtr ptr = Marshal.AllocHGlobal(Marshal.SizeOf(rev));
-                        Marshal.StructureToPtr(rev, ptr, false);
-                        BASS_FXSetParameters(reverbFx, ptr);
-                        Marshal.FreeHGlobal(ptr);
-                    }
-                }
                 BASS_ChannelPlay(handle, true);
 
                 pin = pinned;
@@ -1480,41 +1621,6 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                         if (MusicRechained != null)
                         {
                             try { MusicRechained(this, EventArgs.Empty); } catch { }
-                        }
-                    }
-                }
-                catch { }
-            }
-        }
-
-        public void UpdateSpatialAudioState()
-        {
-            if (_currentMusicChannel != 0)
-            {
-                try
-                {
-                    if (_musicReverbFx != 0)
-                    {
-                        BASS_ChannelRemoveFX(_currentMusicChannel, _musicReverbFx);
-                        _musicReverbFx = 0;
-                    }
-
-                    if (SpatialBinauralEnabled && SpatialProfile == SpatialProfile.Stage2D)
-                    {
-                        _musicReverbFx = BASS_ChannelSetFX(_currentMusicChannel, BASS_FX_DX8_REVERB, 0);
-                        if (_musicReverbFx != 0)
-                        {
-                            BASS_DX8_REVERB rev = new BASS_DX8_REVERB
-                            {
-                                fInGain = 0.0f,
-                                fReverbMix = -5.0f,
-                                fReverbTime = 1400.0f,
-                                fHighFreqRttHFRatio = 0.001f
-                            };
-                            IntPtr ptr = Marshal.AllocHGlobal(Marshal.SizeOf(rev));
-                            Marshal.StructureToPtr(rev, ptr, false);
-                            BASS_FXSetParameters(_musicReverbFx, ptr);
-                            Marshal.FreeHGlobal(ptr);
                         }
                     }
                 }
@@ -1657,6 +1763,11 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 {
                     foreach (var sfx in _activeSfxList)
                     {
+                        if (sfx.Binaural != null)
+                        {
+                            try { sfx.Binaural.Dispose(); } catch { }
+                            continue;
+                        }
                         if (sfx.Pin.IsAllocated)
                         {
                             try { sfx.Pin.Free(); } catch { }
@@ -1672,6 +1783,164 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             if (_audioPac != null)
             {
                 try { _audioPac.Dispose(); } catch { }
+            }
+        }
+    }
+
+    // Cadena de reproducción binaural de un efecto del tablero:
+    // decodificador BASS (BASS_STREAM_DECODE, nunca suena) + BinauralRenderer
+    // + stream de salida estéreo creado con BASS_StreamCreate (STREAMPROC).
+    // El motor la usa en vez del canal directo cuando el HRTF binaural está
+    // activo (perfiles Stage2D y CleanArcade con columna).
+    internal sealed class BinauralSfxSource : IDisposable
+    {
+        [DllImport("bass.dll", CharSet = CharSet.Auto)]
+        private static extern int BASS_StreamCreateFile(bool mem, IntPtr file, long offset, long length, uint flags);
+
+        [DllImport("bass.dll", CharSet = CharSet.Auto)]
+        private static extern int BASS_StreamCreate(uint freq, uint chans, uint flags,
+            [MarshalAs(UnmanagedType.FunctionPtr)] BassStreamProc proc, IntPtr user);
+
+        [DllImport("bass.dll", CharSet = CharSet.Auto)]
+        private static extern bool BASS_ChannelGetInfo(int handle, out BassChannelInfo info);
+
+        [DllImport("bass.dll", CharSet = CharSet.Auto)]
+        private static extern int BASS_ChannelGetData(int handle, IntPtr buffer, uint length);
+
+        [DllImport("bass.dll", CharSet = CharSet.Auto)]
+        private static extern bool BASS_StreamFree(int handle);
+
+        [DllImport("bass.dll", CharSet = CharSet.Auto)]
+        private static extern bool BASS_ChannelStop(int handle);
+
+        private const uint BASS_SAMPLE_FLOAT = 0x100;
+        private const uint BASS_STREAM_DECODE = 0x00800000;
+        private const uint BASS_DATA_FLOAT = 0x80000000;
+
+        // Máximo de frames por bloque de callback: ~186 ms a 44.1 kHz.
+        private const int MaxBlockFrames = 8192;
+
+        [StructLayout(LayoutKind.Sequential)]
+        private struct BassChannelInfo
+        {
+            public int freq;
+            public int chans;
+            public int flags;
+            public uint ctype;
+            public IntPtr filename;
+        }
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate uint BassStreamProc(int handle, IntPtr buffer, uint length, IntPtr user);
+
+        public int OutputHandle { get; private set; }
+
+        // Pose que anima el motor (swipes): el hilo de audio la lee por bloque.
+        public BinauralRenderer Renderer { get; private set; }
+
+        private readonly int _decoderHandle;
+        private readonly GCHandle _pin;      // OGG en RAM: vive con la fuente
+        private readonly GCHandle _selfPin;  // token para el callback de BASS
+        private readonly BassStreamProc _proc;
+        private readonly int _inChans;
+        private readonly float[] _inBuf;     // PCM intercalado leído del decodificador
+        private readonly float[] _monoBuf;   // downmix mono (dual-mono sin pérdida)
+        private readonly float[] _stereoBuf; // salida intercalada del renderer
+        private readonly GCHandle _inPin;
+        private readonly GCHandle _stereoPin;
+
+        public BinauralSfxSource(byte[] oggBytes, GCHandle pin, float azimuthDeg, float depth)
+        {
+            _pin = pin;
+            _decoderHandle = BASS_StreamCreateFile(true, pin.AddrOfPinnedObject(), 0, oggBytes.Length, BASS_STREAM_DECODE);
+            if (_decoderHandle == 0) throw new InvalidOperationException("BASS decoder fallo");
+
+            BassChannelInfo info;
+            if (!BASS_ChannelGetInfo(_decoderHandle, out info))
+            {
+                BASS_StreamFree(_decoderHandle);
+                throw new InvalidOperationException("BASS_ChannelGetInfo fallo");
+            }
+            _inChans = (info.chans == 1) ? 1 : 2;
+
+            Renderer = new BinauralRenderer { AzimuthDeg = azimuthDeg, Depth = depth };
+
+            _inBuf = new float[MaxBlockFrames * 2];
+            _monoBuf = new float[MaxBlockFrames];
+            _stereoBuf = new float[MaxBlockFrames * 2];
+            _inPin = GCHandle.Alloc(_inBuf, GCHandleType.Pinned);
+            _stereoPin = GCHandle.Alloc(_stereoBuf, GCHandleType.Pinned);
+
+            _proc = StreamProc;
+            _selfPin = GCHandle.Alloc(this);
+            OutputHandle = BASS_StreamCreate((uint)BinauralRenderer.SampleRate, 2, BASS_SAMPLE_FLOAT,
+                _proc, GCHandle.ToIntPtr(_selfPin));
+            if (OutputHandle == 0)
+            {
+                try { _selfPin.Free(); } catch { }
+                try { _inPin.Free(); } catch { }
+                try { _stereoPin.Free(); } catch { }
+                try { BASS_StreamFree(_decoderHandle); } catch { }
+                throw new InvalidOperationException("BASS_StreamCreate de salida fallo");
+            }
+        }
+
+        // Callback del hilo de audio de BASS: pide PCM al decodificador, lo
+        // espacializa y entrega estéreo intercalado. Devuelve bytes escritos.
+        private uint StreamProc(int handle, IntPtr buffer, uint length, IntPtr user)
+        {
+            int frames = (int)Math.Min(length / 8, (uint)MaxBlockFrames);
+
+            int got = BASS_ChannelGetData(_decoderHandle, _inPin.AddrOfPinnedObject(),
+                (uint)(frames * 4 * _inChans));
+            if (got < 0) got = 0;
+            int inFloats = got / 4;
+            int framesGot = inFloats / _inChans;
+            if (framesGot <= 0) return 0;
+
+            if (_inChans == 2)
+            {
+                // Los ficheros reales del juego son estéreo dual-mono (L == R):
+                // el downmix no pierde nada y entrega la señal mono al renderer.
+                for (int i = 0; i < framesGot; i++)
+                {
+                    _monoBuf[i] = (_inBuf[i * 2] + _inBuf[i * 2 + 1]) * 0.5f;
+                }
+                Renderer.Process(_monoBuf, framesGot, _stereoBuf);
+            }
+            else
+            {
+                Renderer.Process(_inBuf, framesGot, _stereoBuf);
+            }
+
+            Marshal.Copy(_stereoBuf, 0, buffer, framesGot * 2);
+            return (uint)(framesGot * 8);
+        }
+
+        public void Dispose()
+        {
+            if (OutputHandle != 0)
+            {
+                try { BASS_ChannelStop(OutputHandle); } catch { }
+                try { BASS_StreamFree(OutputHandle); } catch { }
+                OutputHandle = 0;
+            }
+            try { BASS_StreamFree(_decoderHandle); } catch { }
+            if (_pin.IsAllocated)
+            {
+                try { _pin.Free(); } catch { }
+            }
+            if (_inPin.IsAllocated)
+            {
+                try { _inPin.Free(); } catch { }
+            }
+            if (_stereoPin.IsAllocated)
+            {
+                try { _stereoPin.Free(); } catch { }
+            }
+            if (_selfPin.IsAllocated)
+            {
+                try { _selfPin.Free(); } catch { }
             }
         }
     }

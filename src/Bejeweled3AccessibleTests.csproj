@@ -37,6 +37,7 @@
     <Compile Include="Audio\PacCipher.cs" />
     <Compile Include="Audio\AudioMap.cs" />
 <Compile Include="Audio\MusicMap.cs" />
+    <Compile Include="Audio\BinauralRenderer.cs" />
     <Compile Include="Audio\ModuleMusicPlayer.cs" />
     <Compile Include="Audio\SoundEngine.cs" />
     <Compile Include="Audio\SpatialAudio.cs" />

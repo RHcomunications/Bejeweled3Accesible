@@ -990,7 +990,6 @@ namespace Bejeweled3Accessible.UI
                 else if (_optionsIdx == 3)
                 {
                     _sound.SpatialBinauralEnabled = !_sound.SpatialBinauralEnabled;
-                    _sound.UpdateSpatialAudioState();
                     _sound.PlaySound(_sound.SpatialBinauralEnabled ? AudioMap.Select : AudioMap.Badmove);
                     _speech.Speak(GetOptionsMenuItems()[3], true);
                 }
@@ -998,7 +997,6 @@ namespace Bejeweled3Accessible.UI
                 {
                     // Cycle the spatial profile: Stage2D -> CleanArcade -> SimplePan
                     _sound.SpatialProfile = (Audio.SpatialProfile)(((int)_sound.SpatialProfile + 1) % 3);
-                    _sound.UpdateSpatialAudioState();
                     _sound.PlaySound(AudioMap.Select);
                     _speech.Speak(GetOptionsMenuItems()[4], true);
                 }

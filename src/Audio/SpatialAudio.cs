@@ -2,17 +2,16 @@ using System;
 
 namespace Bejeweled3Accessible.Audio
 {
-    // Selectable spatial-audio profiles. All of them share the same HRTF
-    // column math below; they differ in how strongly the stage is rendered:
-    //  - Stage2D: the full theatrical soundscape - row depth (volume, pitch
-    //    and width), DX8 reverb on the music and the volume/frequency swell
-    //    on glides.
+    // Selectable spatial-audio profiles. All of them share the same column
+    // math; they differ in how strongly the stage is rendered:
+    //  - Stage2D: the full theatrical soundscape - binaural HRTF with depth
+    //    (distance volume + air absorption) and the volume swell on glides.
     //  - CleanArcade (default): the original arcade character - crisp and
-    //    dry. No music reverb, no depth darkening, every row at full
-    //    presence; only the column pan and a pure lateral glide on swaps.
-    //  - SimplePan: the bare minimum - just the left/right column pan, placed
-    //    instantly (no glide animation), flat depth. Closest to a plain
-    //    stereo game without any virtual stage.
+    //    dry. Binaural HRTF with the lateral cues only (ITD, ILD, head
+    //    shadow); every row at full presence, flat distance.
+    //  - SimplePan: the bare minimum - just the left/right pan (no HRTF),
+    //    placed instantly (no glide animation), flat depth. Closest to a
+    //    plain stereo game without any virtual stage.
     public enum SpatialProfile
     {
         Stage2D = 0,
@@ -20,32 +19,37 @@ namespace Bejeweled3Accessible.Audio
         SimplePan = 2
     }
 
-    // HRTF / spatial-audio mapping tailored to the 8x8 Bejeweled board.
+    // Binaural HRTF / spatial-audio math for the 8x8 Bejeweled board.
     //
-    // Design (game-first, not a generic DAFH-style curve):
-    //  - Every board column A..H maps to a stereo pan position designed for an
-    //    8-column board, so adjacent columns near the middle stay clearly
-    //    separable by ear.
+    // The stage is an 8-column board in front of the player:
+    //  - Every board column A..H maps to an AZIMUTH angle (-75°..+75°). The
+    //    renderer places a sound there with the two physiological cues of
+    //    human hearing: ITD (interaural time difference, Woodworth's law:
+    //    the far ear hears later) and ILD (interaural level difference: the
+    //    far ear hears quieter and duller because the head casts a low-pass
+    //    "shadow" that grows with the angle).
     //  - Rows add a DEPTH plane: the top of the board (row 0) is the far end
     //    of the stage and the bottom (row 7) is in front of the player. A gem
-    //    in the back sounds quieter, slightly darker (lower pitch) and closer
-    //    to the stereo center (narrower pan), like a stage receding in
-    //    perspective; the front row sounds full, bright and wide.
+    //    in the back sounds quieter and slightly duller (air absorption, a
+    //    low-pass on BOTH ears), like distance in the real world. Depth NEVER
+    //    changes pitch: the real game sounds must stay in tune, exactly as
+    //    PopCap mixed them.
+    //  - The music (the real .mo3 module) stays centered, dry and untouched:
+    //    it carries PopCap's own mix, and the HRTF never processes it.
     //  - Voices are ALWAYS centered: the speaker/announcer must stay in the
     //    middle, never tied to a gem column.
     //  - UI / non-positional SFX (menus, buttons, HUD) are centered too; a
     //    sound without a column must NEVER wander to one side.
-    //  - Music stays centered and atmospheric (reverb handled by the engine);
-    //    it never has a pan.
-    //  - A gem "swipe" (swap/cascade) interpolates the pan smoothly from the
-    //    source column to the destination column via EaseSweep, so movement is
-    //    heard, not just the final position. The engine additionally swells
-    //    the volume mid-flight (SweepPassBulge) so the gem seems to sweep past
-    //    the listener, not just slide between two points.
+    //  - A gem "swipe" (swap/cascade) interpolates the azimuth smoothly from
+    //    the source column to the destination column via EaseSweep, so the
+    //    movement is heard, not just the final position. Stage2D additionally
+    //    swells the volume mid-flight (SweepPassBulge) so the gem seems to
+    //    sweep past the listener.
     public static class SpatialAudio
     {
         // Softest hard cap so the extreme columns stay inside the stereo field
-        // without banging the drivers.
+        // without banging the drivers (used by the SimplePan profile and the
+        // non-binaural fallback only).
         public const float MaxPan = 0.85f;
 
         // Number of columns of the board (Board.Cols mirror).
@@ -59,6 +63,80 @@ namespace Bejeweled3Accessible.Audio
 
         // The voice of the announcer is never spatialized; it is always centered.
         public const float VoicePan = 0.0f;
+
+        // ---- Binaural HRTF layer -----------------------------------------
+
+        // Azimuth of the extreme columns: ±75°. Beyond ~75° ITD saturates and
+        // front/back confusions appear, so the stage spans exactly this cone.
+        public const float MaxAzimuthDeg = 75.0f;
+
+        // Mean adult head radius and sound speed, for Woodworth's ITD law.
+        public const float HeadRadiusM = 0.0875f;
+        public const float SoundSpeedMps = 343.0f;
+
+        // Maps a board column (0..cols-1) to an azimuth in degrees in
+        // [-MaxAzimuthDeg, +MaxAzimuthDeg]. col < 0 or col >= cols => center.
+        // The mapping uses a perceptual exponent < 1 so the inner columns
+        // (C/D/E and F) crawl apart from each other while the outer columns
+        // still reach their places, matching how the braille board is read.
+        public static float AzimuthDeg(int col)
+        {
+            if (col < 0 || col >= BoardColumns) return 0.0f;
+            float t = (col - (BoardColumns - 1) / 2.0f) / ((BoardColumns - 1) / 2.0f); // -1..+1
+            if (Math.Abs(t) < 0.0001f) return 0.0f;
+            float sign = Math.Sign(t);
+            float mag = (float)Math.Pow(Math.Abs(t), 0.68);
+            return MaxAzimuthDeg * sign * mag;
+        }
+
+        // Interaural time difference (Woodworth-Schlosberg): the far ear hears
+        // the sound (a/c)(sin(theta) + theta) seconds later. 0 at the front,
+        // ~0.58 ms at ±75°.
+        public static float ItdSeconds(float azDeg)
+        {
+            float t = Math.Abs(azDeg) * (float)(Math.PI / 180.0);
+            return (HeadRadiusM / SoundSpeedMps) * (float)(Math.Sin(t) + t);
+        }
+
+        // ITD expressed in samples at the given sample rate (fractional).
+        public static float ItdSamples(float azDeg, float sampleRate)
+        {
+            return ItdSeconds(azDeg) * sampleRate;
+        }
+
+        // Interaural level difference in dB: how much quieter the far ear is.
+        // Grows with the angle (0 at the front, ~6.7 dB at ±75°).
+        public static float IldDb(float azDeg)
+        {
+            float s = (float)Math.Sin(Math.Abs(azDeg) * (float)(Math.PI / 180.0));
+            return 7.0f * (float)Math.Pow(s, 1.15f);
+        }
+
+        // Linear gain of the far ear for the ILD cue (1.0 at the front,
+        // ~0.46 at ±75°). The near ear always keeps the original character.
+        public static float FarEarGain(float azDeg)
+        {
+            return (float)Math.Pow(10.0, -IldDb(azDeg) / 20.0);
+        }
+
+        // Head-shadow low-pass cutoff for the far ear, in Hz: the head casts
+        // an acoustic shadow that dulls the highs the more lateral the sound.
+        // 6000 Hz at the front, ~2670 Hz at ±75°.
+        public static float HeadShadowCutoffHz(float azDeg)
+        {
+            float c = (float)Math.Cos(Math.Abs(azDeg) * (float)(Math.PI / 180.0));
+            return 1500.0f + 4500.0f * c;
+        }
+
+        // Air-absorption low-pass cutoff for a depth, in Hz: distance dulls
+        // the highs on BOTH ears. 3500 Hz at the far end, ~11000 Hz (nearly
+        // transparent) at the front row.
+        public static float AirCutoffHz(float depth)
+        {
+            return 3500.0f + 7500.0f * depth;
+        }
+
+        // ---- Lateral pan layer (SimplePan / non-binaural fallback) -------
 
         // Maps a board column (0..cols-1) to a pan value in [-MaxPan, +MaxPan].
         //  - col < 0 or col >= cols  => center (no position).
@@ -102,21 +180,13 @@ namespace Bejeweled3Accessible.Audio
 
         // Pan-width multiplier for a depth: far rows collapse toward the
         // stereo center like a stage receding in perspective (0.75 far ..
-        // 1.00 front), so depth never fights with lateral separation.
+        // 1.00 front). Used by the SimplePan profile only; the binaural
+        // renderer uses air absorption for the same "distance" cue.
         public static float DepthPanScale(float depth)
         {
             if (depth <= 0.0f) return 0.75f;
             if (depth >= 1.0f) return 1.00f;
             return 0.75f + 0.25f * depth;
-        }
-
-        // Pitch multiplier for a depth: far rows drop a touch darker, the
-        // air/distance cue without any DSP (0.965 far .. 1.000 front).
-        public static float DepthPitch(float depth)
-        {
-            if (depth <= 0.0f) return 0.965f;
-            if (depth >= 1.0f) return 1.000f;
-            return 0.965f + 0.035f * depth;
         }
 
         // Row-based wrappers used by the engine; a negative row (non-positional
@@ -131,20 +201,17 @@ namespace Bejeweled3Accessible.Audio
             return (row < 0) ? 1.00f : DepthPanScale(Depth(row, BoardRows));
         }
 
-        public static float DepthPitchForRow(int row)
-        {
-            return (row < 0) ? 1.000f : DepthPitch(Depth(row, BoardRows));
-        }
-
         // Full spatial pan of a sound at (col,row): lateral curve folded with
-        // the depth plane. A non-positional sound (col < 0) stays centered and
-        // a negative row never narrows it.
+        // the depth plane (SimplePan layer). A non-positional sound (col < 0)
+        // stays centered and a negative row never narrows it.
         public static float PanAt(int col, int row, int cols)
         {
             float lateral = Pan(col, cols);
             if (row < 0 || col < 0) return lateral;
             return lateral * DepthPanScaleForRow(row);
         }
+
+        // ---- Glide animation (swipe) -------------------------------------
 
         // Smoothstep easing for the swipe animation: no abrupt jump at start
         // or landing, just a clean lateral glide A->B.
@@ -161,9 +228,15 @@ namespace Bejeweled3Accessible.Audio
             return fromPan + (toPan - fromPan) * EaseSweep(progress);
         }
 
+        // Current azimuth of an animated swipe at normalized progress (0..1).
+        public static float SweepAzimuth(float fromAz, float toAz, float progress)
+        {
+            return fromAz + (toAz - fromAz) * EaseSweep(progress);
+        }
+
         // Mid-flight "pass in front" swell: the gem gains a little presence as
         // it crosses the middle of its glide (1.0 at both ends, ~1.10 at 50%).
-        // The engine applies it to the volume during a sweep.
+        // The engine applies it to the volume during a sweep (Stage2D only).
         public static float SweepPassBulge(float progress)
         {
             if (progress <= 0.0f || progress >= 1.0f) return 1.0f;
