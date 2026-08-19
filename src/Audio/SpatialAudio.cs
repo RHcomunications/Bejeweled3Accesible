@@ -21,19 +21,22 @@ namespace Bejeweled3Accessible.Audio
 
     // Binaural HRTF / spatial-audio math for the 8x8 Bejeweled board.
     //
-    // The stage is an 8-column board in front of the player:
+    // MODELO DE OBJETO EN EL ESPACIO (estilo Dolby): cada efecto del tablero
+    // es un OBJETO sonoro que se coloca en la escena SIN destruir su timbre.
+    // El sonido original (la mezcla de PopCap) se conserva intacto y la
+    // posición se aplica con las pistas fisiológicas mínimas:
     //  - Every board column A..H maps to an AZIMUTH angle (-75°..+75°). The
-    //    renderer places a sound there with the two physiological cues of
-    //    human hearing: ITD (interaural time difference, Woodworth's law:
-    //    the far ear hears later) and ILD (interaural level difference: the
-    //    far ear hears quieter and duller because the head casts a low-pass
-    //    "shadow" that grows with the angle).
+    //    renderer places a sound there with two physiological cues: ITD
+    //    (interaural time difference, Woodworth's law: the far ear hears
+    //    later) and ILD (interaural level difference: the far ear hears
+    //    quieter, with a SUBTLE high-frequency shelf - never a low-pass - as
+    //    the head casts a soft acoustic shadow that grows with the angle).
     //  - Rows add a DEPTH plane: the top of the board (row 0) is the far end
     //    of the stage and the bottom (row 7) is in front of the player. A gem
-    //    in the back sounds quieter and slightly duller (air absorption, a
-    //    low-pass on BOTH ears), like distance in the real world. Depth NEVER
-    //    changes pitch: the real game sounds must stay in tune, exactly as
-    //    PopCap mixed them.
+    //    in the back sounds quieter (distance = level, like Dolby), with the
+    //    timbre untouched: NO air-absorption low-pass that darkens the sound.
+    //    Depth NEVER changes pitch: the real game sounds must stay in tune,
+    //    exactly as PopCap mixed them.
     //  - The music (the real .mo3 module) stays centered, dry and untouched:
     //    it carries PopCap's own mix, and the HRTF never processes it.
     //  - Voices are ALWAYS centered: the speaker/announcer must stay in the
@@ -105,35 +108,29 @@ namespace Bejeweled3Accessible.Audio
         }
 
         // Interaural level difference in dB: how much quieter the far ear is.
-        // Grows with the angle (0 at the front, ~6.7 dB at ±75°).
+        // Grows with the angle (0 at the front, ~5.3 dB at ±75°). Gentler than
+        // a measured full-band ILD so the object keeps its presence.
         public static float IldDb(float azDeg)
         {
             float s = (float)Math.Sin(Math.Abs(azDeg) * (float)(Math.PI / 180.0));
-            return 7.0f * (float)Math.Pow(s, 1.15f);
+            return 5.5f * (float)Math.Pow(s, 1.15f);
         }
 
         // Linear gain of the far ear for the ILD cue (1.0 at the front,
-        // ~0.46 at ±75°). The near ear always keeps the original character.
+        // ~0.545 at ±75°). The near ear always keeps the original character.
         public static float FarEarGain(float azDeg)
         {
             return (float)Math.Pow(10.0, -IldDb(azDeg) / 20.0);
         }
 
-        // Head-shadow low-pass cutoff for the far ear, in Hz: the head casts
-        // an acoustic shadow that dulls the highs the more lateral the sound.
-        // 6000 Hz at the front, ~2670 Hz at ±75°.
-        public static float HeadShadowCutoffHz(float azDeg)
+        // Subtle head-shadow gain for the far ear, 0..~0.25: the head casts a
+        // soft acoustic shadow that grows with the angle. It is applied as a
+        // gentle high-frequency SHELF (max ~-2.5 dB above 4 kHz at ±75°), NOT
+        // a low-pass: the object keeps its timbre and brightness.
+        public static float FarEarShadowGain(float azDeg)
         {
-            float c = (float)Math.Cos(Math.Abs(azDeg) * (float)(Math.PI / 180.0));
-            return 1500.0f + 4500.0f * c;
-        }
-
-        // Air-absorption low-pass cutoff for a depth, in Hz: distance dulls
-        // the highs on BOTH ears. 3500 Hz at the far end, ~11000 Hz (nearly
-        // transparent) at the front row.
-        public static float AirCutoffHz(float depth)
-        {
-            return 3500.0f + 7500.0f * depth;
+            float s = (float)Math.Sin(Math.Abs(azDeg) * (float)(Math.PI / 180.0));
+            return 0.25f * s * s;
         }
 
         // ---- Lateral pan layer (SimplePan / non-binaural fallback) -------

@@ -1486,13 +1486,14 @@ namespace Bejeweled3Accessible.Tests
                     "ILD extrema entre -8 y -4 dB, fue " + SpatialAudio.IldDb(75.0f).ToString("F2") + " dB");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: sombra de cabeza - agudos apagados al lateral", () =>
+            tests.Add(Tuple.Create<string, Action>("HRTF: sombra de cabeza - estante sutil, nunca apaga", () =>
             {
-                Assert.Near(6000.0f, SpatialAudio.HeadShadowCutoffHz(0.0f), 1.0f, "Frente brillante");
-                Assert.True(SpatialAudio.HeadShadowCutoffHz(0.0f) > SpatialAudio.HeadShadowCutoffHz(45.0f), "Corte baja al lateral");
-                Assert.True(SpatialAudio.HeadShadowCutoffHz(45.0f) > SpatialAudio.HeadShadowCutoffHz(75.0f), "Corte baja al extremo");
-                Assert.Near(1500.0f + 4500.0f * (float)Math.Cos(75.0 * Math.PI / 180.0),
-                    SpatialAudio.HeadShadowCutoffHz(75.0f), 1.0f, "75 = 1500 + 4500*cos");
+                Assert.Near(0.0f, SpatialAudio.FarEarShadowGain(0.0f), 0.001f, "Frente sin sombra");
+                Assert.True(SpatialAudio.FarEarShadowGain(15.0f) < SpatialAudio.FarEarShadowGain(45.0f), "Sombra crece");
+                Assert.True(SpatialAudio.FarEarShadowGain(45.0f) < SpatialAudio.FarEarShadowGain(75.0f), "Sombra crece al extremo");
+                Assert.Near(SpatialAudio.FarEarShadowGain(-60.0f), SpatialAudio.FarEarShadowGain(60.0f), 0.001f, "Sombra simetrica");
+                Assert.True(SpatialAudio.FarEarShadowGain(75.0f) < 0.30f,
+                    "Sombra maxima sutil (< -3 dB), fue " + SpatialAudio.FarEarShadowGain(75.0f).ToString("F3"));
             }));
 
             tests.Add(Tuple.Create<string, Action>("HRTF: swipe binaural anima el azimuth", () =>
@@ -1592,11 +1593,27 @@ namespace Bejeweled3Accessible.Tests
                 Assert.Near(1.0f, 1.0f, 0.0f, "El tono no depende de la profundidad");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: absorcion de aire por profundidad", () =>
+            tests.Add(Tuple.Create<string, Action>("HRTF: la distancia solo atenua volumen, el timbre se conserva", () =>
             {
-                Assert.Near(3500.0f, SpatialAudio.AirCutoffHz(0.0f), 1.0f, "Fondo apagado");
-                Assert.Near(11000.0f, SpatialAudio.AirCutoffHz(1.0f), 1.0f, "Frente casi transparente");
-                Assert.True(SpatialAudio.AirCutoffHz(0.0f) < SpatialAudio.AirCutoffHz(1.0f), "Corte crece hacia el frente");
+                // Señal aguda (6 kHz): el modelo anterior la apagaba al fondo
+                // (paso-bajo de aire a 3.5 kHz); el modelo de objeto mantiene
+                // la brillantez y solo baja el nivel (0.80^2 = 0.64).
+                int frames = 17640;
+                float[] mono = new float[frames];
+                for (int i = 0; i < frames; i++)
+                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 6000.0 * i / 44100.0) * 0.5f;
+
+                BinauralRenderer cerca = new BinauralRenderer { AzimuthDeg = 0.0f, Depth = 1.0f };
+                BinauralRenderer lejos = new BinauralRenderer { AzimuthDeg = 0.0f, Depth = 0.0f };
+                float[] sC = new float[frames * 2], sL = new float[frames * 2];
+                cerca.Process(mono, frames, sC);
+                lejos.Process(mono, frames, sL);
+
+                double eC = 0, eL = 0;
+                for (int i = 0; i < frames; i++) { eC += sC[i * 2] * sC[i * 2]; eL += sL[i * 2] * sL[i * 2]; }
+                double ratio = eL / Math.Max(eC, 1e-9);
+                Assert.True(ratio > 0.50, "El agudo se conserva al fondo (ratio " + ratio.ToString("F3") + ")");
+                Assert.True(ratio < 0.80, "Y aun asi el fondo suena mas bajo (ratio " + ratio.ToString("F3") + ")");
             }));
 
             tests.Add(Tuple.Create<string, Action>("HRTF: sin fila (UI) plana y al centro", () =>
@@ -2235,7 +2252,7 @@ namespace Bejeweled3Accessible.Tests
                 while (BassProbe.BASS_ChannelIsActive(hDirect) != 0) System.Threading.Thread.Sleep(5);
                 BassProbe.BASS_ChannelStop(hDirect);
                 WriteWav16(path + ".ref.wav", refCap.Samples, 2);
-                Console.WriteLine("  direct+DSP: frames=" + refCap.TotalFrames + " (" + (refCap.TotalFrames / 44100.0).ToString("F3") + " s) RMS L=" + refCap.RmsL.ToString("F4") + " R=" + refCap.RmsR.ToString("F4"));
+                Console.WriteLine("  direct+DSP: frames=" + refCap.TotalFrames + " (" + (refCap.TotalFrames / 44100.0).ToString("F3") + " s) RMS L=" + refCap.RmsL.ToString("F4") + " R=" + refCap.RmsR.ToString("F4") + " brillo=" + HighFreqRatio(refCap.Samples, 2).ToString("F3"));
 
                 // 2) Pipeline binaural REAL (BinauralSfxSource) + DSP capturador.
                 BinauralSfxSource src = new BinauralSfxSource(data, pin, 60.0f, 1.0f);
@@ -2246,7 +2263,7 @@ namespace Bejeweled3Accessible.Tests
                 BassProbe.BASS_ChannelStop(src.OutputHandle);
                 WriteWav16(path + ".bin.wav", binCap.Samples, 2);
                 src.Dispose();
-                Console.WriteLine("  binaural:   frames=" + binCap.TotalFrames + " (" + (binCap.TotalFrames / 44100.0).ToString("F3") + " s) RMS L=" + binCap.RmsL.ToString("F4") + " R=" + binCap.RmsR.ToString("F4"));
+                Console.WriteLine("  binaural:   frames=" + binCap.TotalFrames + " (" + (binCap.TotalFrames / 44100.0).ToString("F3") + " s) RMS L=" + binCap.RmsL.ToString("F4") + " R=" + binCap.RmsR.ToString("F4") + " brillo=" + HighFreqRatio(binCap.Samples, 2).ToString("F3"));
             }
             catch (Exception ex)
             {
@@ -2256,6 +2273,23 @@ namespace Bejeweled3Accessible.Tests
             {
                 if (pin.IsAllocated) pin.Free();
             }
+        }
+
+        private static float HighFreqRatio(float[] interleaved, int chans)
+        {
+            if (interleaved == null || interleaved.Length < chans * 2) return 0.0f;
+            double tot = 0, hi = 0;
+            float lp = 0.0f;
+            float a = 1.0f - (float)Math.Exp(-2.0 * Math.PI * 3000.0 / 44100.0);
+            for (int i = 0; i < interleaved.Length; i += chans)
+            {
+                float x = interleaved[i];
+                lp += a * (x - lp);
+                float hp = x - lp;
+                tot += x * x;
+                hi += hp * hp;
+            }
+            return tot > 1e-12f ? (float)(hi / tot) : 0.0f;
         }
 
         private static void WriteWav16(string path, float[] interleaved, int chans)
