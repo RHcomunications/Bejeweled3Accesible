@@ -1486,14 +1486,28 @@ namespace Bejeweled3Accessible.Tests
                     "ILD extrema entre -8 y -4 dB, fue " + SpatialAudio.IldDb(75.0f).ToString("F2") + " dB");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: sombra de cabeza - estante sutil, nunca apaga", () =>
+            tests.Add(Tuple.Create<string, Action>("HRTF: objeto puro - cero filtrado espectral (principio Dolby)", () =>
             {
-                Assert.Near(0.0f, SpatialAudio.FarEarShadowGain(0.0f), 0.001f, "Frente sin sombra");
-                Assert.True(SpatialAudio.FarEarShadowGain(15.0f) < SpatialAudio.FarEarShadowGain(45.0f), "Sombra crece");
-                Assert.True(SpatialAudio.FarEarShadowGain(45.0f) < SpatialAudio.FarEarShadowGain(75.0f), "Sombra crece al extremo");
-                Assert.Near(SpatialAudio.FarEarShadowGain(-60.0f), SpatialAudio.FarEarShadowGain(60.0f), 0.001f, "Sombra simetrica");
-                Assert.True(SpatialAudio.FarEarShadowGain(75.0f) < 0.30f,
-                    "Sombra maxima sutil (< -3 dB), fue " + SpatialAudio.FarEarShadowGain(75.0f).ToString("F3"));
+                // El objeto viaja con su senal INTACTA: el renderer solo aplica
+                // retardo y ganancia. Un seno agudo de 6 kHz debe conservar su
+                // brillo al 100% en AMBOS oidos (cualquier estante o paso-bajo
+                // lo reduciria y fallaria la assertion).
+                int frames = 17640;
+                float[] mono = new float[frames];
+                for (int i = 0; i < frames; i++)
+                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 6000.0 * i / 44100.0) * 0.5f;
+
+                BinauralRenderer r = new BinauralRenderer { AzimuthDeg = 75.0f, Depth = 1.0f };
+                float[] st = new float[frames * 2];
+                r.Process(mono, frames, st);
+
+                float brilloIn = HighFreqRatio(mono, 1);
+                float brilloL = HighFreqRatio(st, 2, 0); // +75: L = oido lejano
+                float brilloR = HighFreqRatio(st, 2, 1); // R = oido cercano
+                Assert.True(brilloL > 0.95f * brilloIn,
+                    "El oido lejano conserva el brillo, fue " + brilloL.ToString("F3") + " vs " + brilloIn.ToString("F3"));
+                Assert.True(brilloR > 0.95f * brilloIn,
+                    "El oido cercano conserva el brillo, fue " + brilloR.ToString("F3") + " vs " + brilloIn.ToString("F3"));
             }));
 
             tests.Add(Tuple.Create<string, Action>("HRTF: swipe binaural anima el azimuth", () =>
@@ -2275,13 +2289,13 @@ namespace Bejeweled3Accessible.Tests
             }
         }
 
-        private static float HighFreqRatio(float[] interleaved, int chans)
+        private static float HighFreqRatio(float[] interleaved, int chans, int chan = 0)
         {
-            if (interleaved == null || interleaved.Length < chans * 2) return 0.0f;
+            if (interleaved == null || interleaved.Length < chans * 2 || chan >= chans) return 0.0f;
             double tot = 0, hi = 0;
             float lp = 0.0f;
             float a = 1.0f - (float)Math.Exp(-2.0 * Math.PI * 3000.0 / 44100.0);
-            for (int i = 0; i < interleaved.Length; i += chans)
+            for (int i = chan; i < interleaved.Length; i += chans)
             {
                 float x = interleaved[i];
                 lp += a * (x - lp);

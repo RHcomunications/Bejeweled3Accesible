@@ -21,22 +21,19 @@ namespace Bejeweled3Accessible.Audio
 
     // Binaural HRTF / spatial-audio math for the 8x8 Bejeweled board.
     //
-    // MODELO DE OBJETO EN EL ESPACIO (estilo Dolby): cada efecto del tablero
-    // es un OBJETO sonoro que se coloca en la escena SIN destruir su timbre.
-    // El sonido original (la mezcla de PopCap) se conserva intacto y la
-    // posición se aplica con las pistas fisiológicas mínimas:
+    // PRINCIPIO DOLBY DE SONIDO ORIENTADO A OBJETOS: cada efecto del tablero
+    // es un OBJETO sonoro que viaja por la escena CON SU SENAL INTACTA. La
+    // posicion se aplica con las pistas fisiologicas que NO alteran el timbre:
     //  - Every board column A..H maps to an AZIMUTH angle (-75°..+75°). The
-    //    renderer places a sound there with two physiological cues: ITD
-    //    (interaural time difference, Woodworth's law: the far ear hears
-    //    later) and ILD (interaural level difference: the far ear hears
-    //    quieter, with a SUBTLE high-frequency shelf - never a low-pass - as
-    //    the head casts a soft acoustic shadow that grows with the angle).
+    //    renderer places a sound there with two cues: ITD (interaural time
+    //    difference, Woodworth's law: the far ear hears later) and ILD
+    //    (interaural level difference: the far ear hears quieter). No
+    //    filtering, no shelves, no low-passes: the signal is never reshaped.
     //  - Rows add a DEPTH plane: the top of the board (row 0) is the far end
     //    of the stage and the bottom (row 7) is in front of the player. A gem
     //    in the back sounds quieter (distance = level, like Dolby), with the
-    //    timbre untouched: NO air-absorption low-pass that darkens the sound.
-    //    Depth NEVER changes pitch: the real game sounds must stay in tune,
-    //    exactly as PopCap mixed them.
+    //    timbre untouched. Depth NEVER changes pitch: the real game sounds
+    //    must stay in tune, exactly as PopCap mixed them.
     //  - The music (the real .mo3 module) stays centered, dry and untouched:
     //    it carries PopCap's own mix, and the HRTF never processes it.
     //  - Voices are ALWAYS centered: the speaker/announcer must stay in the
@@ -117,20 +114,11 @@ namespace Bejeweled3Accessible.Audio
         }
 
         // Linear gain of the far ear for the ILD cue (1.0 at the front,
-        // ~0.545 at ±75°). The near ear always keeps the original character.
+        // ~0.545 at ±75°). Pure level: the signal is identical, only quieter.
+        // The near ear always keeps the original character.
         public static float FarEarGain(float azDeg)
         {
             return (float)Math.Pow(10.0, -IldDb(azDeg) / 20.0);
-        }
-
-        // Subtle head-shadow gain for the far ear, 0..~0.25: the head casts a
-        // soft acoustic shadow that grows with the angle. It is applied as a
-        // gentle high-frequency SHELF (max ~-2.5 dB above 4 kHz at ±75°), NOT
-        // a low-pass: the object keeps its timbre and brightness.
-        public static float FarEarShadowGain(float azDeg)
-        {
-            float s = (float)Math.Sin(Math.Abs(azDeg) * (float)(Math.PI / 180.0));
-            return 0.25f * s * s;
         }
 
         // ---- Lateral pan layer (SimplePan / non-binaural fallback) -------
@@ -177,8 +165,7 @@ namespace Bejeweled3Accessible.Audio
 
         // Pan-width multiplier for a depth: far rows collapse toward the
         // stereo center like a stage receding in perspective (0.75 far ..
-        // 1.00 front). Used by the SimplePan profile only; the binaural
-        // renderer uses air absorption for the same "distance" cue.
+        // 1.00 front). Used by the SimplePan profile only.
         public static float DepthPanScale(float depth)
         {
             if (depth <= 0.0f) return 0.75f;
