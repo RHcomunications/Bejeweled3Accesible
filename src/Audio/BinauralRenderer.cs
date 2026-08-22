@@ -63,6 +63,12 @@ namespace Bejeweled3Accessible.Audio
         // (transparente, perfiles 2D). El motor 3D lo fija segun la distancia.
         public float AirCutoffHz = 0.0f;
 
+        // true cuando la pose la dicta el motor 3D (perfil Atmos): el volumen
+        // de distancia lo aporta SOLO DistanceGain * tilt, sin la profundidad 2D
+        // (Depth/Bulge) ni el hinchazon del glide. Asi el perfil 3D no duplica
+        // la atenuacion de profundidad del tablero y suena con geometria real.
+        public bool SpatialPose = false;
+
         private readonly float[] _delayL = new float[DelayLineSamples];
         private readonly float[] _delayR = new float[DelayLineSamples];
         private int _delayPos = 0;
@@ -80,7 +86,12 @@ namespace Bejeweled3Accessible.Audio
             float itd = SpatialAudio.ItdSamples(az, SampleRate);
             float farGain = SpatialAudio.FarEarGain(az);
             float elevGain = SpatialAudio.DbToLinear(ElevationTiltDb);
-            float dist = SpatialAudio.DepthVolume(Depth) * Bulge * DistanceGain * elevGain;
+            // Perfil 3D (Atmos): la atenuacion de distancia es SOLO DistanceGain
+            // (geometria real) * tilt. Los perfiles 2D usan la profundidad del
+            // tablero (Depth/Bulge) y dejan DistanceGain en 1.
+            float depthVol = SpatialPose ? 1.0f : SpatialAudio.DepthVolume(Depth);
+            float bulge = SpatialPose ? 1.0f : Bulge;
+            float dist = depthVol * bulge * DistanceGain * elevGain;
 
             // La fuente a la derecha (az > 0) oye antes el oido derecho.
             bool farIsLeft = az > 0.0f;

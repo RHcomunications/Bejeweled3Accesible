@@ -1044,7 +1044,11 @@ namespace Bejeweled3Accessible.UI
             else if (idx == 19)
                 _sound.PlaySoundSpatialSweep(s, 0, 7, backRow, (float)Audio.SpatialAudio.GemElevationMeters);
             else if (idx == 20)
-                _sound.PlaySoundAtWorld(s, 0.0f, 1.0f, 25.0f); // ~25 m: corte de aire audible
+                // Demo de absorcion de aire: fuerza el corte a 1,2 kHz (equivalente
+                // a ~50 m) con ganancia plena para que se oiga el telefono sin que
+                // la atenuacion por distancia la silencie.
+                _sound.PlaySoundAtWorld(s, 0.0f, 1.0f, 6.0f, 1.0f, false,
+                    (float)Audio.SpatialAudio.AirAbsorptionCutoffHz(50.0), 1.0f);
         }
 
         private void HandleOptionsKeys(KeyEventArgs e)

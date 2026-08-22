@@ -31,6 +31,13 @@ namespace Bejeweled3Accessible.Audio
         public double MinDistance = SpatialAudio.PointMinDistance;
         public double MaxDistance = SpatialAudio.PointMaxDistance;
 
+        // Overrides de calibracion (>= 0 fuerzan el valor, ignorando la
+        // distancia real). Se usan en la Escuela de Audio para que la demo
+        // "lejos con aire" se oiga con el filtro de aire a ganancia plena,
+        // sin que la atenuacion por distancia la silencie antes de oscurecer.
+        public double DistanceGainOverride = -1.0;
+        public double AirCutoffOverride = -1.0;
+
         // Renderer binaural que el motor reprograma con la pose 3D calculada.
         // Lo asigna quien crea el objeto (SoundEngine) antes de registrarlo.
         public BinauralRenderer Renderer;
@@ -146,8 +153,10 @@ namespace Bejeweled3Accessible.Audio
                     // 4) Pose 3D -> parametros del renderer.
                     double az = SpatialAudio.AzimuthFromRelative(rx, rz);
                     double dist = rel.Length();
-                    double air = SpatialAudio.AirAbsorptionCutoffHz(dist);
-                    double dg = SpatialAudio.DistanceGainFor(dist, obj.MinDistance, obj.MaxDistance);
+                    double air = (obj.AirCutoffOverride >= 0.0) ? obj.AirCutoffOverride
+                                : SpatialAudio.AirAbsorptionCutoffHz(dist);
+                    double dg = (obj.DistanceGainOverride >= 0.0) ? obj.DistanceGainOverride
+                               : SpatialAudio.DistanceGainFor(dist, obj.MinDistance, obj.MaxDistance);
                     double tilt = SpatialAudio.ElevationTiltDb(obj.Position.Y, Listener.Position.Y);
 
                     if (obj.Renderer != null)

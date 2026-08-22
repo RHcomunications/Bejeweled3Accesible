@@ -1570,6 +1570,74 @@ namespace Bejeweled3Accessible.Tests
                     "El aire a 50 m apaga el agudo (brillo " + brilloLejos.ToString("F3") + " vs " + brilloLibre.ToString("F3") + ")");
             }));
 
+            tests.Add(Tuple.Create<string, Action>("HRTF 3D: el perfil Atmos suena distinto al 2D", () =>
+            {
+                // Comprueba que el camino de objeto 3D (SpatialPose) produce una
+                // senal DISTINTA de la ruta 2D para la misma celda: la geometria
+                // real (azimut segun fila + atenuacion por distancia) no debe
+                // colapsar en la mezcla 2D del tablero. Es la prueba de que el
+                // perfil Atmos tiene efecto y no es un no-op.
+                int frames = 17640;
+                float[] mono = new float[frames];
+                for (int i = 0; i < frames; i++)
+                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 600.0 * i / 44100.0) * 0.5f;
+
+                // Ruta 2D (Clasico Limpio): azimut de columna, profundidad 2D.
+                BinauralRenderer r2d = new BinauralRenderer
+                {
+                    AzimuthDeg = SpatialAudio.AzimuthDeg(0),
+                    Depth = SpatialAudio.Depth(0, SpatialAudio.BoardRows),
+                    SpatialPose = false
+                };
+                // Ruta Atmos: azimut y ganancia desde la pose mundial real.
+                Vector3 w = SpatialAudio.WorldFromCell(0, 0, SpatialAudio.GemElevationMeters);
+                Vector3 rel = w - new Vector3(0.0, 1.0, 0.0);
+                BinauralRenderer r3d = new BinauralRenderer
+                {
+                    AzimuthDeg = (float)SpatialAudio.AzimuthFromRelative(rel.X, rel.Z),
+                    SpatialPose = true,
+                    DistanceGain = (float)SpatialAudio.DistanceGainFor(rel.Length(), SpatialAudio.PointMinDistance, SpatialAudio.PointMaxDistance)
+                };
+                float[] s2d = new float[frames * 2];
+                float[] s3d = new float[frames * 2];
+                r2d.Process(mono, frames, s2d);
+                r3d.Process(mono, frames, s3d);
+
+                double diff = 0.0;
+                for (int i = 0; i < s2d.Length; i++)
+                    diff += (s2d[i] - s3d[i]) * (s2d[i] - s3d[i]);
+                diff = Math.Sqrt(diff / s2d.Length);
+                Assert.True(diff > 0.01,
+                    "Atmos y 2D deben diferir audiblemente (rms diff " + diff.ToString("F3") + ")");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("HRTF 3D: la demo de aire suena con ganancia plena", () =>
+            {
+                // La demo "lejos con aire" fuerza corte 1.2 kHz a ganancia 1: debe
+                // oscurecer el agudo SIN silenciarse (la atenuacion por distancia
+                // no la apaga antes de que se oiga el filtro).
+                int frames = 17640;
+                float[] mono = new float[frames];
+                for (int i = 0; i < frames; i++)
+                    mono[i] = (float)(0.5 * Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0)
+                                   + 0.5 * Math.Sin(2.0 * Math.PI * 8000.0 * i / 44100.0));
+                BinauralRenderer demo = new BinauralRenderer
+                {
+                    AzimuthDeg = 0.0f,
+                    SpatialPose = true,
+                    DistanceGain = 1.0f,
+                    AirCutoffHz = (float)SpatialAudio.AirAbsorptionCutoffHz(50.0)
+                };
+                float[] sDemo = new float[frames * 2];
+                demo.Process(mono, frames, sDemo);
+                float brillo = HighFreqRatio(sDemo, 2, 0);
+                double rms = 0.0;
+                for (int i = 0; i < sDemo.Length; i++) rms += sDemo[i] * sDemo[i];
+                rms = Math.Sqrt(rms / sDemo.Length);
+                Assert.True(brillo < 0.3, "El filtro de aire debe apagar el agudo (brillo " + brillo.ToString("F3") + ")");
+                Assert.True(rms > 0.05, "La demo no debe silenciarse (rms " + rms.ToString("F3") + ")");
+            }));
+
             tests.Add(Tuple.Create<string, Action>("HRTF: swipe binaural anima el azimuth", () =>
             {
                 float fromAz = SpatialAudio.AzimuthDeg(0);

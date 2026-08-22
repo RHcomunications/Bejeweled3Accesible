@@ -942,18 +942,18 @@ namespace Bejeweled3Accessible.Audio
         // respecto al listener. Usado por la calibracion "Escuela de Audio" para
         // probar direcciones y la absorcion de aire a gran distancia. Las fuentes
         // volumetricas (isVolumetric) mantienen presencia en un radio amplio.
-        public void PlaySoundAtWorld(string soundName, float x, float y, float z, float pitchMultiplier = 1.0f, bool isVolumetric = false)
+        public void PlaySoundAtWorld(string soundName, float x, float y, float z, float pitchMultiplier = 1.0f, bool isVolumetric = false, float airCutoffOverrideHz = -1.0f, float distanceGainOverride = -1.0f)
         {
             if (SfxVol <= 0) return;
             CleanFinishedSfxChannels();
-            StartSfxStreamWorld(soundName, new Vector3(x, y, z), isVolumetric, pitchMultiplier);
+            StartSfxStreamWorld(soundName, new Vector3(x, y, z), isVolumetric, pitchMultiplier, airCutoffOverrideHz, distanceGainOverride);
         }
 
         // Ruta de objeto 3D para posiciones mundiales arbitrarias (calibracion y
         // cualquier sonido que quiera forzar el paradigma Atmos con independencia
         // del perfil seleccionado). Crea la fuente binaural, la registra como
         // objeto espacial y la reproduce; el motor la da de baja al terminar.
-        private void StartSfxStreamWorld(string soundName, Vector3 world, bool isVolumetric, float pitchMultiplier)
+        private void StartSfxStreamWorld(string soundName, Vector3 world, bool isVolumetric, float pitchMultiplier, float airCutoffOverrideHz = -1.0f, float distanceGainOverride = -1.0f)
         {
             if (!_bassReady) return;
             try
@@ -977,7 +977,11 @@ namespace Bejeweled3Accessible.Audio
                     SpatialAudioObject obj = new SpatialAudioObject(world, min, max);
                     obj.IsVolumetric = isVolumetric;
                     obj.AngleSpreadDeg = isVolumetric ? 40.0f : 6.0f;
+                    obj.AirCutoffOverride = airCutoffOverrideHz;
+                    obj.DistanceGainOverride = distanceGainOverride;
                     obj.Renderer = source.Renderer;
+                    source.Renderer.SpatialPose = true;   // usa la geometria 3D (ganancia/aire), no la profundidad 2D
+                    source.Renderer.Depth = 1.0f;
                     source.SpatialObject = obj;
                     SpatialAudioEngine.Instance.Add(obj);
                     SpatialAudioEngine.Instance.Update(0.0);
@@ -1240,7 +1244,16 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                         obj.SweepDurationMs = PAN_SWEEP_MS;
                     }
                     source.SpatialObject = obj;
+                    source.Renderer.SpatialPose = true;   // usa la geometria 3D, no la profundidad 2D
+                    source.Renderer.Depth = 1.0f;
+                    source.Renderer.Bulge = 1.0f;
                     SpatialAudioEngine.Instance.Add(obj);
+                    // Pose inicial inmediata (por si el timer aun no ha corrido).
+                    Vector3 rel = world - SpatialAudioEngine.Instance.Listener.Position;
+                    source.Renderer.AzimuthDeg = (float)SpatialAudio.AzimuthFromRelative(rel.X, rel.Z);
+                    source.Renderer.DistanceGain = (float)SpatialAudio.DistanceGainFor(rel.Length(), obj.MinDistance, obj.MaxDistance);
+                    source.Renderer.AirCutoffHz = (float)SpatialAudio.AirAbsorptionCutoffHz(rel.Length());
+                    source.Renderer.ElevationTiltDb = (float)SpatialAudio.ElevationTiltDb(world.Y, SpatialAudioEngine.Instance.Listener.Position.Y);
                     SpatialAudioEngine.Instance.Update(0.0);
                 }
 
@@ -1302,7 +1315,9 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 }
 
                 // Glide binaural: anima el azimuth del renderer, no el PAN.
-                if (sweepToCol >= 0 && sweepToCol != col)
+                // En Atmos el swipe lo conduce el motor 3D (SweepFrom/ToX del
+                // objeto), no el scheduler 2D, asi que se omite aqui.
+                if (sweepToCol >= 0 && sweepToCol != col && SpatialProfile != SpatialProfile.Atmos3D)
                 {
                     ScheduleBinauralSweep(source, SpatialAudio.AzimuthDeg(col), SpatialAudio.AzimuthDeg(sweepToCol));
                 }
