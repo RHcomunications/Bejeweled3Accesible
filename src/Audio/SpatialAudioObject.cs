@@ -38,6 +38,14 @@ namespace Bejeweled3Accessible.Audio
         public double DistanceGainOverride = -1.0;
         public double AirCutoffOverride = -1.0;
 
+        // Override del tilt de elevacion (dB). El centinela -999 indica
+        // "automatico" (calculado por la diferencia de altura). Se usa en la
+        // Escuela de Audio para exagerar la demo de altura (suelo/gema/aerea) y
+        // que sea perceptible: un objeto real solo se atenúa ~4 dB entre suelo y
+        // zona aerea, demasiado sutil. Los valores validos pueden ser negativos
+        // (fuente por encima), por eso el centinela es -999 y no < 0.
+        public double ElevationTiltOverride = -999.0;
+
         // Renderer binaural que el motor reprograma con la pose 3D calculada.
         // Lo asigna quien crea el objeto (SoundEngine) antes de registrarlo.
         public BinauralRenderer Renderer;
@@ -157,7 +165,8 @@ namespace Bejeweled3Accessible.Audio
                                 : SpatialAudio.AirAbsorptionCutoffHz(dist);
                     double dg = (obj.DistanceGainOverride >= 0.0) ? obj.DistanceGainOverride
                                : SpatialAudio.DistanceGainFor(dist, obj.MinDistance, obj.MaxDistance);
-                    double tilt = SpatialAudio.ElevationTiltDb(obj.Position.Y, Listener.Position.Y);
+                    double tilt = (obj.ElevationTiltOverride > -900.0) ? obj.ElevationTiltOverride
+                                : SpatialAudio.ElevationTiltDb(obj.Position.Y, Listener.Position.Y);
 
                     if (obj.Renderer != null)
                     {

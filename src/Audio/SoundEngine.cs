@@ -58,6 +58,12 @@ namespace Bejeweled3Accessible.Audio
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
         private static extern int BASS_ChannelGetData(int handle, IntPtr buffer, uint length);
 
+        [DllImport("bass.dll", CharSet = CharSet.Auto)]
+        private static extern bool BASS_ChannelSetDSP(int handle, [MarshalAs(UnmanagedType.FunctionPtr)] BassDspProc proc, IntPtr user, int priority);
+
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+        private delegate void BassDspProc(int handle, int channel, IntPtr buffer, int length, IntPtr user);
+
         private const uint BASS_SAMPLE_LOOP = 4;
         private const uint BASS_SAMPLE_FLOAT = 0x100;
         private const int BASS_ATTRIB_FREQ = 1;
@@ -337,9 +343,64 @@ namespace Bejeweled3Accessible.Audio
         // Motor espacial 3D (paradigma Dolby Atmos): timer de ~60 FPS que
         // actualiza la pose de los objetos activos (ver SpatialAudioEngine).
         private System.Threading.Timer _spatialTimer;
+
+        // DSP de atmosfera musical (perfil Atmos 3D): aplica un paso-bajo de
+        // absorcion de aire y un ensanchador estereo a la musica para que
+        // acompane la atmofera en vez de sonar seca y centrada.
+        private BassDspProc _musicAtmosphereDsp;
+        private float _musicAtmosLpL;
+        private float _musicAtmosLpR;
+        private float[] _musicAtmosBuf;
         private void SpatialTick(object state)
         {
             try { SpatialAudioEngine.Instance.Update(1.0 / 60.0); } catch { }
+        }
+
+        // Tratamiento atmosferico de la musica (solo perfil Atmos 3D). Procesa
+        // el buffer estereo flotante de la musica in-place:
+        //  1) Paso-bajo de un polo por canal (absorcion de aire / "lejania":
+        //     calienta los agudos y da sensacion de espacio distante).
+        //  2) Ensanchador estereo mid/side: refuerza el "lado" para que la musica
+        //     envuelva al oyente en vez de clavarse en el centro.
+        // En cualquier otro perfil devuelve el buffer sin tocarlo (musica seca).
+        private void MusicAtmosphereDsp(int handle, int channel, IntPtr buffer, int length, IntPtr user)
+        {
+            if (SpatialProfile != SpatialProfile.Atmos3D) return;
+            int frames = length / 8;
+            if (frames <= 0) return;
+
+            // Coeficiente del paso-bajo de aire (~fc 5 kHz, suave). Se calcula
+            // una vez por llamada; la tasa de la musica es fija (44.1 kHz).
+            const float air = 0.5f;      // 1 - exp(-2*pi*fc/fs), fc aprox 5 kHz
+            const float width = 1.3f;    // ensanchamiento estereo
+            const float gain = 0.95f;    // ligero realce de "cama" lejana
+
+            if (_musicAtmosBuf == null || _musicAtmosBuf.Length < frames * 2)
+                _musicAtmosBuf = new float[frames * 2];
+            Marshal.Copy(buffer, _musicAtmosBuf, 0, frames * 2);
+
+            for (int i = 0; i < frames; i++)
+            {
+                float l = _musicAtmosBuf[i * 2];
+                float r = _musicAtmosBuf[i * 2 + 1];
+
+                // Paso-bajo de aire por canal.
+                _musicAtmosLpL += air * (l - _musicAtmosLpL);
+                _musicAtmosLpR += air * (r - _musicAtmosLpR);
+                l = _musicAtmosLpL;
+                r = _musicAtmosLpR;
+
+                // Ensanchador mid/side.
+                float mid = (l + r) * 0.5f;
+                float side = (l - r) * 0.5f;
+                l = mid + side * width;
+                r = mid - side * width;
+
+                _musicAtmosBuf[i * 2] = Math.Max(-1.0f, Math.Min(1.0f, l * gain));
+                _musicAtmosBuf[i * 2 + 1] = Math.Max(-1.0f, Math.Min(1.0f, r * gain));
+            }
+
+            Marshal.Copy(_musicAtmosBuf, 0, buffer, frames * 2);
         }
 
         private struct PanSweep
@@ -471,6 +532,12 @@ namespace Bejeweled3Accessible.Audio
             // Motor espacial 3D: timer de ~60 FPS que integra velocidad, swipe y
             // refresca absorcion de aire / elevacion de los objetos activos.
             _spatialTimer = new System.Threading.Timer(SpatialTick, null, 16, 16);
+
+            // DSP de atmosfera para la musica (perfil Atmos 3D): paso-bajo de
+            // "aire/distancia" + ensanchador estereo, para que la musica envuelva
+            // en vez de sonar seca y centrada. En otros perfiles el callback
+            // pasa el buffer intacto.
+            _musicAtmosphereDsp = MusicAtmosphereDsp;
 
             string audioPacPath = Path.Combine(baseDir, "audio.pac");
             _audioPac = new PacReader(audioPacPath);
@@ -931,11 +998,11 @@ namespace Bejeweled3Accessible.Audio
 
         // Reproduce un efecto posicionado en una ALTURA concreta (metros) de la
         // celda, para la calibracion "Escuela de Audio" (suelo / gema / aerea).
-        public void PlaySoundSpatialElevated(string soundName, int col, int row, float elevationMeters, float pitchMultiplier = 1.0f)
+        public void PlaySoundSpatialElevated(string soundName, int col, int row, float elevationMeters, float pitchMultiplier = 1.0f, float airCutoffOverrideHz = -1.0f, float distanceGainOverride = -1.0f, float elevationTiltOverrideDb = -1.0f)
         {
             if (SfxVol <= 0) return;
             CleanFinishedSfxChannels();
-            StartSfxStreamWorld(soundName, SpatialAudio.WorldFromCell(col, row, elevationMeters), false, pitchMultiplier);
+            StartSfxStreamWorld(soundName, SpatialAudio.WorldFromCell(col, row, elevationMeters), false, pitchMultiplier, airCutoffOverrideHz, distanceGainOverride, elevationTiltOverrideDb);
         }
 
         // Reproduce un efecto en una posicion mundial arbitraria (x,y,z metros)
@@ -953,7 +1020,7 @@ namespace Bejeweled3Accessible.Audio
         // cualquier sonido que quiera forzar el paradigma Atmos con independencia
         // del perfil seleccionado). Crea la fuente binaural, la registra como
         // objeto espacial y la reproduce; el motor la da de baja al terminar.
-        private void StartSfxStreamWorld(string soundName, Vector3 world, bool isVolumetric, float pitchMultiplier, float airCutoffOverrideHz = -1.0f, float distanceGainOverride = -1.0f)
+        private void StartSfxStreamWorld(string soundName, Vector3 world, bool isVolumetric, float pitchMultiplier, float airCutoffOverrideHz = -1.0f, float distanceGainOverride = -1.0f, float elevationTiltOverrideDb = -1.0f)
         {
             if (!_bassReady) return;
             try
@@ -979,6 +1046,7 @@ namespace Bejeweled3Accessible.Audio
                     obj.AngleSpreadDeg = isVolumetric ? 40.0f : 6.0f;
                     obj.AirCutoffOverride = airCutoffOverrideHz;
                     obj.DistanceGainOverride = distanceGainOverride;
+                    obj.ElevationTiltOverride = elevationTiltOverrideDb;
                     obj.Renderer = source.Renderer;
                     source.Renderer.SpatialPose = true;   // usa la geometria 3D (ganancia/aire), no la profundidad 2D
                     source.Renderer.Depth = 1.0f;
@@ -1595,8 +1663,10 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
 
                 // Fade-in starts from silence. La música real del módulo se
                 // escucha centrada y seca: el mo3 ya lleva la atmósfera que
-                // mezcló PopCap, y el HRTF nunca la procesa.
+                // mezcló PopCap, y el HRTF nunca la procesa. En el perfil Atmos
+                // 3D, el DSP de atmosfera la envuelve (aire + ensanchamiento).
                 BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, 0.0f);
+                try { BASS_ChannelSetDSP(handle, _musicAtmosphereDsp, IntPtr.Zero, 0); } catch { }
                 BASS_ChannelPlay(handle, true);
                 return handle;
             }
@@ -1676,8 +1746,10 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 }
 
                 // Fade-in starts from silence. Las ambientales reales también se
-                // escuchan centradas y secas, tal cuál PopCap las mezcló.
+                // escuchan centradas y secas, tal cuál PopCap las mezcló. En el
+                // perfil Atmos 3D el DSP de atmosfera las envuelve.
                 BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, 0.0f);
+                try { BASS_ChannelSetDSP(handle, _musicAtmosphereDsp, IntPtr.Zero, 0); } catch { }
                 BASS_ChannelPlay(handle, true);
 
                 pin = pinned;

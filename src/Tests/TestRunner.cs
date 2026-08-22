@@ -1638,6 +1638,101 @@ namespace Bejeweled3Accessible.Tests
                 Assert.True(rms > 0.05, "La demo no debe silenciarse (rms " + rms.ToString("F3") + ")");
             }));
 
+            tests.Add(Tuple.Create<string, Action>("HRTF 3D: Escuela de Audio lateraliza bien las columnas (fila frontal)", () =>
+            {
+                // Las columnas A..H se calibran en la FILA FRONTAL (row 7): el
+                // azimut debe abarcar un cono amplio (~±60°), no el ±21° sutil
+                // de la fila trasera (antes sonaban casi centradas).
+                float azA = CellAzimuth(0, 7);
+                float azH = CellAzimuth(7, 7);
+                Assert.True(azA < -45.0f, "Columna A debe sonar a la izquierda (az " + azA.ToString("F1") + ")");
+                Assert.True(azH > 45.0f, "Columna H debe sonar a la derecha (az " + azH.ToString("F1") + ")");
+
+                // Renderiza un tono por el renderer 3D y comprueba que el oido
+                // correcto suena mas fuerte (lateralizacion real, no centrada).
+                int frames = 17640;
+                float[] mono = new float[frames];
+                for (int i = 0; i < frames; i++)
+                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0) * 0.5f;
+
+                BinauralRenderer rA = new BinauralRenderer { AzimuthDeg = azA, SpatialPose = true, DistanceGain = 1.0f, AirCutoffHz = 0.0f, ElevationTiltDb = 0.0f };
+                BinauralRenderer rH = new BinauralRenderer { AzimuthDeg = azH, SpatialPose = true, DistanceGain = 1.0f, AirCutoffHz = 0.0f, ElevationTiltDb = 0.0f };
+                float[] sA = new float[frames * 2];
+                float[] sH = new float[frames * 2];
+                rA.Process(mono, frames, sA);
+                rH.Process(mono, frames, sH);
+                float rmsLA = RmsChannel(sA, 0), rmsRA = RmsChannel(sA, 1);
+                float rmsLH = RmsChannel(sH, 0), rmsRH = RmsChannel(sH, 1);
+                Assert.True(rmsLA > 1.4f * rmsRA, "Columna A: izquierda mas fuerte (" + rmsLA.ToString("F3") + " vs " + rmsRA.ToString("F3") + ")");
+                Assert.True(rmsRH > 1.4f * rmsLH, "Columna H: derecha mas fuerte (" + rmsRH.ToString("F3") + " vs " + rmsLH.ToString("F3") + ")");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("HRTF 3D: Escuela de Audio exagera tilt de altura (override)", () =>
+            {
+                // La demo de altura (suelo/gema/aerea) exagera el tilt para que
+                // sea perceptible: el override debe aplicarse tal cual en el motor.
+                BinauralRenderer renderer = new BinauralRenderer();
+                SpatialAudioObject obj = new SpatialAudioObject(new Vector3(0.0, 0.0, 9.0), SpatialAudio.PointMinDistance, SpatialAudio.PointMaxDistance);
+                obj.Renderer = renderer;
+                obj.ElevationTiltOverride = 4.0;
+                SpatialAudioEngine.Instance.Add(obj);
+                try
+                {
+                    SpatialAudioEngine.Instance.Update(0.0);
+                    Assert.Near(4.0f, renderer.ElevationTiltDb, 0.001f, "Override de tilt (suelo) debe aplicarse");
+                    obj.ElevationTiltOverride = -6.0;
+                    SpatialAudioEngine.Instance.Update(0.0);
+                    Assert.Near(-6.0f, renderer.ElevationTiltDb, 0.001f, "Override de tilt (aerea) debe aplicarse");
+                }
+                finally { SpatialAudioEngine.Instance.Release(obj); }
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Musica: el perfil Atmos envuelve la musica (aire + widen)", () =>
+            {
+                using (SoundEngine sound = new SoundEngine(AppDomain.CurrentDomain.BaseDirectory))
+                {
+                    var method = typeof(SoundEngine).GetMethod("MusicAtmosphereDsp",
+                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    Assert.NotNull(method, "MusicAtmosphereDsp debe existir");
+
+                    int frames = 4410; // 100 ms
+                    // Senal con contenido estereo: L=1 kHz, R=8 kHz.
+                    float[] sig = new float[frames * 2];
+                    for (int i = 0; i < frames; i++)
+                    {
+                        sig[i * 2] = (float)(0.4 * Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0));
+                        sig[i * 2 + 1] = (float)(0.4 * Math.Sin(2.0 * Math.PI * 8000.0 * i / 44100.0));
+                    }
+                    float rmsInR = RmsChannel(sig, 1);
+                    float sideIn = SideRatio(sig, 2);
+
+                    // Perfil Atmos: debe ensanchar y oscurecer el agudo (aire).
+                    sound.SpatialProfile = SpatialProfile.Atmos3D;
+                    float[] buf = (float[])sig.Clone();
+                    var handle = System.Runtime.InteropServices.GCHandle.Alloc(buf, System.Runtime.InteropServices.GCHandleType.Pinned);
+                    try
+                    {
+                        method.Invoke(sound, new object[] { 0, 0, handle.AddrOfPinnedObject(), buf.Length * 4, IntPtr.Zero });
+                    }
+                    finally { handle.Free(); }
+
+                    float rmsOutR = RmsChannel(buf, 1);
+                    float sideOut = SideRatio(buf, 2);
+                    Assert.True(sideOut > sideIn, "Atmos debe ensanchar el estereo (lado " + sideOut.ToString("F3") + " > " + sideIn.ToString("F3") + ")");
+                    Assert.True(rmsOutR < 0.8f * rmsInR, "Atmos oscurece el agudo (aire): rms R " + rmsOutR.ToString("F3") + " < " + rmsInR.ToString("F3"));
+
+                    // Otro perfil: la musica pasa intacta (sin procesar).
+                    sound.SpatialProfile = SpatialProfile.CleanArcade;
+                    float[] buf2 = (float[])sig.Clone();
+                    var h2 = System.Runtime.InteropServices.GCHandle.Alloc(buf2, System.Runtime.InteropServices.GCHandleType.Pinned);
+                    try { method.Invoke(sound, new object[] { 0, 0, h2.AddrOfPinnedObject(), buf2.Length * 4, IntPtr.Zero }); }
+                    finally { h2.Free(); }
+                    bool identical = true;
+                    for (int i = 0; i < buf2.Length; i++) if (buf2[i] != sig[i]) { identical = false; break; }
+                    Assert.True(identical, "Fuera de Atmos la musica debe pasar intacta");
+                }
+            }));
+
             tests.Add(Tuple.Create<string, Action>("HRTF: swipe binaural anima el azimuth", () =>
             {
                 float fromAz = SpatialAudio.AzimuthDeg(0);
@@ -2356,6 +2451,43 @@ namespace Bejeweled3Accessible.Tests
             for (int i = 0; i < a.Length; i++)
                 if (a[i] != b[i]) return false;
             return true;
+        }
+
+        private static float RmsChannel(float[] interleaved, int chan)
+        {
+            if (interleaved == null || chan < 0) return 0.0f;
+            double sum = 0.0;
+            int n = 0;
+            for (int i = chan; i < interleaved.Length; i += 2)
+            {
+                sum += interleaved[i] * interleaved[i];
+                n++;
+            }
+            return n > 0 ? (float)Math.Sqrt(sum / n) : 0.0f;
+        }
+
+        // Azimut (grados) de una celda respecto al listener, usando el mismo
+        // motor 3D que la Escuela de Audio.
+        private static float CellAzimuth(int col, int row)
+        {
+            Vector3 w = SpatialAudio.WorldFromCell(col, row, SpatialAudio.GemElevationMeters);
+            Vector3 rel = w - new Vector3(0.0, 1.0, 0.0);
+            return SpatialAudio.AzimuthFromRelative(rel.X, rel.Z);
+        }
+
+        // Relacion lado/mono (0 = centrado, 1 = totalmente diferenciado L/R).
+        private static float SideRatio(float[] interleaved, int chans)
+        {
+            if (interleaved == null) return 0.0f;
+            double side = 0.0, tot = 0.0;
+            for (int i = 0; i < interleaved.Length; i += chans)
+            {
+                float l = interleaved[i];
+                float r = interleaved[i + 1];
+                side += (l - r) * (l - r);
+                tot += (l + r) * (l + r) * 0.25f;
+            }
+            return (float)(side / (tot + 1e-9));
         }
 
         private static void RunDecodeProbe()

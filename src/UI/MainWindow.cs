@@ -975,19 +975,23 @@ namespace Bejeweled3Accessible.UI
             Func<string, string, string> L = (es, e) => en ? e : es;
             var items = new List<string>();
             string[] cols = { "A", "B", "C", "D", "E", "F", "G", "H" };
-            // Columnas A-H: todas en la fila del fondo (misma profundidad) para
-            // aislar el azimut izquierda -> derecha.
+            // Columnas A-H: en la FILA FRONTAL (cerca del listener) para que el
+            // azimut abarque un cono dramatico (~±60°): A a la izquierda, H a la
+            // derecha. Asi la prueba de direccion lateral se oye de verdad.
             for (int i = 0; i < 8; i++)
-                items.Add(L(string.Format("Columna {0} (fondo, izquierda a derecha)", cols[i]),
-                            string.Format("Column {0} (back row, left to right)", cols[i])));
+                items.Add(L(string.Format("Columna {0} (frente, izquierda a derecha)", cols[i]),
+                            string.Format("Column {0} (front row, left to right)", cols[i])));
             // Filas 1-8: columna central, variando la profundidad fondo -> frente.
+            // La direccion se aisla en el volumen (fondo mas lejos/quieto, frente mas cerca/fuerte).
             for (int r = 0; r < 8; r++)
                 items.Add(L(string.Format("Fila {0} ({1})", r + 1, r == 0 ? "fondo, lejos" : (r == 7 ? "frente, cerca" : "profundidad media")),
                             string.Format("Row {0} ({1})", r + 1, r == 0 ? "back, far" : (r == 7 ? "front, near" : "mid depth"))));
-            // Altura: suelo / gema / aerea en el centro del fondo.
-            items.Add(L("Altura suelo (centro del fondo)", "Floor height (back center)"));
-            items.Add(L("Altura gema (centro del fondo)", "Gem height (back center)"));
-            items.Add(L("Zona aerea (centro del fondo)", "Aerial zone (back center)"));
+            // Altura: suelo / gema / aerea en el centro del fondo. El tilt de
+            // elevacion real es sutil (~4 dB), asi que la demo lo exagera para
+            // que se perciba (suelo mas presente, zona aerea mas apagada).
+            items.Add(L("Altura suelo (centro, debajo del oido)", "Floor height (center, below ear)"));
+            items.Add(L("Altura gema (centro, a la altura del oido)", "Gem height (center, at ear level)"));
+            items.Add(L("Zona aerea (centro, encima del oido)", "Aerial zone (center, above ear)"));
             // Barrido y aire.
             items.Add(L("Barrido de columnas (A -> H)", "Column sweep (A -> H)"));
             items.Add(L("Lejos con absorcion de aire", "Far with air absorption"));
@@ -1012,6 +1016,9 @@ namespace Bejeweled3Accessible.UI
             else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
             {
                 _sound.PlaySound(AudioMap.ButtonPress);
+                // Confirma que la prueba se activo (repite la opcion) y luego
+                // reproduce el sonido posicionado para que se oiga la diferencia.
+                _speech.Speak(items[_audioSchoolIdx], true);
                 PlayAudioSchoolTest(_audioSchoolIdx);
             }
             else if (e.KeyCode == Keys.Escape)
@@ -1024,25 +1031,36 @@ namespace Bejeweled3Accessible.UI
         }
 
         // Reproduce la prueba de calibracion indicada por indice (ver GetAudioSchoolItems).
-        // Indices: 0-7 columnas (fila fondo), 8-15 filas (columna central),
-        // 16-18 altura (centro fondo), 19 barrido, 20 lejos con aire.
+        // Indices: 0-7 columnas (fila frontal, azimut ±60°), 8-15 filas (columna
+        // central, profundidad fondo->frente), 16-18 altura (centro fondo, tilt
+        // exagerado), 19 barrido, 20 lejos con aire.
         private void PlayAudioSchoolTest(int idx)
         {
             string s = AudioMap.Select;
-            const int backRow = 0;       // fila 1 (fondo), Z minimo, misma profundidad para azimut
+            const int backRow = 0;       // fila 1 (fondo), Z maximo
+            const int frontRow = 7;      // fila 8 (frente), Z minimo -> azimut dramatico
             const int centerCol = 3;     // columna D (~centro del tablero)
+            const float gem = (float)Audio.SpatialAudio.GemElevationMeters;
+            const float aerial = (float)Audio.SpatialAudio.AerialElevationMeters;
             if (idx >= 0 && idx <= 7)
-                _sound.PlaySoundSpatialElevated(s, idx, backRow, (float)Audio.SpatialAudio.GemElevationMeters);
+                // Columnas en la fila frontal: izquierda (A) -> derecha (H) con
+                // un cono de ±60°, se oye claramente el desplazamiento lateral.
+                _sound.PlaySoundSpatialElevated(s, idx, frontRow, gem);
             else if (idx >= 8 && idx <= 15)
-                _sound.PlaySoundSpatialElevated(s, centerCol, idx - 8, (float)Audio.SpatialAudio.GemElevationMeters);
+                // Filas en columna central: el volumen marca la profundidad
+                // (fondo mas lejos/quieto, frente mas cerca/fuerte).
+                _sound.PlaySoundSpatialElevated(s, centerCol, idx - 8, gem);
             else if (idx == 16)
-                _sound.PlaySoundSpatialElevated(s, centerCol, backRow, 0.0f);
+                // Suelo: el tilt exagerado lo hace sonar mas presente (cerca).
+                _sound.PlaySoundSpatialElevated(s, centerCol, backRow, 0.0f, 1.0f, -1.0f, -1.0f, 4.0f);
             else if (idx == 17)
-                _sound.PlaySoundSpatialElevated(s, centerCol, backRow, (float)Audio.SpatialAudio.GemElevationMeters);
+                // Gema: a la altura del oido, sin tilt.
+                _sound.PlaySoundSpatialElevated(s, centerCol, backRow, gem, 1.0f, -1.0f, -1.0f, 0.0f);
             else if (idx == 18)
-                _sound.PlaySoundSpatialElevated(s, centerCol, backRow, (float)Audio.SpatialAudio.AerialElevationMeters);
+                // Zona aerea: tilt exagerado lo apaga (lejos/encima).
+                _sound.PlaySoundSpatialElevated(s, centerCol, backRow, aerial, 1.0f, -1.0f, -1.0f, -6.0f);
             else if (idx == 19)
-                _sound.PlaySoundSpatialSweep(s, 0, 7, backRow, (float)Audio.SpatialAudio.GemElevationMeters);
+                _sound.PlaySoundSpatialSweep(s, 0, 7, backRow, gem);
             else if (idx == 20)
                 // Demo de absorcion de aire: fuerza el corte a 1,2 kHz (equivalente
                 // a ~50 m) con ganancia plena para que se oiga el telefono sin que
