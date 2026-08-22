@@ -38,6 +38,8 @@ namespace Bejeweled3Accessible.Engine
             { "MenuLanguage", new Tuple<string, string>("Idioma: Español. Pulsa Enter para cambiar", "Language: English. Press Enter to switch to Spanish") },
             { "MenuOptions", new Tuple<string, string>("Opciones de Sonido y Voz", "Sound & Voice Options") },
             { "MenuTutorial", new Tuple<string, string>("Tutorial de Accesibilidad", "Accessibility Tutorial") },
+            { "MenuAudioSchool", new Tuple<string, string>("Escuela de Audio", "Audio School") },
+            { "AudioSchoolTitle", new Tuple<string, string>("Escuela de Audio: pruebas de auriculares (arriba/abajo para elegir, Enter para escuchar, Escape para volver)", "Audio School: headphone tests (up/down to choose, Enter to listen, Escape to go back)") },
             { "TutorialTitle", new Tuple<string, string>("Tutorial de Accesibilidad y Teclas", "Accessibility & Keys Tutorial") },
             { "TutorialStep1", new Tuple<string, string>("1. Movimiento en Tablero: Usa las Flechas para navegar entre casillas A1 y H8. Cada gema suena a la izquierda o a la derecha según su columna (audio binaural, como el juego original), y su color y tipo los anuncia el lector de pantalla.", "1. Board Movement: Use Arrow keys to navigate cells A1 to H8. Each gem sounds to the left or right according to its column (binaural audio, like the original), and its color and type are announced by the screen reader.") },
             { "TutorialStep2", new Tuple<string, string>("2. Intercambio de Gemas: Presiona las teclas W, A, S, D para realizar un movimiento con la gema adyacente en esa dirección.", "2. Swapping Gems: Press W, A, S, D keys to swap with an adjacent gem in that direction.") },
@@ -76,6 +78,7 @@ namespace Bejeweled3Accessible.Engine
             { "SpatialProfileStage2D", new Tuple<string, string>("Escenario 2D", "Stage 2D") },
             { "SpatialProfileClean", new Tuple<string, string>("Clásico Limpio", "Clean Classic") },
             { "SpatialProfileSimple", new Tuple<string, string>("Simple", "Simple") },
+            { "SpatialProfileAtmos3D", new Tuple<string, string>("Objeto 3D (Atmos)", "3D Object (Atmos)") },
             { "OptBack", new Tuple<string, string>("Guardar y Volver al Menú", "Save & Return to Menu") },
 
             // Main Modes

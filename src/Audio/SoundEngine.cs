@@ -334,6 +334,14 @@ namespace Bejeweled3Accessible.Audio
         private System.Threading.Timer _panSweepTimer;
         private readonly System.Diagnostics.Stopwatch _panClock = System.Diagnostics.Stopwatch.StartNew();
 
+        // Motor espacial 3D (paradigma Dolby Atmos): timer de ~60 FPS que
+        // actualiza la pose de los objetos activos (ver SpatialAudioEngine).
+        private System.Threading.Timer _spatialTimer;
+        private void SpatialTick(object state)
+        {
+            try { SpatialAudioEngine.Instance.Update(1.0 / 60.0); } catch { }
+        }
+
         private struct PanSweep
         {
             public int Handle;
@@ -459,6 +467,10 @@ namespace Bejeweled3Accessible.Audio
                 _soundDir = candidateSoundDir1;
 
             _musicDir = Path.Combine(baseDir, "music");
+
+            // Motor espacial 3D: timer de ~60 FPS que integra velocidad, swipe y
+            // refresca absorcion de aire / elevacion de los objetos activos.
+            _spatialTimer = new System.Threading.Timer(SpatialTick, null, 16, 16);
 
             string audioPacPath = Path.Combine(baseDir, "audio.pac");
             _audioPac = new PacReader(audioPacPath);
@@ -917,6 +929,114 @@ namespace Bejeweled3Accessible.Audio
             StartSfxStream(soundName, fromX, row, pitchMultiplier, toX);
         }
 
+        // Reproduce un efecto posicionado en una ALTURA concreta (metros) de la
+        // celda, para la calibracion "Escuela de Audio" (suelo / gema / aerea).
+        public void PlaySoundSpatialElevated(string soundName, int col, int row, float elevationMeters, float pitchMultiplier = 1.0f)
+        {
+            if (SfxVol <= 0) return;
+            CleanFinishedSfxChannels();
+            StartSfxStreamWorld(soundName, SpatialAudio.WorldFromCell(col, row, elevationMeters), false, pitchMultiplier);
+        }
+
+        // Reproduce un efecto en una posicion mundial arbitraria (x,y,z metros)
+        // respecto al listener. Usado por la calibracion "Escuela de Audio" para
+        // probar direcciones y la absorcion de aire a gran distancia. Las fuentes
+        // volumetricas (isVolumetric) mantienen presencia en un radio amplio.
+        public void PlaySoundAtWorld(string soundName, float x, float y, float z, float pitchMultiplier = 1.0f, bool isVolumetric = false)
+        {
+            if (SfxVol <= 0) return;
+            CleanFinishedSfxChannels();
+            StartSfxStreamWorld(soundName, new Vector3(x, y, z), isVolumetric, pitchMultiplier);
+        }
+
+        // Ruta de objeto 3D para posiciones mundiales arbitrarias (calibracion y
+        // cualquier sonido que quiera forzar el paradigma Atmos con independencia
+        // del perfil seleccionado). Crea la fuente binaural, la registra como
+        // objeto espacial y la reproduce; el motor la da de baja al terminar.
+        private void StartSfxStreamWorld(string soundName, Vector3 world, bool isVolumetric, float pitchMultiplier)
+        {
+            if (!_bassReady) return;
+            try
+            {
+                byte[] audioBytes = LoadAudioBytes(soundName);
+                if (audioBytes == null || audioBytes.Length == 0) return;
+
+                GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
+                try
+                {
+                    BinauralSfxSource source = new BinauralSfxSource(audioBytes, pinned, 0.0f, 1.0f);
+                    int handle = source.OutputHandle;
+                    if (handle == 0)
+                    {
+                        try { source.Dispose(); } catch { }
+                        return;
+                    }
+
+                    double min = isVolumetric ? SpatialAudio.VolumetricMinDistance : SpatialAudio.PointMinDistance;
+                    double max = isVolumetric ? SpatialAudio.VolumetricMaxDistance : SpatialAudio.PointMaxDistance;
+                    SpatialAudioObject obj = new SpatialAudioObject(world, min, max);
+                    obj.IsVolumetric = isVolumetric;
+                    obj.AngleSpreadDeg = isVolumetric ? 40.0f : 6.0f;
+                    obj.Renderer = source.Renderer;
+                    source.SpatialObject = obj;
+                    SpatialAudioEngine.Instance.Add(obj);
+                    SpatialAudioEngine.Instance.Update(0.0);
+
+                    BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, (float)SfxVol / 100.0f);
+                    if (Math.Abs(pitchMultiplier - 1.0f) > 0.01f)
+                    {
+                        float currentFreq = 44100.0f;
+                        if (BASS_ChannelGetAttribute(handle, BASS_ATTRIB_FREQ, ref currentFreq))
+                        {
+                            BASS_ChannelSetAttribute(handle, BASS_ATTRIB_FREQ, currentFreq * pitchMultiplier);
+                        }
+                    }
+
+                    BASS_ChannelPlay(handle, true);
+
+                    lock (_activeSfxList)
+                    {
+                        for (int i = _activeSfxList.Count - 1; i >= 0; i--)
+                        {
+                            if (BASS_ChannelIsActive(_activeSfxList[i].Handle) == 0)
+                            {
+                                ActiveSfx done = _activeSfxList[i];
+                                _activeSfxList.RemoveAt(i);
+                                if (done.Binaural != null) { try { done.Binaural.Dispose(); } catch { } }
+                                else
+                                {
+                                    if (done.Pin.IsAllocated) { try { done.Pin.Free(); } catch { } }
+                                    try { BASS_StreamFree(done.Handle); } catch { }
+                                }
+                            }
+                        }
+                        if (_activeSfxList.Count >= 25)
+                        {
+                            ActiveSfx oldest = _activeSfxList[0];
+                            _activeSfxList.RemoveAt(0);
+                            try { BASS_ChannelStop(oldest.Handle); } catch { }
+                            if (oldest.Binaural != null) { try { oldest.Binaural.Dispose(); } catch { } }
+                            else
+                            {
+                                if (oldest.Pin.IsAllocated) { try { oldest.Pin.Free(); } catch { } }
+                                try { BASS_StreamFree(oldest.Handle); } catch { }
+                            }
+                            _activeSfxList.Add(new ActiveSfx { Handle = handle, IsVoice = false, Binaural = source });
+                        }
+                        else
+                        {
+                            _activeSfxList.Add(new ActiveSfx { Handle = handle, IsVoice = false, Binaural = source });
+                        }
+                    }
+                }
+                catch
+                {
+                    if (pinned.IsAllocated) { try { pinned.Free(); } catch { } }
+                }
+            }
+            catch { }
+        }
+
         // Creates a one-shot BASS stream for a sound effect and hands the channel
         // to the _activeSfxList. Every failure path frees the handle + GCHandle so
         // nothing leaks when BASS reports an error after StreamCreateFile.
@@ -1102,6 +1222,26 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 {
                     try { source.Dispose(); } catch { }
                     return;
+                }
+
+                // Perfil Objeto 3D (Atmos): cada sonido es un objeto acustico en
+                // el espacio. El motor recalcula azimut/distancia/absorcion/tilt
+                // cada frame desde su posicion mundial relativa al listener.
+                if (SpatialProfile == SpatialProfile.Atmos3D)
+                {
+                    Vector3 world = SpatialAudio.WorldFromCell(col, row, SpatialAudio.GemElevationMeters);
+                    SpatialAudioObject obj = new SpatialAudioObject(world, SpatialAudio.PointMinDistance, SpatialAudio.PointMaxDistance);
+                    obj.AngleSpreadDeg = 6.0f;
+                    obj.Renderer = source.Renderer;
+                    if (sweepToCol >= 0 && sweepToCol != col)
+                    {
+                        obj.SweepFromX = SpatialAudio.WorldFromCell(col, row, SpatialAudio.GemElevationMeters).X;
+                        obj.SweepToX = SpatialAudio.WorldFromCell(sweepToCol, row, SpatialAudio.GemElevationMeters).X;
+                        obj.SweepDurationMs = PAN_SWEEP_MS;
+                    }
+                    source.SpatialObject = obj;
+                    SpatialAudioEngine.Instance.Add(obj);
+                    SpatialAudioEngine.Instance.Update(0.0);
                 }
 
                 // El renderer aplica la profundidad (volumen + aire) y el bulge
@@ -1709,6 +1849,13 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 _musicMonitorTimer = null;
             }
 
+            if (_spatialTimer != null)
+            {
+                try { _spatialTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite); } catch { }
+                try { _spatialTimer.Dispose(); } catch { }
+                _spatialTimer = null;
+            }
+
             System.Threading.Timer pumpTimer = null;
             lock (_voiceLock)
             {
@@ -1842,6 +1989,11 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         // Pose que anima el motor (swipes): el hilo de audio la lee por bloque.
         public BinauralRenderer Renderer { get; private set; }
 
+        // Objeto 3D (paradigma Atmos) asociado a esta fuente, si la reproduce el
+        // motor espacial. Al liberar la fuente se da de baja del motor para no
+        // dejar el canal/DSP colgando.
+        public SpatialAudioObject SpatialObject { get; set; }
+
         private readonly GCHandle _pin;      // OGG en RAM: vive con la fuente
         private readonly GCHandle _selfPin;  // token para el callback de BASS
         private readonly DspProc _dsp;
@@ -1928,6 +2080,11 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             if (_selfPin.IsAllocated)
             {
                 try { _selfPin.Free(); } catch { }
+            }
+            if (SpatialObject != null)
+            {
+                try { SpatialAudioEngine.Instance.Release(SpatialObject); } catch { }
+                SpatialObject = null;
             }
         }
     }

@@ -49,22 +49,44 @@ namespace Bejeweled3Accessible.Audio
         // el centro, aplicada al volumen.
         public float Bulge = 1.0f;
 
+        // ---- Capa 3D (paradigma Dolby Atmos) ------------------------------
+        // Ganancia de distancia (0..1): la calcula SpatialAudioEngine a partir
+        // de la distancia real al listener (y el radio volumetrico). 1 = sin
+        // cambio para los perfiles 2D.
+        public float DistanceGain = 1.0f;
+
+        // Tilt de elevacion (dB): atenuacion sutil por diferencia de altura.
+        // 0 = sin tilt.
+        public float ElevationTiltDb = 0.0f;
+
+        // Corte del paso-bajo de absorcion de aire (Hz). 0 = sin filtrar
+        // (transparente, perfiles 2D). El motor 3D lo fija segun la distancia.
+        public float AirCutoffHz = 0.0f;
+
         private readonly float[] _delayL = new float[DelayLineSamples];
         private readonly float[] _delayR = new float[DelayLineSamples];
         private int _delayPos = 0;
+        private float _lpL = 0.0f;
+        private float _lpR = 0.0f;
 
         // Procesa `frames` muestras mono de `monoIn` y escribe `frames` frames
-        // estereo intercalados (L,R,L,R...) en `stereoOut` (debe tener al menos
-        // 2*frames elementos). Sin estado espectral: solo retardo y ganancia.
+        // estereo intercalados (L,R,L,R...) en `stereoOut`. Pipeline: ITD + ILD
+        // (posicion) * (volumen de profundidad 2D * distancia 3D * tilt) y, si
+        // AirCutoffHz > 0, un paso-bajo de un polo (RC) por oido (absorcion de
+        // aire, bilateral). Sin estado espectral cuando AirCutoffHz = 0.
         public void Process(float[] monoIn, int frames, float[] stereoOut)
         {
             float az = AzimuthDeg;
             float itd = SpatialAudio.ItdSamples(az, SampleRate);
             float farGain = SpatialAudio.FarEarGain(az);
-            float dist = SpatialAudio.DepthVolume(Depth) * Bulge;
+            float elevGain = SpatialAudio.DbToLinear(ElevationTiltDb);
+            float dist = SpatialAudio.DepthVolume(Depth) * Bulge * DistanceGain * elevGain;
 
             // La fuente a la derecha (az > 0) oye antes el oido derecho.
             bool farIsLeft = az > 0.0f;
+
+            // Coeficiente del paso-bajo RC de aire. 0 (o >= Nyquist) = bypass.
+            float a = AirLpCoeff(AirCutoffHz);
 
             int s = 0;
             for (int i = 0; i < frames; i++)
@@ -81,17 +103,41 @@ namespace Bejeweled3Accessible.Audio
                 float outFar = far * farGain * dist;
                 float outNear = near * dist;
 
+                float l, r;
                 if (farIsLeft)
                 {
-                    stereoOut[s++] = outFar;
-                    stereoOut[s++] = outNear;
+                    l = outFar;
+                    r = outNear;
                 }
                 else
                 {
-                    stereoOut[s++] = outNear;
-                    stereoOut[s++] = outFar;
+                    l = outNear;
+                    r = outFar;
+                }
+
+                if (a <= 0.0f)
+                {
+                    stereoOut[s++] = l;
+                    stereoOut[s++] = r;
+                }
+                else
+                {
+                    _lpL += a * (l - _lpL);
+                    _lpR += a * (r - _lpR);
+                    stereoOut[s++] = _lpL;
+                    stereoOut[s++] = _lpR;
                 }
             }
+        }
+
+        // Coeficiente del paso-bajo de un polo (RC) para el corte fc. Devuelve
+        // 0 cuando el corte es 0 (sin filtrar) o supera ~Nyquist (bypass
+        // transparente): asi los perfiles 2D no sufren ningun procesado.
+        private float AirLpCoeff(float cutoffHz)
+        {
+            if (cutoffHz <= 0.0f) return 0.0f;
+            float c = Math.Min(cutoffHz, SampleRate * 0.49f);
+            return 1.0f - (float)Math.Exp(-2.0 * Math.PI * c / SampleRate);
         }
 
         // Retardo fraccional: lee la muestra a `itdSamples` muestras de la

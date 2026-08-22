@@ -1510,6 +1510,66 @@ namespace Bejeweled3Accessible.Tests
                     "El oido cercano conserva el brillo, fue " + brilloR.ToString("F3") + " vs " + brilloIn.ToString("F3"));
             }));
 
+            tests.Add(Tuple.Create<string, Action>("HRTF 3D: absorcion de aire por distancia", () =>
+            {
+                // 20 kHz por debajo de 14 m; rolloff exponencial a ~1.2 kHz a 50 m.
+                Assert.Near(20000.0f, SpatialAudio.AirAbsorptionCutoffHz(10.0), 1.0f, "Cerca es transparente");
+                Assert.Near(20000.0f, SpatialAudio.AirAbsorptionCutoffHz(14.0), 1.0f, "En 14 m sigue a 20 kHz");
+                float c50 = SpatialAudio.AirAbsorptionCutoffHz(50.0);
+                Assert.True(c50 > 1000.0f && c50 < 1400.0f, "A 50 m ~1.2 kHz, fue " + c50.ToString("F0"));
+                Assert.True(SpatialAudio.AirAbsorptionCutoffHz(30.0) > SpatialAudio.AirAbsorptionCutoffHz(50.0),
+                    "El corte baja al alejarse");
+                Assert.True(SpatialAudio.AirAbsorptionCutoffHz(50.0) > SpatialAudio.AirAbsorptionCutoffHz(80.0),
+                    "El corte sigue bajando mas alla de 50 m");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("HRTF 3D: fuente volumetrica suena mas grande", () =>
+            {
+                // A 3 m la puntual ya decae; la volumetrica (minDistance mayor)
+                // mantiene presencia (ganancia 1): por eso "suena grande".
+                float puntual = SpatialAudio.DistanceGainFor(3.0, SpatialAudio.PointMinDistance, SpatialAudio.PointMaxDistance);
+                float vol = SpatialAudio.DistanceGainFor(3.0, SpatialAudio.VolumetricMinDistance, SpatialAudio.VolumetricMaxDistance);
+                Assert.True(vol > puntual, "Volumetrica mas fuerte a 3 m (" + vol.ToString("F2") + " vs " + puntual.ToString("F2") + ")");
+                Assert.True(vol > 0.9f, "Volumetrica casi plena a 3 m");
+                Assert.Near(1.0f, SpatialAudio.DistanceGainFor(1.0, SpatialAudio.PointMinDistance, SpatialAudio.PointMaxDistance), 0.001f, "Puntual plena dentro de minDistance");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("HRTF 3D: tilt de elevacion atenuda lo alto", () =>
+            {
+                float sube = SpatialAudio.ElevationTiltDb(2.5, 1.0);   // fuente por encima
+                float plano = SpatialAudio.ElevationTiltDb(1.0, 1.0);  // a la altura del oido
+                Assert.Near(0.0f, plano, 0.001f, "A la altura del oido no hay tilt");
+                Assert.True(sube < 0.0f, "Por encima se atenúa (tilt negativo), fue " + sube.ToString("F2"));
+                Assert.True(sube > -4.1f, "Tilt sutil (tope -4 dB), fue " + sube.ToString("F2"));
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("HRTF 3D: el paso-bajo de aire oscurece al alejar", () =>
+            {
+                // Senal de dos tonos (1 kHz por debajo de 3 kHz, 8 kHz por
+                // encima): el brillo es la energia >3 kHz. Con aire transparente
+                // (20 kHz) el 8 kHz suena; con corte de 1.2 kHz (50 m) el 8 kHz
+                // se apaga y el brillo cae mucho.
+                int frames = 17640;
+                float[] mono = new float[frames];
+                for (int i = 0; i < frames; i++)
+                {
+                    mono[i] = (float)(0.5 * Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0)
+                                   + 0.5 * Math.Sin(2.0 * Math.PI * 8000.0 * i / 44100.0));
+                }
+
+                BinauralRenderer libre = new BinauralRenderer { AzimuthDeg = 0.0f, Depth = 1.0f, AirCutoffHz = 0.0f };
+                BinauralRenderer lejos = new BinauralRenderer { AzimuthDeg = 0.0f, Depth = 1.0f, AirCutoffHz = SpatialAudio.AirAbsorptionCutoffHz(50.0) };
+                float[] sLibre = new float[frames * 2];
+                float[] sLejos = new float[frames * 2];
+                libre.Process(mono, frames, sLibre);
+                lejos.Process(mono, frames, sLejos);
+
+                float brilloLibre = HighFreqRatio(sLibre, 2, 0);
+                float brilloLejos = HighFreqRatio(sLejos, 2, 0);
+                Assert.True(brilloLejos < 0.5f * brilloLibre,
+                    "El aire a 50 m apaga el agudo (brillo " + brilloLejos.ToString("F3") + " vs " + brilloLibre.ToString("F3") + ")");
+            }));
+
             tests.Add(Tuple.Create<string, Action>("HRTF: swipe binaural anima el azimuth", () =>
             {
                 float fromAz = SpatialAudio.AzimuthDeg(0);

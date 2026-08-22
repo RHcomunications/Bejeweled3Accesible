@@ -11,7 +11,7 @@ using Updater = Bejeweled3Accessible.Update.AutoUpdater;
 
 namespace Bejeweled3Accessible.UI
 {
-    public enum GameScreen { Loading, ProfileInput, ProfileSelectScreen, MainMenu, GameSelect, Options, BadgesScreen, RecordsScreen, TutorialScreen, ZenOptionsScreen, QuestRelicScreen, QuestChallengeScreen, Playing, PauseMenu, GameOver }
+    public enum GameScreen { Loading, ProfileInput, ProfileSelectScreen, MainMenu, GameSelect, Options, BadgesScreen, RecordsScreen, TutorialScreen, ZenOptionsScreen, QuestRelicScreen, QuestChallengeScreen, AudioSchool, Playing, PauseMenu, GameOver }
 
     public class MainWindow : Form
     {
@@ -49,6 +49,7 @@ namespace Bejeweled3Accessible.UI
         private int _recordsIdx = 0;
         private int _tutorialIdx = 0;
         private int _relicIdx = 0;
+        private int _audioSchoolIdx = 0;
         private int _questChallengeIdx = 0;
         private int _profileSelectIdx = 0;
         private int _zenOptionsIdx = 0;
@@ -134,6 +135,7 @@ namespace Bejeweled3Accessible.UI
                 Localization.Get("MenuChangeUser", profName),
                 Localization.Get("MenuLanguage"),
                 Localization.Get("MenuOptions"),
+                Localization.Get("MenuAudioSchool"),
                 Localization.Get("MenuUpdateCheck"),
                 Localization.Get("MenuExit")
             };
@@ -585,6 +587,7 @@ namespace Bejeweled3Accessible.UI
                 TransitionToMainMenu(true);
             }
             else if (_screen == GameScreen.MainMenu) HandleMainMenuKeys(e);
+            else if (_screen == GameScreen.AudioSchool) HandleAudioSchoolKeys(e);
             else if (_screen == GameScreen.GameSelect) HandleGameSelectKeys(e);
             else if (_screen == GameScreen.Options) HandleOptionsKeys(e);
             else if (_screen == GameScreen.BadgesScreen) HandleBadgesKeys(e);
@@ -872,7 +875,14 @@ namespace Bejeweled3Accessible.UI
                     _optionsIdx = 0;
                     _speech.Speak(Localization.Get("OptionsTitle") + ". " + GetOptionsMenuItems()[0], true);
                 }
-                else if (_menuIdx == 7) // Update check
+                else if (_menuIdx == 7) // Escuela de Audio
+                {
+                    _screen = GameScreen.AudioSchool;
+                    _audioSchoolIdx = 0;
+                    _sound.PlaySound(AudioMap.ButtonPress);
+                    _speech.Speak(Localization.Get("AudioSchoolTitle") + ". " + GetAudioSchoolItems()[0], true);
+                }
+                else if (_menuIdx == 8) // Update check
                 {
                     if (!_updateChecked)
                     {
@@ -888,7 +898,7 @@ namespace Bejeweled3Accessible.UI
                         _updatePromptActive = true;
                     }
                 }
-                else if (_menuIdx == 8) // Exit
+                else if (_menuIdx == 9) // Exit
                 {
                     _sound.PlaySound(AudioMap.VoiceGoodbye);
                     _speech.Speak(Localization.CurrentLanguage == Language.Spanish ? "¡Adiós!" : "Goodbye!", true);
@@ -949,8 +959,79 @@ namespace Bejeweled3Accessible.UI
             {
                 case Audio.SpatialProfile.Stage2D: return Localization.Get("SpatialProfileStage2D");
                 case Audio.SpatialProfile.SimplePan: return Localization.Get("SpatialProfileSimple");
+                case Audio.SpatialProfile.Atmos3D: return Localization.Get("SpatialProfileAtmos3D");
                 default: return Localization.Get("SpatialProfileClean");
             }
+        }
+
+        // "Escuela de Audio": mini menu de calibracion de auriculares. Cada
+        // entrada reproduce una prueba posicional (por carril, por altura o por
+        // direccion) usando el motor de objetos 3D, para que el usuario valide
+        // su configuracion de auriculares.
+        private string[] GetAudioSchoolItems()
+        {
+            bool en = Localization.CurrentLanguage == Language.English;
+            Func<string, string, string> L = (es, e) => en ? e : es;
+            var items = new List<string>();
+            string[] lanes = { "A", "B", "C", "D", "E", "F", "G", "H" };
+            for (int i = 0; i < 8; i++)
+                items.Add(L(string.Format("Carril {0} (izquierda a derecha)", lanes[i]),
+                            string.Format("Lane {0} (left to right)", lanes[i])));
+            items.Add(L("Altura suelo (centro)", "Floor height (center)"));
+            items.Add(L("Altura gema (centro)", "Gem height (center)"));
+            items.Add(L("Zona aerea (centro)", "Aerial zone (center)"));
+            items.Add(L("Frente (cerca)", "Front (near)"));
+            items.Add(L("Detras (lejos, tras el jugador)", "Behind (far, behind player)"));
+            items.Add(L("Izquierda pura", "Pure left"));
+            items.Add(L("Derecha pura", "Pure right"));
+            items.Add(L("Diagonal cercana", "Near diagonal"));
+            items.Add(L("Lejos con absorcion de aire (>50 m)", "Far with air absorption (>50 m)"));
+            return items.ToArray();
+        }
+
+        private void HandleAudioSchoolKeys(KeyEventArgs e)
+        {
+            string[] items = GetAudioSchoolItems();
+            if (e.KeyCode == Keys.Down)
+            {
+                _audioSchoolIdx = (_audioSchoolIdx + 1) % items.Length;
+                _sound.PlaySound(AudioMap.ButtonMouseover);
+                _speech.Speak(items[_audioSchoolIdx], true);
+            }
+            else if (e.KeyCode == Keys.Up)
+            {
+                _audioSchoolIdx = (_audioSchoolIdx - 1 + items.Length) % items.Length;
+                _sound.PlaySound(AudioMap.ButtonMouseover);
+                _speech.Speak(items[_audioSchoolIdx], true);
+            }
+            else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
+            {
+                _sound.PlaySound(AudioMap.ButtonPress);
+                PlayAudioSchoolTest(_audioSchoolIdx);
+            }
+            else if (e.KeyCode == Keys.Escape)
+            {
+                _sound.PlaySound(AudioMap.ButtonPress);
+                _screen = GameScreen.MainMenu;
+                _menuIdx = 7;
+                _speech.Speak(Localization.Get("MenuAudioSchool") + ". " + GetMainMenuItems()[7], true);
+            }
+        }
+
+        // Reproduce la prueba de calibracion indicada por indice (ver GetAudioSchoolItems).
+        private void PlayAudioSchoolTest(int idx)
+        {
+            string s = AudioMap.Select;
+            if (idx >= 0 && idx <= 7) _sound.PlaySoundSpatialElevated(s, idx, 7, (float)Audio.SpatialAudio.GemElevationMeters);
+            else if (idx == 8) _sound.PlaySoundSpatialElevated(s, 3, 7, 0.0f);
+            else if (idx == 9) _sound.PlaySoundSpatialElevated(s, 3, 7, (float)Audio.SpatialAudio.GemElevationMeters);
+            else if (idx == 10) _sound.PlaySoundSpatialElevated(s, 3, 7, (float)Audio.SpatialAudio.AerialElevationMeters);
+            else if (idx == 11) _sound.PlaySoundAtWorld(s, 0.0f, 1.0f, 2.0f);
+            else if (idx == 12) _sound.PlaySoundAtWorld(s, 0.0f, 1.0f, -3.0f);
+            else if (idx == 13) _sound.PlaySoundAtWorld(s, -3.0f, 1.0f, 2.0f);
+            else if (idx == 14) _sound.PlaySoundAtWorld(s, 3.0f, 1.0f, 2.0f);
+            else if (idx == 15) _sound.PlaySoundAtWorld(s, -2.0f, 1.0f, 3.0f);
+            else if (idx == 16) _sound.PlaySoundAtWorld(s, 0.0f, 1.0f, 55.0f);
         }
 
         private void HandleOptionsKeys(KeyEventArgs e)
@@ -995,8 +1076,8 @@ namespace Bejeweled3Accessible.UI
                 }
                 else if (_optionsIdx == 4)
                 {
-                    // Cycle the spatial profile: Stage2D -> CleanArcade -> SimplePan
-                    _sound.SpatialProfile = (Audio.SpatialProfile)(((int)_sound.SpatialProfile + 1) % 3);
+                    // Cycle the spatial profile: Stage2D -> CleanArcade -> SimplePan -> Atmos3D
+                    _sound.SpatialProfile = (Audio.SpatialProfile)(((int)_sound.SpatialProfile + 1) % 4);
                     _sound.PlaySound(AudioMap.Select);
                     _speech.Speak(GetOptionsMenuItems()[4], true);
                 }

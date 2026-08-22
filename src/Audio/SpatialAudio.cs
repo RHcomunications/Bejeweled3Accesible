@@ -16,7 +16,32 @@ namespace Bejeweled3Accessible.Audio
     {
         Stage2D = 0,
         CleanArcade = 1,
-        SimplePan = 2
+        SimplePan = 2,
+        // Objeto 3D (paradigma Dolby Atmos): cada sonido es un objeto acustico
+        // independiente en el espacio (X,Y,Z + velocidad + elevacion + flag
+        // volumetrico). El renderer aplica ITD + ILD + atenuacion por distancia
+        // + absorcion de aire (low-pass real) + tilt de elevacion.
+        Atmos3D = 3
+    }
+
+    // Vector tridimensional en metros (precision doble; el renderer trabaja en float).
+    public struct Vector3
+    {
+        public double X;
+        public double Y;
+        public double Z;
+
+        public Vector3(double x, double y, double z) { X = x; Y = y; Z = z; }
+
+        public double Length()
+        {
+            return Math.Sqrt(X * X + Y * Y + Z * Z);
+        }
+
+        public static Vector3 operator -(Vector3 a, Vector3 b)
+        {
+            return new Vector3(a.X - b.X, a.Y - b.Y, a.Z - b.Z);
+        }
     }
 
     // Binaural HRTF / spatial-audio math for the 8x8 Bejeweled board.
@@ -227,10 +252,94 @@ namespace Bejeweled3Accessible.Audio
             return 1.0f + 0.10f * (float)Math.Sin(Math.PI * progress);
         }
 
-        // Convenience: pan for a board column (defaults to 8 columns).
+// Convenience: pan for a board column (defaults to 8 columns).
         public static float PanColumn(int col)
         {
             return Pan(col, BoardColumns);
+        }
+
+        // ---- Mundo 3D (paradigma Dolby Atmos) ----------------------------
+
+        // El tablero se coloca en un plano vertical frente al jugador. El
+        // listener (el jugador) mira hacia +Z, a 1 m de altura, en el borde
+        // frontal. Con esta escala las distancias de juego quedan por debajo
+        // de ~14 m, donde la absorcion de aire es transparente (el juego suena
+        // nítido); la absorcion solo se oye en fuentes lejanas (> 14 m) o en la
+        // calibracion "Escuela de Audio".
+        public static readonly Vector3 ListenerPosition = new Vector3(0.0, 1.0, 0.0);
+        public const double CellSpacingMeters = 1.0;      // separacion lateral entre columnas
+        public const double FrontRowZMeters = 2.0;        // fila 7 (frente) a 2 m del listener
+        public const double RowDepthMeters = 1.0;         // cada fila hacia atras suma 1 m
+        public const double GemElevationMeters = 1.0;     // plano de gema = altura del oido
+        public const double AerialElevationMeters = 2.5;  // zona aerea (explosiones, power-ups)
+
+        // Radios de atenuacion por distancia: una fuente puntual (gema) decae
+        // antes; una fuente volumetrica (cuerpo extenso) mantiene presencia en
+        // un radio mucho mayor, por eso "suena grande".
+        public const double PointMinDistance = 1.5;
+        public const double PointMaxDistance = 16.0;
+        public const double VolumetricMinDistance = 5.0;
+        public const double VolumetricMaxDistance = 40.0;
+
+        // Convierte una celda del tablero a su posicion mundial (metros).
+        public static Vector3 WorldFromCell(int col, int row, double elevationMeters)
+        {
+            double x = (col - (BoardColumns - 1) / 2.0) * CellSpacingMeters;
+            double z = FrontRowZMeters + (BoardRows - 1 - row) * RowDepthMeters;
+            return new Vector3(x, elevationMeters, z);
+        }
+
+        // Azimut (grados) de un vector relativo al listener: 0 = frente, + = derecha.
+        public static float AzimuthFromRelative(double relX, double relZ)
+        {
+            return (float)(Math.Atan2(relX, relZ) * 180.0 / Math.PI);
+        }
+
+        // Absorcion de aire (corte del paso-bajo) en funcion de la distancia:
+        // 20 kHz por debajo de ~14 m; rolloff exponencial hasta ~1.2 kHz a 50 m;
+        // sigue bajando hasta un piso de 300 Hz mas alla de 50 m.
+        public static float AirAbsorptionCutoffHz(double distanceMeters)
+        {
+            if (distanceMeters <= 14.0) return 20000.0f;
+            double hz;
+            if (distanceMeters <= 50.0)
+            {
+                double t = (distanceMeters - 14.0) / (50.0 - 14.0);
+                hz = 20000.0 * Math.Pow(1200.0 / 20000.0, t);
+            }
+            else
+            {
+                double t = Math.Min((distanceMeters - 50.0) / (100.0 - 50.0), 1.0);
+                hz = 1200.0 * Math.Pow(300.0 / 1200.0, t);
+            }
+            return (float)Math.Max(hz, 300.0);
+        }
+
+        // Ganancia de atenuacion por distancia (0..1): 1 dentro de minDistance,
+        // rolloff lineal hasta 0 en maxDistance. Las fuentes volumetricas usan
+        // minDistance mayor, asi suenan "grandes" en un radio amplio.
+        public static float DistanceGainFor(double distanceMeters, double minDistance, double maxDistance)
+        {
+            if (distanceMeters <= minDistance) return 1.0f;
+            if (distanceMeters >= maxDistance) return 0.0f;
+            return (float)(1.0 - (distanceMeters - minDistance) / (maxDistance - minDistance));
+        }
+
+        // Tilt de elevacion: atenuacion sutil (dB) segun la diferencia de altura
+        // entre la fuente y el listener. La fuente por encima se atenúa un poco,
+        // reforzando la percepcion vertical del objeto. Tope +/-4 dB.
+        public static float ElevationTiltDb(double sourceY, double listenerY)
+        {
+            double diff = sourceY - listenerY; // + = por encima del listener
+            double db = -1.2 * diff;
+            if (db < -4.0) db = -4.0;
+            if (db > 4.0) db = 4.0;
+            return (float)db;
+        }
+
+        public static float DbToLinear(float db)
+        {
+            return (float)Math.Pow(10.0, db / 20.0);
         }
     }
 }
