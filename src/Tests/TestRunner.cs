@@ -1700,6 +1700,28 @@ namespace Bejeweled3Accessible.Tests
                 finally { SpatialAudioEngine.Instance.Release(obj); }
             }));
 
+            tests.Add(Tuple.Create<string, Action>("HRTF: la fuerza de perfil escala la lateralizacion", () =>
+            {
+                // El HRTF se escala por HrtfStrength: 0 = centrado (sin HRTF),
+                // 1 = lateralizado. Asi el perfil Atmos (fuerza 1) suena claramente
+                // mas espacial que los perfiles mas planos (CleanArcade/Stage2D).
+                int frames = 17640;
+                float[] mono = new float[frames];
+                for (int i = 0; i < frames; i++)
+                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0) * 0.5f;
+                float az = 60.0f;
+                BinauralRenderer r0 = new BinauralRenderer { AzimuthDeg = az, SpatialPose = true, HrtfStrength = 0.0f, DistanceGain = 1.0f, AirCutoffHz = 0.0f, ElevationTiltDb = 0.0f };
+                float[] s0 = new float[frames * 2];
+                r0.Process(mono, frames, s0);
+                float l0 = RmsChannel(s0, 0), r0r = RmsChannel(s0, 1);
+                Assert.True(Math.Abs(l0 - r0r) < 0.05f * (l0 + r0r + 1e-6f), "Fuerza 0 debe sonar centrado (L " + l0.ToString("F3") + " ~ R " + r0r.ToString("F3") + ")");
+                BinauralRenderer r1 = new BinauralRenderer { AzimuthDeg = az, SpatialPose = true, HrtfStrength = 1.0f, DistanceGain = 1.0f, AirCutoffHz = 0.0f, ElevationTiltDb = 0.0f };
+                float[] s1 = new float[frames * 2];
+                r1.Process(mono, frames, s1);
+                float l1 = RmsChannel(s1, 0), r1r = RmsChannel(s1, 1);
+                Assert.True(Math.Max(l1, r1r) > 1.3f * Math.Min(l1, r1r), "Fuerza 1 debe lateralizar (L " + l1.ToString("F3") + " vs R " + r1r.ToString("F3") + ")");
+            }));
+
             tests.Add(Tuple.Create<string, Action>("Musica: el perfil Atmos envuelve la musica (aire + widen)", () =>
             {
                 using (SoundEngine sound = new SoundEngine(AppDomain.CurrentDomain.BaseDirectory))

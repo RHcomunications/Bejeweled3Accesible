@@ -1032,6 +1032,9 @@ namespace Bejeweled3Accessible.Audio
                 try
                 {
                     BinauralSfxSource source = new BinauralSfxSource(audioBytes, pinned, 0.0f, 1.0f);
+                    // La Escuela de Audio siempre demuestra el posicionamiento 3D
+                    // completo (HRTF al maximo), sea cual sea el perfil activo.
+                    source.Renderer.HrtfStrength = 1.0f;
                     int handle = source.OutputHandle;
                     if (handle == 0)
                     {
@@ -1296,6 +1299,15 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     return;
                 }
 
+                // Fuerza HRTF por perfil: Atmos = completo (el mas espacial);
+                // Stage2D = teatral fuerte; CleanArcade = mas plano/sec; SimplePan
+                // = 0 (paneo plano, sin HRTF). Asi activar Atmos se nota de verdad.
+                float hrtf = 1.0f;
+                if (SpatialProfile == SpatialProfile.CleanArcade) hrtf = 0.55f;
+                else if (SpatialProfile == SpatialProfile.Stage2D) hrtf = 0.85f;
+                else if (SpatialProfile == SpatialProfile.SimplePan) hrtf = 0.0f;
+                source.Renderer.HrtfStrength = hrtf;
+
                 // Perfil Objeto 3D (Atmos): cada sonido es un objeto acustico en
                 // el espacio. El motor recalcula azimut/distancia/absorcion/tilt
                 // cada frame desde su posicion mundial relativa al listener.
@@ -1304,6 +1316,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     Vector3 world = SpatialAudio.WorldFromCell(col, row, SpatialAudio.GemElevationMeters);
                     SpatialAudioObject obj = new SpatialAudioObject(world, SpatialAudio.PointMinDistance, SpatialAudio.PointMaxDistance);
                     obj.AngleSpreadDeg = 6.0f;
+                    obj.DistanceGainExponent = 1.6;   // profundidad frente->fondo evidente
                     obj.Renderer = source.Renderer;
                     if (sweepToCol >= 0 && sweepToCol != col)
                     {

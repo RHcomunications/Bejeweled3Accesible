@@ -41,6 +41,13 @@ namespace Bejeweled3Accessible.Audio
         // Azimuth actual en grados: -75 (izquierda) .. +75 (derecha), 0 = frente.
         public float AzimuthDeg;
 
+        // Fuerza del HRTF (0..1): cuanto aplica ITD/ILD. 1 = HRTF completo;
+        // valores menores aplanan la imagen lateral (menos HRTF) para que los
+        // perfiles menos "teatrales" suenen mas centrados y secos, y el perfil
+        // Objeto 3D (Atmos) quede como el mas espacial de todos. 0 = sin HRTF
+        // (la fuente suena centrada; otro perfil se encarga del paneo plano).
+        public float HrtfStrength = 1.0f;
+
         // Profundidad actual: 0 = lejos .. 1 = frente. Solo Stage2D la baja;
         // CleanArcade la deja en 1 (plana).
         public float Depth = 1.0f;
@@ -83,8 +90,13 @@ namespace Bejeweled3Accessible.Audio
         public void Process(float[] monoIn, int frames, float[] stereoOut)
         {
             float az = AzimuthDeg;
-            float itd = SpatialAudio.ItdSamples(az, SampleRate);
-            float farGain = SpatialAudio.FarEarGain(az);
+            float hrtf = HrtfStrength;
+            // HRTF escalado por la fuerza del perfil: hrtf=1 HRTF completo,
+            // hrtf=0 fuente centrada (sin ITD/ILD). Asi el perfil Atmos es el
+            // mas espacial y los demas suenan mas planos/secs.
+            float itd = SpatialAudio.ItdSamples(az, SampleRate) * hrtf;
+            float farGainRaw = SpatialAudio.FarEarGain(az);
+            float farGain = 1.0f - (1.0f - farGainRaw) * hrtf;
             float elevGain = SpatialAudio.DbToLinear(ElevationTiltDb);
             // Perfil 3D (Atmos): la atenuacion de distancia es SOLO DistanceGain
             // (geometria real) * tilt. Los perfiles 2D usan la profundidad del

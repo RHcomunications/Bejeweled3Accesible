@@ -34,9 +34,16 @@ namespace Bejeweled3Accessible.Audio
         // Overrides de calibracion (>= 0 fuerzan el valor, ignorando la
         // distancia real). Se usan en la Escuela de Audio para que la demo
         // "lejos con aire" se oiga con el filtro de aire a ganancia plena,
-        // sin que la atenuacion por distancia la silencie antes de oscurecer.
+        // sin que la atenuacion por distancia la silencie antes de forma
+        // prematura.
         public double DistanceGainOverride = -1.0;
         public double AirCutoffOverride = -1.0;
+
+        // Exponente de la atenuacion por distancia (1 = lineal, como siempre).
+        // El perfil Objeto 3D (Atmos) lo sube (>1) para que la diferencia de
+        // volumen frente->fondo sea evidente y la profundidad se oiga de verdad,
+        // no solo como un leve realce. La Escuela de Audio lo deja en 1.
+        public double DistanceGainExponent = 1.0;
 
         // Override del tilt de elevacion (dB). El centinela -999 indica
         // "automatico" (calculado por la diferencia de altura). Se usa en la
@@ -164,7 +171,9 @@ namespace Bejeweled3Accessible.Audio
                     double air = (obj.AirCutoffOverride >= 0.0) ? obj.AirCutoffOverride
                                 : SpatialAudio.AirAbsorptionCutoffHz(dist);
                     double dg = (obj.DistanceGainOverride >= 0.0) ? obj.DistanceGainOverride
-                               : SpatialAudio.DistanceGainFor(dist, obj.MinDistance, obj.MaxDistance);
+                                : SpatialAudio.DistanceGainFor(dist, obj.MinDistance, obj.MaxDistance);
+                    if (obj.DistanceGainExponent != 1.0 && dg > 0.0 && dg <= 1.0)
+                        dg = Math.Pow(dg, obj.DistanceGainExponent);
                     double tilt = (obj.ElevationTiltOverride > -900.0) ? obj.ElevationTiltOverride
                                 : SpatialAudio.ElevationTiltDb(obj.Position.Y, Listener.Position.Y);
 
