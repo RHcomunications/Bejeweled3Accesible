@@ -964,28 +964,33 @@ namespace Bejeweled3Accessible.UI
             }
         }
 
-        // "Escuela de Audio": mini menu de calibracion de auriculares. Cada
-        // entrada reproduce una prueba posicional (por carril, por altura o por
-        // direccion) usando el motor de objetos 3D, para que el usuario valide
-        // su configuracion de auriculares.
+        // "Escuela de Audio": mini menu de calibracion de auriculares anclado al
+        // tablero 8x8 (columnas A-H = azimut, filas 1-8 fondo->frente = profundidad,
+        // altura suelo/gema/aerea, mas un barrido y una demo de aire lejano). Cada
+        // entrada usa el motor de objetos 3D para que el usuario valide su imagen
+        // espacial sobre el propio tablero.
         private string[] GetAudioSchoolItems()
         {
             bool en = Localization.CurrentLanguage == Language.English;
             Func<string, string, string> L = (es, e) => en ? e : es;
             var items = new List<string>();
-            string[] lanes = { "A", "B", "C", "D", "E", "F", "G", "H" };
+            string[] cols = { "A", "B", "C", "D", "E", "F", "G", "H" };
+            // Columnas A-H: todas en la fila del fondo (misma profundidad) para
+            // aislar el azimut izquierda -> derecha.
             for (int i = 0; i < 8; i++)
-                items.Add(L(string.Format("Carril {0} (izquierda a derecha)", lanes[i]),
-                            string.Format("Lane {0} (left to right)", lanes[i])));
-            items.Add(L("Altura suelo (centro)", "Floor height (center)"));
-            items.Add(L("Altura gema (centro)", "Gem height (center)"));
-            items.Add(L("Zona aerea (centro)", "Aerial zone (center)"));
-            items.Add(L("Frente (cerca)", "Front (near)"));
-            items.Add(L("Detras (lejos, tras el jugador)", "Behind (far, behind player)"));
-            items.Add(L("Izquierda pura", "Pure left"));
-            items.Add(L("Derecha pura", "Pure right"));
-            items.Add(L("Diagonal cercana", "Near diagonal"));
-            items.Add(L("Lejos con absorcion de aire (>50 m)", "Far with air absorption (>50 m)"));
+                items.Add(L(string.Format("Columna {0} (fondo, izquierda a derecha)", cols[i]),
+                            string.Format("Column {0} (back row, left to right)", cols[i])));
+            // Filas 1-8: columna central, variando la profundidad fondo -> frente.
+            for (int r = 0; r < 8; r++)
+                items.Add(L(string.Format("Fila {0} ({1})", r + 1, r == 0 ? "fondo, lejos" : (r == 7 ? "frente, cerca" : "profundidad media")),
+                            string.Format("Row {0} ({1})", r + 1, r == 0 ? "back, far" : (r == 7 ? "front, near" : "mid depth"))));
+            // Altura: suelo / gema / aerea en el centro del fondo.
+            items.Add(L("Altura suelo (centro del fondo)", "Floor height (back center)"));
+            items.Add(L("Altura gema (centro del fondo)", "Gem height (back center)"));
+            items.Add(L("Zona aerea (centro del fondo)", "Aerial zone (back center)"));
+            // Barrido y aire.
+            items.Add(L("Barrido de columnas (A -> H)", "Column sweep (A -> H)"));
+            items.Add(L("Lejos con absorcion de aire", "Far with air absorption"));
             return items.ToArray();
         }
 
@@ -1019,19 +1024,27 @@ namespace Bejeweled3Accessible.UI
         }
 
         // Reproduce la prueba de calibracion indicada por indice (ver GetAudioSchoolItems).
+        // Indices: 0-7 columnas (fila fondo), 8-15 filas (columna central),
+        // 16-18 altura (centro fondo), 19 barrido, 20 lejos con aire.
         private void PlayAudioSchoolTest(int idx)
         {
             string s = AudioMap.Select;
-            if (idx >= 0 && idx <= 7) _sound.PlaySoundSpatialElevated(s, idx, 7, (float)Audio.SpatialAudio.GemElevationMeters);
-            else if (idx == 8) _sound.PlaySoundSpatialElevated(s, 3, 7, 0.0f);
-            else if (idx == 9) _sound.PlaySoundSpatialElevated(s, 3, 7, (float)Audio.SpatialAudio.GemElevationMeters);
-            else if (idx == 10) _sound.PlaySoundSpatialElevated(s, 3, 7, (float)Audio.SpatialAudio.AerialElevationMeters);
-            else if (idx == 11) _sound.PlaySoundAtWorld(s, 0.0f, 1.0f, 2.0f);
-            else if (idx == 12) _sound.PlaySoundAtWorld(s, 0.0f, 1.0f, -3.0f);
-            else if (idx == 13) _sound.PlaySoundAtWorld(s, -3.0f, 1.0f, 2.0f);
-            else if (idx == 14) _sound.PlaySoundAtWorld(s, 3.0f, 1.0f, 2.0f);
-            else if (idx == 15) _sound.PlaySoundAtWorld(s, -2.0f, 1.0f, 3.0f);
-            else if (idx == 16) _sound.PlaySoundAtWorld(s, 0.0f, 1.0f, 55.0f);
+            const int backRow = 0;       // fila 1 (fondo), Z minimo, misma profundidad para azimut
+            const int centerCol = 3;     // columna D (~centro del tablero)
+            if (idx >= 0 && idx <= 7)
+                _sound.PlaySoundSpatialElevated(s, idx, backRow, (float)Audio.SpatialAudio.GemElevationMeters);
+            else if (idx >= 8 && idx <= 15)
+                _sound.PlaySoundSpatialElevated(s, centerCol, idx - 8, (float)Audio.SpatialAudio.GemElevationMeters);
+            else if (idx == 16)
+                _sound.PlaySoundSpatialElevated(s, centerCol, backRow, 0.0f);
+            else if (idx == 17)
+                _sound.PlaySoundSpatialElevated(s, centerCol, backRow, (float)Audio.SpatialAudio.GemElevationMeters);
+            else if (idx == 18)
+                _sound.PlaySoundSpatialElevated(s, centerCol, backRow, (float)Audio.SpatialAudio.AerialElevationMeters);
+            else if (idx == 19)
+                _sound.PlaySoundSpatialSweep(s, 0, 7, backRow, (float)Audio.SpatialAudio.GemElevationMeters);
+            else if (idx == 20)
+                _sound.PlaySoundAtWorld(s, 0.0f, 1.0f, 25.0f); // ~25 m: corte de aire audible
         }
 
         private void HandleOptionsKeys(KeyEventArgs e)
