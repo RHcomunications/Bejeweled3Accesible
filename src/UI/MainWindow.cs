@@ -1036,7 +1036,7 @@ namespace Bejeweled3Accessible.UI
         // exagerado), 19 barrido, 20 lejos con aire.
         private void PlayAudioSchoolTest(int idx)
         {
-            string s = AudioMap.Sin500;
+            string s = AudioMap.Select;
             const int backRow = 0;       // fila 1 (fondo), Z maximo
             const int frontRow = 7;      // fila 8 (frente), Z minimo -> azimut dramatico
             const int centerCol = 3;     // columna D (~centro del tablero)
