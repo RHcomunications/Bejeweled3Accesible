@@ -1700,11 +1700,12 @@ namespace Bejeweled3Accessible.Tests
                 finally { SpatialAudioEngine.Instance.Release(obj); }
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: la fuerza de perfil escala la lateralizacion", () =>
+            tests.Add(Tuple.Create<string, Action>("HRTF: la fuerza de perfil escala el paneo (ILD)", () =>
             {
-                // El HRTF se escala por HrtfStrength: 0 = centrado (sin HRTF),
-                // 1 = lateralizado. Asi el perfil Atmos (fuerza 1) suena claramente
-                // mas espacial que los perfiles mas planos (CleanArcade/Stage2D).
+                // El HRTF se escala por HrtfStrength: 0 = fuente centrada (sin
+                // ILD/ITD), 1 = lateralizada al maximo. Asi el perfil Atmos (fuerza
+                // 1) suena claramente mas abierto/espacial que los perfiles mas
+                // planos (CleanArcade/Stage2D/SimplePan, con fuerza menor).
                 int frames = 17640;
                 float[] mono = new float[frames];
                 for (int i = 0; i < frames; i++)
@@ -1720,6 +1721,22 @@ namespace Bejeweled3Accessible.Tests
                 r1.Process(mono, frames, s1);
                 float l1 = RmsChannel(s1, 0), r1r = RmsChannel(s1, 1);
                 Assert.True(Math.Max(l1, r1r) > 1.3f * Math.Min(l1, r1r), "Fuerza 1 debe lateralizar (L " + l1.ToString("F3") + " vs R " + r1r.ToString("F3") + ")");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("HRTF: SimplePan (fuerza 0.4) sigue ubicando las columnas L/R", () =>
+            {
+                // SimplePan usa HrtfStrength=0.4: el paneo es mas estrecho que
+                // Atmos pero sigue diferenciando izquierda/derecha, para no perder
+                // la referencia de columna en el tablero.
+                int frames = 17640;
+                float[] mono = new float[frames];
+                for (int i = 0; i < frames; i++)
+                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0) * 0.5f;
+                BinauralRenderer r = new BinauralRenderer { AzimuthDeg = 60.0f, SpatialPose = true, HrtfStrength = 0.4f, DistanceGain = 1.0f, AirCutoffHz = 0.0f, ElevationTiltDb = 0.0f };
+                float[] s = new float[frames * 2];
+                r.Process(mono, frames, s);
+                float l = RmsChannel(s, 0), rr = RmsChannel(s, 1);
+                Assert.True(Math.Max(l, rr) > 1.1f * Math.Min(l, rr), "SimplePan (0.4) debe seguir paneando L/R (L " + l.ToString("F3") + " vs R " + rr.ToString("F3") + ")");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Musica: el perfil Atmos envuelve la musica (aire + widen)", () =>

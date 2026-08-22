@@ -1303,9 +1303,9 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 // Stage2D = teatral fuerte; CleanArcade = mas plano/sec; SimplePan
                 // = 0 (paneo plano, sin HRTF). Asi activar Atmos se nota de verdad.
                 float hrtf = 1.0f;
-                if (SpatialProfile == SpatialProfile.CleanArcade) hrtf = 0.55f;
-                else if (SpatialProfile == SpatialProfile.Stage2D) hrtf = 0.85f;
-                else if (SpatialProfile == SpatialProfile.SimplePan) hrtf = 0.0f;
+                if (SpatialProfile == SpatialProfile.CleanArcade) hrtf = 0.6f;
+                else if (SpatialProfile == SpatialProfile.Stage2D) hrtf = 0.8f;
+                else if (SpatialProfile == SpatialProfile.SimplePan) hrtf = 0.4f;
                 source.Renderer.HrtfStrength = hrtf;
 
                 // Perfil Objeto 3D (Atmos): cada sonido es un objeto acustico en

@@ -91,9 +91,11 @@ namespace Bejeweled3Accessible.Audio
         {
             float az = AzimuthDeg;
             float hrtf = HrtfStrength;
-            // HRTF escalado por la fuerza del perfil: hrtf=1 HRTF completo,
-            // hrtf=0 fuente centrada (sin ITD/ILD). Asi el perfil Atmos es el
-            // mas espacial y los demas suenan mas planos/secs.
+            // La fuerza del perfil (HrtfStrength) escala el HRTF completo
+            // (ITD + ILD): hrtf=1 HRTF al maximo (Atmos, el mas espacial y con
+            // el paneo mas abierto), hrtf menor perfiles mas planos/secs. La ILD
+            // nunca llega a 0 (los perfiles mantienen un paneo minimo para que
+            // las columnas sigan ubicandose izquierda/derecha).
             float itd = SpatialAudio.ItdSamples(az, SampleRate) * hrtf;
             float farGainRaw = SpatialAudio.FarEarGain(az);
             float farGain = 1.0f - (1.0f - farGainRaw) * hrtf;
