@@ -1015,9 +1015,9 @@ namespace Bejeweled3Accessible.UI
             }
             else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
             {
-                _sound.PlaySound(AudioMap.ButtonPress);
-                // Confirma que la prueba se activo (repite la opcion) y luego
-                // reproduce el sonido posicionado para que se oiga la diferencia.
+                // Sin click de menu: el tono de calibracion (sin500) debe oirse solo,
+                // si no se solapa con el click y parece "otro click del menu".
+                // Confirma la opcion (la repite) y luego reproduce el sonido posicionado.
                 _speech.Speak(items[_audioSchoolIdx], true);
                 PlayAudioSchoolTest(_audioSchoolIdx);
             }
@@ -1036,7 +1036,7 @@ namespace Bejeweled3Accessible.UI
         // exagerado), 19 barrido, 20 lejos con aire.
         private void PlayAudioSchoolTest(int idx)
         {
-            string s = AudioMap.Select;
+            string s = AudioMap.Sin500;
             const int backRow = 0;       // fila 1 (fondo), Z maximo
             const int frontRow = 7;      // fila 8 (frente), Z minimo -> azimut dramatico
             const int centerCol = 3;     // columna D (~centro del tablero)

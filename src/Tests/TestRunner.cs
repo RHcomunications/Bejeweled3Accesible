@@ -1233,6 +1233,19 @@ namespace Bejeweled3Accessible.Tests
                 Assert.True(pac.GetFileBytes("select.ogg") == null, "Debe devolver null");
             }));
 
+            tests.Add(Tuple.Create<string, Action>("AudioSchool: el tono de calibracion sin500 existe en audio.pac", () =>
+            {
+                // Regresion: la Escuela de Audio reproducia 'select' (un click) que se
+                // solapaba con el click del menu y sonaba como "otro click". Ahora usa
+                // 'sin500' (tono sostenido, localizable). Si falta en el PAC, LoadAudioBytes
+                // devuelve null y la prueba queda en silencio ("no suena").
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                string pacPath = Path.Combine(baseDir, "audio.pac");
+                if (!File.Exists(pacPath)) return; // sin PAC en esta configuracion
+                PacReader pac = new PacReader(pacPath);
+                Assert.True(pac.GetFileBytes("sin500") != null, "sin500 debe estar en el PAC para la Escuela de Audio");
+            }));
+
             tests.Add(Tuple.Create<string, Action>("PAC: archivo basura se ignora sin excepcion", () =>
             {
                 string tempFile = Path.Combine(Path.GetTempPath(), "Bj3Tests_" + Guid.NewGuid().ToString("N") + ".pac");
