@@ -2,7 +2,7 @@
 
 **Proyecto:** Bejeweled 3 Accesible (Clon Fiel y Accesible de Bejeweled 3 para Jugadores Ciegos y con Baja Visión)  
 **Repositorio:** `RHcomunications/Bejeweled3Accesible`  
-**Versión Actual:** `v2026.08.22.0`  
+**Versión Actual:** `v2026.08.22.1`  
 **Tecnología Base:** C# (.NET Framework 4.5), Windows Forms, BASS Audio Engine (P/Invoke nativo), libopenmpt (decodificador de módulos .mo3), SAPI 5 / NVDA Controller Client.
 
 ---
@@ -150,5 +150,5 @@ Las gemas incorporan las formas geométricas originales de PopCap y adaptan din�
 
 - **Compilación:** 0 Errores en configuraciones Debug y Release.
 - **Pruebas Automatizadas:** 158 tests de cobertura unitaria con validación en memoria, físicas de tablero, persistencia, accesibilidad y audio (incluidos los binaurales ITD/ILD/aire y el renderer estéreo 3D por objetos).
-- **Git & Releases:** Tags `v2026.08.17.0`, `v2026.08.17.1`, `v2026.08.18.0` (audio y música reales), `v2026.08.18.1` (HRTF binaural paramétrico), `v2026.08.18.2` (hotfix: ruta binaural por DSP en el stream directo, select y combos audibles de nuevo), `v2026.08.19.0` (audio espacial de objeto estilo Dolby: sin pasos-bajo) `v2026.08.19.1` (hotfix: objeto puro, cero filtrado espectral), `v2026.08.20.0` (audio espacial 3D por objetos Atmos + Escuela de Audio) y `v2026.08.22.0` (versión mayor: corregido el perfil Atmos para que se note de verdad — flag `SpatialPose`, demo de aire audible a ganancia plena) publicados en GitHub con auto-actualizador integrado. El asset de cada release debe nombrarse `Bejeweled3Accesible-<versión sin ceros>.zip` (ver anécdota 6).
+- **Git & Releases:** Tags `v2026.08.17.0`, `v2026.08.17.1`, `v2026.08.18.0` (audio y música reales), `v2026.08.18.1` (HRTF binaural paramétrico), `v2026.08.18.2` (hotfix: ruta binaural por DSP en el stream directo, select y combos audibles de nuevo), `v2026.08.19.0` (audio espacial de objeto estilo Dolby: sin pasos-bajo) `v2026.08.19.1` (hotfix: objeto puro, cero filtrado espectral), `v2026.08.20.0` (audio espacial 3D por objetos Atmos + Escuela de Audio), `v2026.08.22.0` (versión mayor: corregido Atmos para que se note — flag `SpatialPose`, demo de aire audible) y `v2026.08.22.1` (Escuela de Audio audible: columnas en fila frontal cono ±60°, altura con tilt exagerado, feedback hablado; música atmosférica en perfil Atmos) publicados en GitHub con auto-actualizador integrado. El asset de cada release debe nombrarse `Bejeweled3Accesible-<versión sin ceros>.zip` (ver anécdota 6).
 - **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); build Debug+Release; suite completa con audio; zip con exe/PDB Release + `bass.dll` + `nvdaControllerClient32.dll` + 5 `libopenmpt*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (196 entradas) + `sounds\images\` completa; `gh release create` + upload; limpiar `Temp\opencode` (conservando `extracted\`, `qbms\`, `bms\`, `libopenmpt\` como fuentes canónicas).
