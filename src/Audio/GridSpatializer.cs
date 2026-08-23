@@ -8,7 +8,9 @@ namespace Bejeweled3Accessible.Audio
     //   - Pan (L/R): reparte la columna de izquierda a derecha (pan equal-power).
     //   - Profundidad: las filas traseras suenan mas lejanas (volumen menor,
     //     paso-bajo de "aire" mas cerrado y estereo ligeramente mas amplio).
-    // La musica y las voces no pasan por aqui: se escuchan centradas y secas.
+    //   Las voces no pasan por aqui (centradas y secas). La musica SI lo usa:
+    //   SoundEngine la espacializa como ambiente que acompana al juego, tratando
+    //   sus canales L y R como dos fuentes simetricas en el grid.
     public sealed class GridSpatializer
     {
         // Tasa de muestreo del stream que ve el DSP (igual que la del fichero).

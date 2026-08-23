@@ -28,7 +28,10 @@ namespace Bejeweled3Accessible.Audio
             if (Math.Abs(t) < 0.0001f) return CenterPan;
 
             float sign = Math.Sign(t);
-            float mag = (float)Math.Pow(Math.Abs(t), 0.68);
+            // Curva logaritmica: exponente > 1 aplana el centro y empuja los
+            // extremos del tablero (columnas 0 y 7) hacia el paneo maximo,
+            // acentuando la separacion estereo donde el jugador lo percibe.
+            float mag = (float)Math.Pow(Math.Abs(t), 1.4);
             return MaxPan * sign * mag;
         }
 

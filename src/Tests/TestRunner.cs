@@ -50,6 +50,19 @@ namespace Bejeweled3Accessible.Tests
 
     public class TestRunner
     {
+        [System.Runtime.InteropServices.DllImport("bass.dll")]
+        private static extern uint BASS_ChannelGetLevel(int handle);
+        private static uint BassGetLevel(int handle) { try { return BASS_ChannelGetLevel(handle); } catch { return 0; } }
+        private static bool MusicEmitsAudio(SoundEngine sound)
+        {
+            System.Reflection.FieldInfo f = sound.GetType().GetField("_currentMusicChannel", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+            int h = (int)f.GetValue(sound);
+            uint lvl = BassGetLevel(h);
+            ushort left = (ushort)(lvl & 0xFFFF);
+            ushort right = (ushort)(lvl >> 16);
+            return left > 0 || right > 0;
+        }
+
         public static int Main(string[] args)
         {
             bool noAudio = args != null && Array.IndexOf(args, "--no-audio") >= 0;
@@ -1627,6 +1640,27 @@ namespace Bejeweled3Accessible.Tests
                 }
             }));
 
+            tests.Add(Tuple.Create<string, Action>("Sound: musica se espacializa como ambiente sin romper la reproduccion", () =>
+            {
+                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
+                using (SoundEngine sound = new SoundEngine(baseDir))
+                {
+                    sound.MusicVol = 100;
+                    sound.PlayMusic("01 - Intro.mp3");
+                    System.Threading.Thread.Sleep(900);
+                    Assert.True(sound.MusicChannelActive, "Modulo debe estar activo tras espacializar");
+                    Assert.True(MusicEmitsAudio(sound), "Modulo debe emitir audio tras el DSP de ambiente");
+                    Assert.Equal("01 - Intro.mp3", sound.MusicNowPlaying, "NowPlaying modulo");
+
+                    sound.PlayMusic("24 - Coastal.mp3");
+                    System.Threading.Thread.Sleep(900);
+                    Assert.True(sound.MusicChannelActive, "Ambiente debe estar activo tras espacializar");
+                    Assert.True(MusicEmitsAudio(sound), "Ambiente debe emitir audio tras el DSP de ambiente");
+                    Assert.Equal("24 - Coastal.mp3", sound.MusicNowPlaying, "NowPlaying ambiente");
+                    Assert.NoThrow(() => sound.StopMusic(), "Stop music");
+                }
+            }));
+
             tests.Add(Tuple.Create<string, Action>("Sound: modulo real (MO3) reproduce con salto por orden", () =>
             {
                 string baseDir = AppDomain.CurrentDomain.BaseDirectory;
@@ -2123,12 +2157,12 @@ namespace Bejeweled3Accessible.Tests
                         Console.WriteLine(name + ": fichero " + path + " no existe");
                         continue;
                     }
-                    ProbeFile(name, path);
+                    ProbeFile(sound, name, path);
                 }
             }
         }
 
-        private static void ProbeFile(string name, string path)
+        private static void ProbeFile(SoundEngine sound, string name, string path)
         {
             Console.WriteLine("--- " + name + " ---");
             byte[] data = File.ReadAllBytes(path);
@@ -2148,7 +2182,7 @@ namespace Bejeweled3Accessible.Tests
                 Console.WriteLine("  direct+DSP: frames=" + refCap.TotalFrames + " (" + (refCap.TotalFrames / 44100.0).ToString("F3") + " s) RMS L=" + refCap.RmsL.ToString("F4") + " R=" + refCap.RmsR.ToString("F4") + " brillo=" + HighFreqRatio(refCap.Samples, 2).ToString("F3"));
 
                 // 2) Pipeline espacial REAL (SpatialSfxSource) + DSP capturador.
-                SpatialSfxSource src = new SpatialSfxSource(data, pin, 0.5f, 0.0f);
+                SpatialSfxSource src = new SpatialSfxSource(sound, data, pin, 0.5f, 0.0f, -1, true);
                 BassProbe.DspCapture binCap = new BassProbe.DspCapture();
                 BassProbe.BASS_ChannelSetDSP(src.OutputHandle, binCap.Proc, IntPtr.Zero, 0);
                 BassProbe.BASS_ChannelPlay(src.OutputHandle, true);

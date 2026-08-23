@@ -183,6 +183,7 @@ namespace Bejeweled3Accessible.UI
             _sound.MusicVol = _options.MusicVolume;
             _sound.SfxVol = _options.SoundVolume;
             _sound.VoiceVol = _options.VoiceVolume;
+            _sound.BinauralEnabled = _options.BinauralEnabled;
             Localization.CurrentLanguage = _options.SelectedLanguage;
 
             Text = Localization.Get("AppTitle");
@@ -242,6 +243,7 @@ namespace Bejeweled3Accessible.UI
             _options.MusicVolume = _sound.MusicVol;
             _options.SoundVolume = _sound.SfxVol;
             _options.VoiceVolume = _sound.VoiceVol;
+            _options.BinauralEnabled = _sound.BinauralEnabled;
             _options.SelectedLanguage = Localization.CurrentLanguage;
             _options.ZenAmbient = (int)_zenMgr.SelectedAmbient;
             _options.ZenMantras = _zenMgr.MantrasEnabled;
@@ -942,6 +944,7 @@ namespace Bejeweled3Accessible.UI
                 Localization.Get("OptMusicVol", _sound.MusicVol),
                 Localization.Get("OptSoundVol", _sound.SfxVol),
                 Localization.Get("OptVoiceVol", _sound.VoiceVol),
+                Localization.Get("OptBinaural", _sound.BinauralEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")),
                 Localization.Get("OptBack")
             };
         }
@@ -1050,6 +1053,12 @@ namespace Bejeweled3Accessible.UI
                 {
                     _sound.VoiceVol = (e.KeyCode == Keys.Right) ? Math.Min(100, _sound.VoiceVol + 5) : Math.Max(0, _sound.VoiceVol - 5);
                     _speech.Speak(Localization.Get("OptVoiceVol", _sound.VoiceVol), true);
+                }
+                else if (_optionsIdx == 3)
+                {
+                    _sound.BinauralEnabled = !_sound.BinauralEnabled;
+                    _sound.PlaySound(AudioMap.Select);
+                    _speech.Speak(Localization.Get("OptBinaural", _sound.BinauralEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")), true);
                 }
                 SaveOptionsState();
             }
@@ -1743,7 +1752,7 @@ namespace Bejeweled3Accessible.UI
             else if (e.Shift && e.KeyCode == Keys.H)
             {
                 _board.SetGem(_cursorX, _cursorY, new Gem(GemColor.Red, SpecialType.Hypercube));
-                _sound.PlaySound(AudioMap.HypercubeCreate);
+                _sound.PlayHypercubeSweep(AudioMap.HypercubeCreate, _cursorX, _cursorY);
                 _speech.Speak(Localization.Get("HypercubeCreatedCell"), true);
             }
             else if (e.Shift && e.KeyCode == Keys.F)
@@ -1755,7 +1764,7 @@ namespace Bejeweled3Accessible.UI
             else if (e.Shift && e.KeyCode == Keys.S)
             {
                 _board.SetGem(_cursorX, _cursorY, new Gem(GemColor.Red, SpecialType.Star));
-                _sound.PlaySound(AudioMap.LasergemCreated);
+                _sound.PlayStarGemLaser(AudioMap.LasergemCreated, _cursorX, _cursorY);
                 _speech.Speak(Localization.Get("StarCreatedCell"), true);
             }
             else if (e.Shift && e.KeyCode == Keys.R)
@@ -2515,12 +2524,12 @@ namespace Bejeweled3Accessible.UI
                     }
                     else if (res.HypercubeCreated > 0)
                     {
-                        _sound.PlaySound(AudioMap.HypercubeCreate);
+                        _sound.PlayHypercubeSweep(AudioMap.HypercubeCreate, _cursorX, _cursorY);
                         _sound.PlaySound(AudioMap.Hyperspace);
                     }
                     else if (res.StarCreated > 0)
                     {
-                        _sound.PlaySound(AudioMap.LasergemCreated);
+                        _sound.PlayStarGemLaser(AudioMap.LasergemCreated, _cursorX, _cursorY);
                         _sound.PlaySound(AudioMap.ElectroExplode);
                     }
                     else if (res.FlameCreated > 0)
