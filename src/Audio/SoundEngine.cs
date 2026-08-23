@@ -38,6 +38,9 @@ namespace Bejeweled3Accessible.Audio
         private static extern bool BASS_ChannelSetAttribute(int handle, int attrib, float value);
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
+        private static extern bool BASS_ChannelSlideAttribute(int handle, int attrib, float value, int length);
+
+        [DllImport("bass.dll", CharSet = CharSet.Auto)]
         private static extern bool BASS_ChannelGetAttribute(int handle, int attrib, ref float value);
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
@@ -176,6 +179,8 @@ namespace Bejeweled3Accessible.Audio
         private GridSpatializer _musicSpatL;
         private GridSpatializer _musicSpatR;
         private int _musicInChans = 2;
+        private float _musicOriginalVolume = 1.0f;
+        private System.Threading.Timer _musicDuckTimer;
         private float[] _musicInBuf;
         private float[] _musicBufL;
         private float[] _musicBufR;
@@ -1599,6 +1604,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 BASS_ChannelSetAttribute(handle, BASS_ATTRIB_PAN, 0.0f);
                 BASS_ChannelPlay(handle, true);
                 ApplyAtmosphereFx(handle);
+                DuckMusicVolume(0.3f, 500);
 
                 var state = new SpatialSweepState
                 {
@@ -1750,6 +1756,9 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
 
         // Reverb ambiental sutil para la musica-ambiente (sin compresor, para no
         // matar la dinamica de la pista). Solo cuando el audio binaural esta activo.
+        // Config: tiempo de decaimiento largo (3000ms) y mezcla suave (-12 dB) para
+        // empujar la música hacia el fondo del escenario acústico, creando la sensación
+        // de "vacío espacial".
         private void ApplyMusicAtmosphere(int musicHandle)
         {
             if (!BinauralEnabled) return;
@@ -1760,11 +1769,37 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 {
                     BassDx8Reverb rev = new BassDx8Reverb();
                     rev.fInGain = 0f;
-                    rev.fReverbMix = -24f;
-                    rev.fReverbTime = 1500f;
+                    rev.fReverbMix = -12f;   // -12 dB de mezcla sutil
+                    rev.fReverbTime = 3000f; // decaimiento largo
                     rev.fHighFreqRTRatio = 0.45f;
                     SetFxParams(rv, rev);
                 }
+            }
+            catch { }
+        }
+
+        // Atenuación suave del volumen de la música (sidechain/ducking).
+        // Desliza el volumen hacia el nivel objetivo en durationMs milisegundos,
+        // y programa una recuperación automática al volumen original después de ese
+        // mismo lapso (con un pequeño margen extra para que no corte el efecto).
+        public void DuckMusicVolume(float targetVolume, int durationMs)
+        {
+            if (_musicDuckTimer != null) { try { _musicDuckTimer.Dispose(); } catch { } _musicDuckTimer = null; }
+            try
+            {
+                float currentVol = 0f;
+                BASS_ChannelGetAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, ref currentVol);
+                _musicOriginalVolume = currentVol;
+                BASS_ChannelSlideAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, targetVolume, durationMs);
+                _musicDuckTimer = new System.Threading.Timer(s =>
+                {
+                    try
+                    {
+                        BASS_ChannelSlideAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, _musicOriginalVolume, durationMs);
+                    }
+                    catch { }
+                    _musicDuckTimer = null;
+                }, null, durationMs + 200, -1);
             }
             catch { }
         }
