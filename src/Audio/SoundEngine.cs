@@ -130,10 +130,19 @@ namespace Bejeweled3Accessible.Audio
             {
                 if (_activeVoiceHandle != 0)
                 {
-                    if (DateTime.UtcNow < _activeVoiceEndAt) return;
+                    // No cortar la voz si BASS sigue reproduciendo (p.ej. con
+                    // pitch < 1 la voz dura mas de lo planificado). Timeout de
+                    // seguridad de 3 s para no colgar el pump si el canal se muere.
+                    bool stillPlaying = false;
+                    try { stillPlaying = BASS_ChannelIsActive(_activeVoiceHandle) != 0; } catch { }
+                    if (stillPlaying && DateTime.UtcNow < _activeVoiceEndAt.AddMilliseconds(3000)) return;
 
                     long playedBytes = 0;
                     try { playedBytes = BASS_ChannelGetPosition(_activeVoiceHandle, BASS_POS_BYTE); } catch { }
+                    // Si BASS ya no esta activo, la voz llego a su final natural:
+                    // contabilizarla como reproducida por completo (el ultimo buffer
+                    // puede quedar unas muestras por debajo del 100%).
+                    if (!stillPlaying && _activeVoiceLengthBytes > 0) playedBytes = _activeVoiceLengthBytes;
                     _voiceHistory.Add(new VoicePlayback
                     {
                         SoundName = _activeVoiceName,
@@ -315,8 +324,6 @@ namespace Bejeweled3Accessible.Audio
             public int SourceHandle;
             public float FromPan;
             public float ToPan;
-            public float VolBase;
-            public float FreqBase;
             public long StartMs;
             public float FromDepth;
             public float ToDepth;
@@ -652,7 +659,7 @@ namespace Bejeweled3Accessible.Audio
                     int handle = BASS_StreamCreateFile(true, pinned.AddrOfPinnedObject(), 0, audioBytes.Length, 0);
                     if (handle != 0)
                     {
-                        long bytes = BASS_ChannelGetLength(handle, 0);
+                        long bytes = BASS_ChannelGetLength(handle, BASS_POS_BYTE);
                         if (bytes > 0)
                         {
                             double secs = BASS_ChannelBytes2Seconds(handle, bytes);
@@ -774,28 +781,18 @@ namespace Bejeweled3Accessible.Audio
                             try { s.Source.Spatializer.Pan = s.ToPan; } catch { }
                             try { s.Source.Spatializer.Depth = s.ToDepth; } catch { }
                         }
-                        else
-                        {
-                            try { BASS_ChannelSetAttribute(s.SourceHandle, BASS_ATTRIB_PAN, s.ToPan); } catch { }
-                            try { BASS_ChannelSetAttribute(s.SourceHandle, BASS_ATTRIB_VOL, s.VolBase); } catch { }
-                            try { BASS_ChannelSetAttribute(s.SourceHandle, BASS_ATTRIB_FREQ, s.FreqBase); } catch { }
-                        }
                         _panSweeps.RemoveAt(i);
                         continue;
                     }
 
-                    float progress = SpatialAudio.EaseSweep(elapsed / (float)PAN_SWEEP_MS);
+                    float progress = elapsed / (float)PAN_SWEEP_MS;
+                    if (progress > 1.0f) progress = 1.0f; else if (progress < 0.0f) progress = 0.0f;
                     float pan = SpatialAudio.SweepPan(s.FromPan, s.ToPan, progress);
                     if (s.Source != null)
                     {
                         float depth = SpatialAudio.SweepPan(s.FromDepth, s.ToDepth, progress);
                         try { s.Source.Spatializer.Pan = pan; } catch { }
                         try { s.Source.Spatializer.Depth = depth; } catch { }
-                    }
-                    else
-                    {
-                        try { BASS_ChannelSetAttribute(s.SourceHandle, BASS_ATTRIB_PAN, pan); } catch { }
-                        try { BASS_ChannelSetAttribute(s.SourceHandle, BASS_ATTRIB_VOL, s.VolBase); } catch { }
                     }
                 }
 
@@ -1113,7 +1110,10 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     try { BASS_ChannelSetAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, _fadeVol); } catch { }
                     if (_pendingMusicChannel != 0)
                     {
-                        float up = MusicChannelVolume(duck) - _fadeVol;
+                        // Si el duck baja durante el crossfade, MusicChannelVolume(duck)
+                        // puede quedarse por debajo de _fadeVol: acotar a [0, target].
+                        float target = MusicChannelVolume(duck);
+                        float up = Math.Max(0.0f, target - _fadeVol);
                         try { BASS_ChannelSetAttribute(_pendingMusicChannel, BASS_ATTRIB_VOL, up); } catch { }
                     }
                 }
@@ -1609,13 +1609,18 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     {
                         if (sfx.Spatial != null)
                         {
+                            // La fuente espacial ya libera el stream (OutputHandle)
+                            // y el pin del OGG, asi que no los tocamos aqui.
                             try { sfx.Spatial.Dispose(); } catch { }
                         }
-                        if (sfx.Pin.IsAllocated)
+                        else
                         {
-                            try { sfx.Pin.Free(); } catch { }
+                            if (sfx.Pin.IsAllocated)
+                            {
+                                try { sfx.Pin.Free(); } catch { }
+                            }
+                            BASS_StreamFree(sfx.Handle);
                         }
-                        BASS_StreamFree(sfx.Handle);
                     }
                     _activeSfxList.Clear();
                 }
@@ -1725,8 +1730,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         private void Dsp(int handle, int channel, IntPtr buffer, int length, IntPtr user)
         {
             int frames = length / 8;
-            if (frames <= 0 || frames > SpatialSfxBlockFrames) return;
-
+            if (frames > SpatialSfxBlockFrames) return;
             Marshal.Copy(buffer, _inBuf, 0, frames * _inChans);
             if (_inChans == 2)
             {

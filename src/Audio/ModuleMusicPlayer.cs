@@ -126,9 +126,10 @@ namespace Bejeweled3Accessible.Audio
                 {
                     _ended = true;
                     openmpt_module_set_position_order_row(_mod, _startOrder, 0);
+                    got = openmpt_module_read_float_stereo(_mod, SampleRate, (uint)max, _left, _right);
                     replayed = true;
                 }
-                return 0;
+                if (got == 0) return 0;
             }
             _ended = false;
 

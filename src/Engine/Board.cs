@@ -444,11 +444,9 @@ namespace Bejeweled3Accessible.Engine
                     {
                         if (toDestroy[y, x] && _grid[y, x] != null)
                         {
-                            res.MatchedColors.Add(_grid[y, x].Color);
-                            res.TotalGemsDestroyed++;
-                            if (_grid[y, x].IsButterfly) res.ButterfliesFreed++;
-                            if (_grid[y, x].Special == SpecialType.Time5) { res.TimeGemsMatched++; res.ExtraTimeSeconds += 5; }
-                            if (_grid[y, x].Special == SpecialType.Time10) { res.TimeGemsMatched++; res.ExtraTimeSeconds += 10; }
+                            // El conteo de gemas destruidas se hace en el bucle de
+                            // limpieza (mira cada celda borrada una sola vez), asi no
+                            // se subcuentan las victimas de blast "upstream".
 
                             // Flame explosion 3x3 (official: 20 per detonation + 20 per gem)
                             if (_grid[y, x].Special == SpecialType.Flame)
@@ -499,14 +497,9 @@ namespace Bejeweled3Accessible.Engine
                                             toDestroy[r, x + dx] = true;
                                         }
                             }
-                            else if (_grid[y, x].Special == SpecialType.Hypercube)
-                            {
-                                res.HypercubeDestroyed++;
-                            }
                         }
                     }
                 }
-
                 // Clear destroyed gems & clear adjacent Dirt/HardRock in Diamond Mine
                 bool[,] dirtDestroyed = new bool[Rows, Cols];
                 for (int y = 0; y < Rows; y++)
@@ -515,6 +508,16 @@ namespace Bejeweled3Accessible.Engine
                     {
                         if (toDestroy[y, x] && _grid[y, x] != null && _grid[y, x].Special != SpecialType.Dirt && _grid[y, x].Special != SpecialType.HardRock && _grid[y, x].Special != SpecialType.GoldNugget)
                         {
+                            // Conteo unico por gema borrada (corrige la subcuenta de
+                            // las victimas de blast "upstream" que el bucle de
+                            // explosion ya habia visitado).
+                            res.MatchedColors.Add(_grid[y, x].Color);
+                            res.TotalGemsDestroyed++;
+                            if (_grid[y, x].IsButterfly) res.ButterfliesFreed++;
+                            if (_grid[y, x].Special == SpecialType.Time5) { res.TimeGemsMatched++; res.ExtraTimeSeconds += 5; }
+                            if (_grid[y, x].Special == SpecialType.Time10) { res.TimeGemsMatched++; res.ExtraTimeSeconds += 10; }
+                            if (_grid[y, x].Special == SpecialType.Hypercube) res.HypercubeDestroyed++;
+
                             // Ice Storm: remember which columns were matched (melt only those)
                             if (!res.MatchedColumns.Contains(x)) res.MatchedColumns.Add(x);
                             res.ColumnDestroyedCount[x]++;
@@ -662,10 +665,6 @@ namespace Bejeweled3Accessible.Engine
                     }
 
                     Gem g = new Gem(c, spec);
-                    if (isButterflies && y == Rows - 1 && _rng.Next(100) < 25)
-                    {
-                        g.IsButterfly = true;
-                    }
                     _grid[y, x] = g;
                 }
             }

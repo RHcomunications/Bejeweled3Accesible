@@ -121,13 +121,15 @@ namespace Bejeweled3Accessible.Engine
                     XmlSerializer serializer = new XmlSerializer(typeof(GameProgress));
                     using (StreamReader reader = new StreamReader(path))
                     {
-                        return (GameProgress)serializer.Deserialize(reader);
+                        GameProgress p = (GameProgress)serializer.Deserialize(reader);
+                        if (p != null && p.QuestMissions == null) p.QuestMissions = new bool[40];
+                        return p;
                     }
                 }
             }
             catch (Exception ex)
             {
-                System.Diagnostics.Debug.WriteLine("Error loading progress: " + ex.Message);
+                PersistenceLog.Write(ex, "progress.xml");
             }
 
             return new GameProgress();

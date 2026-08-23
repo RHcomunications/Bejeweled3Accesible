@@ -2,14 +2,14 @@
 
 **Proyecto:** Bejeweled 3 Accesible (Clon Fiel y Accesible de Bejeweled 3 para Jugadores Ciegos y con Baja Visión)  
 **Repositorio:** `RHcomunications/Bejeweled3Accesible`  
-**Versión Actual:** `v2026.08.22.1`  
+**Versión Actual:** `v2026.08.23.0`  
 **Tecnología Base:** C# (.NET Framework 4.5), Windows Forms, BASS Audio Engine (P/Invoke nativo), libopenmpt (decodificador de módulos .mo3), SAPI 5 / NVDA Controller Client.
 
 ---
 
 ## 📖 1. Visión y Propósito del Proyecto
 
-El objetivo primordial de **Bejeweled 3 Accesible** fue rescatar y recrear con exactitud matemática, sonora y de diseño la experiencia del clásico juego de PopCap Games (**Bejeweled 3**), haciéndolo **100% jugable sin visión** a través de sintetizadores de voz (NVDA y SAPI5) y un revolucionario sistema de **Audio Espacial 3D Binaural (HRTF)**, sin sacrificar una interfaz visual limpia y nítida.
+El objetivo primordial de **Bejeweled 3 Accesible** fue rescatar y recrear con exactitud matemática, sonora y de diseño la experiencia del clásico juego de PopCap Games (**Bejeweled 3**), haciéndolo **100% jugable sin visión** a través de sintetizadores de voz (NVDA y SAPI5) y un sistema de **Audio Espacial de Tablero** (modelo grid único y siempre activo: paneo por columna + profundidad por fila), sin sacrificar una interfaz visual limpia y nítida. La **música se trata como clima, atmósfera o ambiente de acompañamiento**: suena centrada, seca y envolvente, nunca posicionada en el tablero.
 
 ---
 
@@ -23,9 +23,9 @@ bejeweled3_accessible/
 │   ├── Accessibility/
 │   │   └── NvdaSpeech.cs          # Interfaz bidireccional NVDA Controller / SAPI 5 fallback
 │   ├── Audio/
-│   │   ├── SoundEngine.cs         # Motor BASS, colas de voz atómicas, ducking, rutas espaciales (binaural y pan)
-│   │   ├── SpatialAudio.cs        # HRTF binaural paramétrico: azimut ±75°, ITD, ILD, sombra de cabeza, absorción de aire
-│   │   ├── BinauralRenderer.cs    # Render binaural por oído: delay fraccional (ITD) + one-pole LP por oído
+│   │   ├── SoundEngine.cs         # Motor BASS, colas de voz atómicas, ducking, rutas espaciales (modelo grid siempre activo, sin perfiles)
+│   │   ├── SpatialAudio.cs        # Modelo grid espacial estático: PanColumn, DepthForRow, Volume/Air/Width por profundidad
+│   │   ├── GridSpatializer.cs     # Render grid: pan equal-power + aire/profundidad por one-pole LP (sustituye BinauralRenderer)
 │   │   ├── AudioMap.cs            # Mapa canónico tipado de efectos de sonido (cero strings crudos)
 │   │   ├── MusicMap.cs            # Mapa canónico de las pistas musicales originales (suite .mo3 + ambientales)
 │   │   ├── PacCipher.cs           # Cifrado XOR / obfuscación del contenedor audio.pac
@@ -48,8 +48,8 @@ bejeweled3_accessible/
 │   │   └── MainWindow.cs          # Bucle de juego, renderizado GDI+, navegación y teclado
 │   └── Update/
 │       └── AutoUpdater.cs         # Sistema de auto-actualización vía GitHub Releases API
-└── tests/
-    └── TestRunner.cs              # Suite de 154 pruebas unitarias integradas
+    └── tests/
+        └── TestRunner.cs              # Suite de 144 pruebas unitarias integradas
 ```
 
 ---
@@ -70,26 +70,22 @@ bejeweled3_accessible/
 
 ---
 
-## 🎧 4. Innovación: Audio Espacial 3D (HRTF Binaural)
+## 🎧 4. Audio Espacial de Tablero (modelo grid único, siempre activo)
 
-- **Azimut Real por Columna (±75°):** Cada columna del tablero (A-H) se oye como un azimut en el plano horizontal, calculado con el **principio Dolby de sonido orientado a objetos** (v2026.08.19.1): el objeto viaja con su señal 100 % intacta — el renderer NUNCA procesa el espectro (ni pasos-bajo ni estantes) — y la posición usa solo retardo interaural de Woodworth `(a/c)·(sinθ+θ)` (hasta ~0,58 ms a ±75°) y ganancia ILD del oído lejano (hasta ~5,3 dB). El oído cercano suena idéntico a la muestra original.
-- **Profundidad por Fila como Distancia:** Las filas del fondo suenan más lejanas (**solo volumen**: 0,80 lejos .. 1,00 cerca, como la distancia real); las del frente plenas y cercanas. **El timbre y el tono de los sonidos jamás cambian** por profundidad ni lateralidad: se eliminó cualquier filtrado (la sombra de cabeza de la 19.0 aún restaba ~2,5 dB de agudos y los sonidos seguían "opacos"; en la 19.1 es cero filtrado).
-- **Fidelidad Total a la Mezcla de PopCap:** Los 189 efectos reales son estéreo *dual-mono* (L==R), así que el render binaural los espacializa sin perder nada. La música del módulo real y las ambientales suenan **centradas, secas y sin procesar**; la reverberación DX8 que se añadía a la música fue retirada.
-- **Deslizamientos y Cascadas:** Los intercambios animan el azimut de la gema de una columna a otra (con realce de presencia solo en el perfil Escenario 2D, sin doppler de tono).
-- **Ruta de reproducción (DSP en el stream directo):** la `bass.dll` reducida no decodifica streams `BASS_STREAM_DECODE` (devuelve 0 muestras) ni resamplea vía `BASS_ATTRIB_FREQ`, así que la ruta binaural no puede usar "decodificar → renderizar → push". En su lugar, el OGG se reproduce por el camino directo que sí funciona (stream FLOAT a su tasa nativa) y un `BASS_ChannelSetDSP` sustituye el buffer estéreo por la salida del renderer; el renderer se configura con la tasa real del fichero (`BASS_ChannelGetInfo`), correcta tanto a 44.1 kHz como en los 6 OGG reales a 22.05 kHz (misma duración y tono originales, ITD exacto).
-- **Perfiles Espaciales:** *Escenario 2D* (binaural completo con profundidad y realce), *Clásico Limpio* (por defecto: binaural lateral puro y seco), *Simple* (pan clásico izquierda/derecha sin HRTF) y **Objeto 3D (Atmos)** (paradigma Dolby Atmos completo, ver abajo). Se recuerdan entre sesiones.
-- **Audio Espacial 3D por Objetos (perfil Atmos 3D):** Cada efecto posicionado es un `SpatialAudioObject` (`src/Audio/SpatialAudioObject.cs`) con posición `Vector3` (X lateral, Y altura, Z profundidad, en metros), `Velocity`, `AngleSpreadDeg`, `IsVolumetric` y radios `MinDistance`/`MaxDistance`. El `SpatialAudioEngine` (singleton, timer de ~60 FPS en `SoundEngine`) recalcula cada frame la pose relativa al `SpatialAudioListener` y escribe en el `BinauralRenderer`: azimut (`AzimuthFromRelative`), ganancia por distancia (`DistanceGainFor`, lineal con radios mayores para fuentes volumétricas), **absorción de aire real** (`AirAbsorptionCutoffHz`: paso-bajo de un polo en C# cuyo corte es 20 kHz por debajo de 14 m y baja exponencialmente a ~1,2 kHz a 50 m; el renderer lo aplica bilateralmente solo cuando `AirCutoffHz>0`, así los perfiles 2D quedan transparentes) y **tilt de elevación** (`ElevationTiltDb`: atenuación sutil ±4 dB por diferencia de altura). El tablero se mapea a un mundo donde las distancias de juego quedan < 14 m (nítido); la absorción solo se oye en fuentes lejanas o en la calibración.
-- **Escuela de Audio (calibración, anclada al tablero):** Desde el menú principal (`GameScreen.AudioSchool`) un mini menú reproduce pruebas por **columna** (azimut: A-H en la **fila frontal**, cono de ±60°, se oye claro izquierda↔derecha), por **fila** (profundidad: 1-8 en la columna central, el volumen marca cerca/lejos), por **altura** (suelo/gema/aérea en el centro del fondo, con **tilt exagerado** vía `ElevationTiltOverride` para que sea perceptible: suelo +4 dB, gema 0, aérea −6 dB), un **barrido** de columnas y una demo **lejos con aire**, usando `SoundEngine.PlaySoundSpatialElevated` / `PlaySoundSpatialSweep` / `PlaySoundAtWorld`, que fuerzan el camino de objeto 3D (`SpatialPose`). Al pulsar Enter se repite la opción elegida antes de reproducir, para confirmar que la llamada se activó. Verifica la configuración de auriculares sobre el propio tablero.
-- **Bug corregido (doble profundidad en Atmos):** en la primera entrega el perfil Atmos aplicaba **las dos** atenuaciones —la profundidad 2D del tablero (`DepthVolume(Depth)*Bulge`) y la ganancia de distancia 3D del mundo (`DistanceGain`)—, con lo que el resultado colapsaba en algo casi idéntico al perfil 2D y "no se notaba el cambio". Se añadió el flag `BinauralRenderer.SpatialPose`: cuando es `true` (perfil Atmos y rutas de objeto 3D de la Escuela), el volumen usa **solo** `DistanceGain * tilt`, sin la profundidad 2D. Ahora Atmos tiene geometría real (la fila trasera suena a ~0,48 y la delantera a ~0,97, con azimut dependiente de la fila = perspectiva). La demo "lejos con aire" forcea `AirCutoffOverride` (1,2 kHz) y `DistanceGainOverride` (1,0) porque la atenuación por distancia llega a 0 a los 16 m y silenciaría el filtro antes de oscurecer; así la absorción de aire se oye a ganancia plena.
-- **Música atmosférica (perfil Atmos 3D):** la música (el módulo real `.mo3` vía `ModuleMusicPlayer` y las ambientales) ahora se procesa con un **DSP de atmósfera** (`SoundEngine.MusicAtmosphereDsp`) activo solo en el perfil *Objeto 3D (Atmos)*: un paso-bajo de aire (una polio por canal, ~fc 5 kHz, calienta los agudos dándole lejanía) + un **ensanchador estéreo mid/side** (`width=1.3`) para que envuelva al oyente en vez de sonar seca y centrada. En los demás perfiles el DSP devuelve el buffer intacto. Se engancha en `CreateModuleChannel`/`CreateFileMusicChannel` y lee `SpatialProfile` en vivo, así cambiar de perfil aplica el efecto sin reiniciar la pista.
-- **Locuciones Centradas con Ducking:** La voz del locutor (*Good, Excellent, Awesome, Spectacular, Extraordinary, Unbelievable*) y el lector de pantalla se mantienen siempre centrados mientras la música baja automáticamente de volumen (*ducking*).
+- **Principio rector — la música es clima / atmósfera / ambiente:** la música (módulo real `.mo3` y ambientales de Zen) se trata como **clima, atmósfera o acompañamiento ambiental del juego**, nunca como un objeto posicionado. Suena **centrada, seca y envolvente** (sin paneo de columna ni profundidad de fila). Las locuciones (voz del juego y lector de pantalla) también van **siempre centradas**, con *ducking* automático de la música mientras hablan. El motor espacial `GridSpatializer` solo procesa los efectos de tablero.
+- **Por qué se abandonó el HRTF/Atmos (v2026.08.22.5):** el "HRTF" previo era en realidad ITD + ILD + aire; la ITD quedaba en sub-muestra (~1 muestra a 44,1 kHz, inaudible) y la única pista real era ILD (paneo L/R) + distancia/aire. Activar el perfil Atmos "no se notaba" porque todos los perfiles aplicaban el mismo HRTF. Se decidió borrar binaural/perfiles y usar un modelo generado y específico para este juego.
+- **Modelo grid (siempre activo, sin perfiles):** cada efecto se coloca con dos parámetros —**Pan por columna** (A-H reparte izquierda↔derecha en paneo equal-power, `SpatialAudio.PanColumn`, `MaxPan=0.85`) y **Profundidad por fila** (frente=fila 7 → 0, fondo=fila 0 → 1; `SpatialAudio.DepthForRow`). El *swipe* anima el pan de una columna a otra (`ScheduleSfxSweep` + `PanSweepTick`, con `SweepPan`/`EaseSweep`). No hay opciones ni menús de perfil.
+- **Profundidad = lejanía (volumen + aire + anchura):** las filas traseras suenan más lejanas vía **menor volumen** (`VolumeForDepth` 1,0→0,65), **aire más cerrado** (`AirCutoffForDepth` 20 kHz→~6 kHz, paso-bajo de un polo en C#) y **estéreo algo más amplio** (`WidthForDepth` 1,0→1,3, mid/side). El timbre y el tono de los 189 efectos reales **jamás cambian**.
+- **Render `GridSpatializer` (DSP en el stream directo):** la `bass.dll` reducida no decodifica `BASS_STREAM_DECODE` ni resamplea con `BASS_ATTRIB_FREQ`, así que el OGG se reproduce por el camino directo (stream FLOAT a su tasa nativa, 44,1 o 22,05 kHz) y un `BASS_ChannelSetDSP` sustituye el buffer estéreo por la salida del `GridSpatializer` (pan equal-power * volumen/aire/anchura), configurado con la tasa real del fichero (`BASS_ChannelGetInfo`). El downmix a mono aprovecha que los 189 efectos son estéreo *dual-mono* (L==R).
+- **Escuela de Audio (corta, 12 pruebas):** desde el menú principal un mini menú reproduce columnas A-H (izquierda↔derecha), frente, fondo, barrido L→R y barrido frente→fondo, usando `SoundEngine.PlaySoundSpatialPan` / `PlaySoundSpatialSweepPan`. Al pulsar Enter se repite la opción para confirmar la llamada. Verifica la configuración de auriculares sobre el propio tablero.
+- **Locuciones centradas con Ducking:** la voz del locutor (*Good, Excellent, Awesome, Spectacular, Extraordinary, Unbelievable*) y el lector de pantalla se mantienen siempre centrados mientras la música baja automáticamente de volumen (*ducking*).
 
 ---
 
 ## 🎼 5. Audio y Música Reales del Juego Original (v2026.08.18.0)
 
 - **189 efectos extraídos de `main.pak`** (vorbis 96-128 kb/s, byte-idénticos, sin remasterizar) sustituyen a los descargados; se reproducen desde el contenedor cifrado `audio.pac` (196 entradas, de 178 MB a 9 MB).
-- **Música real:** el módulo `Bejeweled3_suite.mo3` (62 minutos, extraído del propio juego) se decodifica con libopenmpt (BSD-3) y se reproduce en cadena saltando por los offsets del `music.xml` original, exactamente como el juego original (el intro avanza solo al menú a los 24 segundos).
+- **Música real:** el módulo `Bejeweled3_suite.mo3` (62 minutos, extraído del propio juego) se decodifica con libopenmpt (BSD-3) y se reproduce en cadena saltando por los offsets del `music.xml` original, exactamente como el juego original (el intro avanza solo al menú a los 24 segundos). Se reproduce **centrada y seca, como clima/atmósfera de acompañamiento** (nunca posicionada en el tablero); véase el principio rector en §4.
 - **6 ambientaciones reales** (`ambient\*.ogg` del juego) completan el modo Zen.
 - **Infraestructura en `src\Audio`:** `MusicMap.cs` (offsets), `ModuleMusicPlayer.cs` (libopenmpt vía openmpt module API con `--extended` y `StreamCreate` STREAMPROC), `PacCipher/Packer/Reader` (cifrado XOR con clave `"Bejeweled3AccessibleProtectionKey2026"`), `bass.dll` reducida (sin `BASS_StreamCreatePush` ni `BASS_LastError`).
 - **Fallbacks:** módulo y ambientales cargan del PAC y, si falta, de `bin\music\`; los `libopenmpt*.dll` (5 ficheros) son obligatorios junto al exe.

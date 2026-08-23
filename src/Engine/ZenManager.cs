@@ -153,6 +153,7 @@ namespace Bejeweled3Accessible.Engine
                 _mantraOrder = Affirmations.BuildOrder(new Random());
                 _mantraPos = 0;
             }
+            if (_mantraOrder.Count == 0) return;
             Tuple<AffirmationTheme, int> m = _mantraOrder[_mantraPos];
             _mantraPos++;
             _mantraIndex++;

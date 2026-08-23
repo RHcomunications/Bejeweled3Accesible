@@ -21,7 +21,7 @@ namespace Bejeweled3Accessible.Engine
         private static readonly Dictionary<string, Tuple<string, string>> _dict = new Dictionary<string, Tuple<string, string>>
         {
             // Loading Screen
-            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.08.22.5.", "Loading Bejeweled 3... Version 2026.08.22.5.") },
+            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.08.23.0.", "Loading Bejeweled 3... Version 2026.08.23.0.") },
             { "LoadingPrompt", new Tuple<string, string>("Presiona cualquier tecla para continuar", "Press any key to continue") },
 
             // Profile Screen
@@ -32,7 +32,7 @@ namespace Bejeweled3Accessible.Engine
             { "ProfileDelete", new Tuple<string, string>("Eliminar perfil actual", "Delete current profile") },
 
             // Menus
-            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.08.22.5", "Bejeweled 3 Accessible - Version 2026.08.22.5") },
+            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.08.23.0", "Bejeweled 3 Accessible - Version 2026.08.23.0") },
             { "MenuPlay", new Tuple<string, string>("Jugar Bejeweled 3", "Play Bejeweled 3") },
             { "MenuChangeUser", new Tuple<string, string>("Haz clic aquí para cambiar de usuario. Perfil actual: {0}", "Click here to change user. Current profile: {0}") },
             { "MenuLanguage", new Tuple<string, string>("Idioma: Español. Pulsa Enter para cambiar", "Language: English. Press Enter to switch to Spanish") },
@@ -364,8 +364,12 @@ namespace Bejeweled3Accessible.Engine
         {
             if (!_dict.ContainsKey(key)) return key;
             string raw = (CurrentLanguage == Language.Spanish) ? _dict[key].Item1 : _dict[key].Item2;
-            if (args != null && args.Length > 0) return string.Format(raw, args);
-            return raw;
+            try
+            {
+                if (args != null && args.Length > 0) return string.Format(System.Globalization.CultureInfo.InvariantCulture, raw, args);
+                return raw;
+            }
+            catch { return raw; }
         }
 
         public static string GetPokerHandName(PokerHandType hand)

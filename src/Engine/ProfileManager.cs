@@ -82,7 +82,7 @@ namespace Bejeweled3Accessible.Engine
                     }
                 }
             }
-            catch { }
+            catch (Exception ex) { PersistenceLog.Write(ex, "profiles.xml"); }
 
             return new ProfileManager();
         }

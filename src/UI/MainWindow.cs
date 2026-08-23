@@ -3065,14 +3065,34 @@ case Engine.QuestType.TimeBomb:
                 if (_zenMgr != null) _zenMgr.StopZenSession();
                 SaveOptionsState();
                 if (_profileMgr.CurrentProfile != null) _profileMgr.Save();
+                if (_sound != null)
+                {
+                    _sound.MusicRechained -= Sound_MusicRechained;
+                    _sound.Dispose();
+                }
                 if (_speech != null) _speech.Dispose();
-                if (_sound != null) _sound.Dispose();
+                DisposeVisualAssets();
             }
             catch
             {
                 // best-effort cleanup before the window closes
             }
             base.OnFormClosing(e);
+        }
+
+        private void DisposeVisualAssets()
+        {
+            if (_gemImages != null)
+            {
+                foreach (var b in _gemImages) { if (b != null) b.Dispose(); }
+                _gemImages = null;
+            }
+            if (_gemShadows != null)
+            {
+                foreach (var b in _gemShadows) { if (b != null) b.Dispose(); }
+                _gemShadows = null;
+            }
+            if (_heatwaveLogo != null) { _heatwaveLogo.Dispose(); _heatwaveLogo = null; }
         }
 
         private void LoadVisualAssets(string baseDir)
