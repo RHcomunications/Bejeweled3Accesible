@@ -2521,6 +2521,7 @@ namespace Bejeweled3Accessible.UI
                         _sound.PlaySound(AudioMap.LasergemCreated);
                         _sound.PlaySound(AudioMap.ElectroExplode);
                         _sound.DuckMusicVolume(0.3f, 500);
+                        _sound.RestoreMusicVolume(500);
                         AwardBadge("BadgeSuperstar", BadgeTier.Platinum);
                     }
                     else if (res.HypercubeCreated > 0)

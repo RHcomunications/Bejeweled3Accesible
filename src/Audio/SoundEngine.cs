@@ -1616,6 +1616,8 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     SweepEq = false
                 };
                 StartSweep(state);
+                // Después de la animación de 1.5 s, recuperar el volumen de la música.
+                RestoreMusicVolume(1500);
             }
             catch
             {
@@ -1800,6 +1802,21 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     catch { }
                     _musicDuckTimer = null;
                 }, null, durationMs + 200, -1);
+            }
+            catch { }
+        }
+
+        // Recupera el volumen original de la música deslizando suavemente
+        // de vuelta al volumen original en durationMs milisegundos.
+        public void RestoreMusicVolume(int durationMs)
+        {
+            if (_musicDuckTimer != null) { try { _musicDuckTimer.Dispose(); } catch { } _musicDuckTimer = null; }
+            try
+            {
+                if (_currentMusicChannel != 0)
+                {
+                    BASS_ChannelSlideAttribute(_currentMusicChannel, BASS_ATTRIB_VOL, _musicOriginalVolume, durationMs);
+                }
             }
             catch { }
         }
