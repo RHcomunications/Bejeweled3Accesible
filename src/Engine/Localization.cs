@@ -21,7 +21,7 @@ namespace Bejeweled3Accessible.Engine
         private static readonly Dictionary<string, Tuple<string, string>> _dict = new Dictionary<string, Tuple<string, string>>
         {
             // Loading Screen
-            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.08.22.4.", "Loading Bejeweled 3... Version 2026.08.22.4.") },
+            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.08.22.5.", "Loading Bejeweled 3... Version 2026.08.22.5.") },
             { "LoadingPrompt", new Tuple<string, string>("Presiona cualquier tecla para continuar", "Press any key to continue") },
 
             // Profile Screen
@@ -32,23 +32,23 @@ namespace Bejeweled3Accessible.Engine
             { "ProfileDelete", new Tuple<string, string>("Eliminar perfil actual", "Delete current profile") },
 
             // Menus
-            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.08.22.4", "Bejeweled 3 Accessible - Version 2026.08.22.4") },
+            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.08.22.5", "Bejeweled 3 Accessible - Version 2026.08.22.5") },
             { "MenuPlay", new Tuple<string, string>("Jugar Bejeweled 3", "Play Bejeweled 3") },
             { "MenuChangeUser", new Tuple<string, string>("Haz clic aquí para cambiar de usuario. Perfil actual: {0}", "Click here to change user. Current profile: {0}") },
             { "MenuLanguage", new Tuple<string, string>("Idioma: Español. Pulsa Enter para cambiar", "Language: English. Press Enter to switch to Spanish") },
             { "MenuOptions", new Tuple<string, string>("Opciones de Sonido y Voz", "Sound & Voice Options") },
             { "MenuTutorial", new Tuple<string, string>("Tutorial de Accesibilidad", "Accessibility Tutorial") },
             { "MenuAudioSchool", new Tuple<string, string>("Escuela de Audio", "Audio School") },
-            { "AudioSchoolTitle", new Tuple<string, string>("Escuela de Audio: pruebas de auriculares (arriba/abajo para elegir, Enter para escuchar, Escape para volver)", "Audio School: headphone tests (up/down to choose, Enter to listen, Escape to go back)") },
+            { "AudioSchoolTitle", new Tuple<string, string>("Escuela de Audio: paneo L/R y profundidad frente/fondo (arriba/abajo para elegir, Enter para escuchar, Escape para volver)", "Audio School: L/R pan and front/back depth (up/down to choose, Enter to listen, Escape to go back)") },
             { "TutorialTitle", new Tuple<string, string>("Tutorial de Accesibilidad y Teclas", "Accessibility & Keys Tutorial") },
-            { "TutorialStep1", new Tuple<string, string>("1. Movimiento en Tablero: Usa las Flechas para navegar entre casillas A1 y H8. Cada gema suena a la izquierda o a la derecha según su columna (audio binaural, como el juego original), y su color y tipo los anuncia el lector de pantalla.", "1. Board Movement: Use Arrow keys to navigate cells A1 to H8. Each gem sounds to the left or right according to its column (binaural audio, like the original), and its color and type are announced by the screen reader.") },
+            { "TutorialStep1", new Tuple<string, string>("1. Movimiento en Tablero: Usa las Flechas para navegar entre casillas A1 y H8. Cada gema suena a la izquierda o a la derecha según su columna y más lejos cuanto más atrás está en el tablero (audio espacial), y su color y tipo los anuncia el lector de pantalla.", "1. Board Movement: Use Arrow keys to navigate cells A1 to H8. Each gem sounds to the left or right by its column and farther back as it sits deeper on the board (spatial audio), and its color and type are announced by the screen reader.") },
             { "TutorialStep2", new Tuple<string, string>("2. Intercambio de Gemas: Presiona las teclas W, A, S, D para realizar un movimiento con la gema adyacente en esa dirección.", "2. Swapping Gems: Press W, A, S, D keys to swap with an adjacent gem in that direction.") },
             { "TutorialStep3", new Tuple<string, string>("3. Consultar Estado General (Tecla R): Presiona R para escuchar la puntuación y el estado del modo actual (tiempo, nivel, hielo, mariposas...). Presiona C para repetir la casilla actual.", "3. General Status Check (Key R): Press R to announce Score and the current mode status (time, level, ice, butterflies...). Press C to repeat current cell.") },
             { "TutorialStep4", new Tuple<string, string>("4. Estado Completo del Modo (Tecla Q): Presiona Q en cualquier momento para escuchar el estado detallado del modo actual: en Quest, el progreso exacto de tu misión (mariposas, pepitas, oro, bombas, cascada, manos de póker, hielo o profundidad); en los demás modos, puntuación, tiempo, nivel, barajadas, cartas, calaveras, mariposas, hielo o metros excavados.", "4. Full Mode Status (Key Q): Press Q anytime to hear the detailed state of the current mode: in Quest, your exact mission progress (butterflies, nuggets, gold, bombs, cascade, poker hands, ice or depth); in other modes, score, time, level, shuffles, cards, skulls, butterflies, ice or meters dug.") },
             { "TutorialStep5", new Tuple<string, string>("5. Buscar Pistas y Ayuda (Tecla H): Presiona H para recibir una recomendación hablada del movimiento más oportuno disponible.", "5. Find Hints & Help (Key H): Press H for a spoken recommendation of the best available move.") },
             { "TutorialStep6", new Tuple<string, string>("6. Modos Principales y Secretos: Clásico (sin tiempo), Relámpago (60s contrarreloj), Zen (relajación ambiental), Quest (40 misiones), Póker (manos de 5 cartas), Mariposas (salvar mariposas), Tormenta de Hielo (bajar columnas de hielo) y Mina de Diamantes (excavación).", "6. Main & Secret Modes: Classic (no timer), Lightning (60s time attack), Zen (relaxation), Quest (40 missions), Poker (5 card hands), Butterflies (save butterflies), Ice Storm (lower ice columns) and Diamond Mine (digging).") },
             { "TutorialStep7", new Tuple<string, string>("7. Menú de Pausa: Presiona Escape en cualquier momento para pausar la partida, ajustar volúmenes o salir.", "7. Pause Menu: Press Escape at any time to pause the match, adjust volumes, or quit.") },
-            { "TutorialStep8", new Tuple<string, string>("8. Audio Binaural y Voz: Igual que el original, cada sonido se sitúa a la izquierda o a la derecha del tablero. Las locuciones de voz nunca se cortan ni se solapan: se escuchan completas, una detrás de otra, con un pequeño margen de silencio.", "8. Binaural Audio & Voice: Like the original, each sound is placed to the left or right of the board. Voice lines are never cut short or overlapping: they play in full, one after another, with a small silent gap.") },
+            { "TutorialStep8", new Tuple<string, string>("8. Audio Espacial y Voz: cada sonido se sitúa a la izquierda o a la derecha según su columna y más lejos cuanto más atrás en el tablero. Las locuciones de voz nunca se cortan ni se solapan: se escuchan completas, una detrás de otra, con un pequeño margen de silencio.", "8. Spatial Audio & Voice: each sound is placed left or right by its column and farther back as it sits deeper on the board. Voice lines are never cut short or overlapping: they play in full, one after another, with a small silent gap.") },
             { "MenuExit", new Tuple<string, string>("Salir", "Exit") },
             { "MenuUpdateCheck", new Tuple<string, string>("Actualización: comprobar e instalar", "Update: check and install") },
             { "UpdateChecking", new Tuple<string, string>("Comprobando actualizaciones...", "Checking for updates...") },
@@ -73,12 +73,6 @@ namespace Bejeweled3Accessible.Engine
             { "OptMusicVol", new Tuple<string, string>("Volumen de Música: {0}%", "Music Volume: {0}%") },
             { "OptSoundVol", new Tuple<string, string>("Volumen de Sonido: {0}%", "Sound Volume: {0}%") },
             { "OptVoiceVol", new Tuple<string, string>("Volumen de Voz: {0}%", "Voice Volume: {0}%") },
-            { "OptSpatialAudio", new Tuple<string, string>("Audio Binaural: {0}", "Binaural Audio: {0}") },
-            { "OptSpatialProfile", new Tuple<string, string>("Perfil Espacial: {0}", "Spatial Profile: {0}") },
-            { "SpatialProfileStage2D", new Tuple<string, string>("Escenario 2D", "Stage 2D") },
-            { "SpatialProfileClean", new Tuple<string, string>("Clásico Limpio", "Clean Classic") },
-            { "SpatialProfileSimple", new Tuple<string, string>("Simple", "Simple") },
-            { "SpatialProfileAtmos3D", new Tuple<string, string>("Objeto 3D (Atmos)", "3D Object (Atmos)") },
             { "OptBack", new Tuple<string, string>("Guardar y Volver al Menú", "Save & Return to Menu") },
 
             // Main Modes

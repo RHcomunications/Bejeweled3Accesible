@@ -52,38 +52,11 @@ namespace Bejeweled3Accessible.Audio
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
         private static extern int BASS_ChannelIsActive(int handle);
 
-        [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern bool BASS_ChannelGetInfo(int handle, out BassChannelInfo info);
-
-        [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern int BASS_ChannelGetData(int handle, IntPtr buffer, uint length);
-
-        [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern bool BASS_ChannelSetDSP(int handle, [MarshalAs(UnmanagedType.FunctionPtr)] BassDspProc proc, IntPtr user, int priority);
-
-        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        private delegate void BassDspProc(int handle, int channel, IntPtr buffer, int length, IntPtr user);
-
         private const uint BASS_SAMPLE_LOOP = 4;
         private const uint BASS_SAMPLE_FLOAT = 0x100;
         private const int BASS_ATTRIB_FREQ = 1;
         private const int BASS_ATTRIB_VOL = 2;
         private const int BASS_ATTRIB_PAN = 3;
-
-        // Canal de decodificación puro (nunca suena): la ruta binaural decodifica
-        // el OGG a PCM flotante y lo espacializa en managed code.
-        private const uint BASS_STREAM_DECODE = 0x00800000;
-        private const uint BASS_DATA_FLOAT = 0x80000000;
-
-        [StructLayout(LayoutKind.Sequential)]
-        private struct BassChannelInfo
-        {
-            public int freq;
-            public int chans;
-            public int flags;
-            public uint ctype;
-            public IntPtr filename;
-        }
 
         // Callback con el que BASS pide PCM de la musica del modulo real
         // (BASS_StreamCreate con STREAMPROC). Devuelve bytes escritos.
@@ -125,12 +98,6 @@ namespace Bejeweled3Accessible.Audio
         private bool _fadingOut = false;
         private float _fadeVol = 0.0f;
         private float _fadeVolPerStep = 0.0f;
-
-        public bool SpatialBinauralEnabled { get; set; }
-
-        // Active spatial profile. When SpatialBinauralEnabled is off every
-        // profile collapses to centered, flat audio.
-        public SpatialProfile SpatialProfile { get; set; }
 
         // Queue a voice without ever cutting the one that is sounding now.
         private void EnqueueVoice(VoiceRequest req)
@@ -293,7 +260,7 @@ namespace Bejeweled3Accessible.Audio
             public int Handle;
             public GCHandle Pin;
             public bool IsVoice;
-            public BinauralSfxSource Binaural;
+            public SpatialSfxSource Spatial;
         }
 
         private struct VoiceRequest
@@ -340,81 +307,20 @@ namespace Bejeweled3Accessible.Audio
         private System.Threading.Timer _panSweepTimer;
         private readonly System.Diagnostics.Stopwatch _panClock = System.Diagnostics.Stopwatch.StartNew();
 
-        // Motor espacial 3D (paradigma Dolby Atmos): timer de ~60 FPS que
-        // actualiza la pose de los objetos activos (ver SpatialAudioEngine).
-        private System.Threading.Timer _spatialTimer;
-
-        // DSP de atmosfera musical (perfil Atmos 3D): aplica un paso-bajo de
-        // absorcion de aire y un ensanchador estereo a la musica para que
-        // acompane la atmofera en vez de sonar seca y centrada.
-        private BassDspProc _musicAtmosphereDsp;
-        private float _musicAtmosLpL;
-        private float _musicAtmosLpR;
-        private float[] _musicAtmosBuf;
-        private void SpatialTick(object state)
-        {
-            try { SpatialAudioEngine.Instance.Update(1.0 / 60.0); } catch { }
-        }
-
-        // Tratamiento atmosferico de la musica (solo perfil Atmos 3D). Procesa
-        // el buffer estereo flotante de la musica in-place:
-        //  1) Paso-bajo de un polo por canal (absorcion de aire / "lejania":
-        //     calienta los agudos y da sensacion de espacio distante).
-        //  2) Ensanchador estereo mid/side: refuerza el "lado" para que la musica
-        //     envuelva al oyente en vez de clavarse en el centro.
-        // En cualquier otro perfil devuelve el buffer sin tocarlo (musica seca).
-        private void MusicAtmosphereDsp(int handle, int channel, IntPtr buffer, int length, IntPtr user)
-        {
-            if (SpatialProfile != SpatialProfile.Atmos3D) return;
-            int frames = length / 8;
-            if (frames <= 0) return;
-
-            // Coeficiente del paso-bajo de aire (~fc 5 kHz, suave). Se calcula
-            // una vez por llamada; la tasa de la musica es fija (44.1 kHz).
-            const float air = 0.5f;      // 1 - exp(-2*pi*fc/fs), fc aprox 5 kHz
-            const float width = 1.3f;    // ensanchamiento estereo
-            const float gain = 0.95f;    // ligero realce de "cama" lejana
-
-            if (_musicAtmosBuf == null || _musicAtmosBuf.Length < frames * 2)
-                _musicAtmosBuf = new float[frames * 2];
-            Marshal.Copy(buffer, _musicAtmosBuf, 0, frames * 2);
-
-            for (int i = 0; i < frames; i++)
-            {
-                float l = _musicAtmosBuf[i * 2];
-                float r = _musicAtmosBuf[i * 2 + 1];
-
-                // Paso-bajo de aire por canal.
-                _musicAtmosLpL += air * (l - _musicAtmosLpL);
-                _musicAtmosLpR += air * (r - _musicAtmosLpR);
-                l = _musicAtmosLpL;
-                r = _musicAtmosLpR;
-
-                // Ensanchador mid/side.
-                float mid = (l + r) * 0.5f;
-                float side = (l - r) * 0.5f;
-                l = mid + side * width;
-                r = mid - side * width;
-
-                _musicAtmosBuf[i * 2] = Math.Max(-1.0f, Math.Min(1.0f, l * gain));
-                _musicAtmosBuf[i * 2 + 1] = Math.Max(-1.0f, Math.Min(1.0f, r * gain));
-            }
-
-            Marshal.Copy(_musicAtmosBuf, 0, buffer, frames * 2);
-        }
+        // (El posicionamiento del tablero es un modelo unico siempre activo;
+        // no hay perfiles ni motor de objetos 3D ni DSP de atmosfera musical.)
 
         private struct PanSweep
         {
-            public int Handle;
+            public int SourceHandle;
             public float FromPan;
             public float ToPan;
             public float VolBase;
             public float FreqBase;
             public long StartMs;
-            // Ruta binaural: en vez de PAN se anima el azimuth del renderer.
-            public BinauralSfxSource Binaural;
-            public float FromAz;
-            public float ToAz;
+            public float FromDepth;
+            public float ToDepth;
+            public SpatialSfxSource Source;
         }
 
         // Diagnostic of a played locution: schedule (math) + real audio position
@@ -516,8 +422,6 @@ namespace Bejeweled3Accessible.Audio
             MusicVol = 80;
             SfxVol = 100;
             VoiceVol = 100;
-            SpatialBinauralEnabled = true;
-            SpatialProfile = SpatialProfile.CleanArcade;
 
             string candidateSoundDir1 = Path.Combine(baseDir, "sounds");
             string candidateSoundDir2 = Path.Combine(baseDir, "sounds", "sounds");
@@ -528,16 +432,6 @@ namespace Bejeweled3Accessible.Audio
                 _soundDir = candidateSoundDir1;
 
             _musicDir = Path.Combine(baseDir, "music");
-
-            // Motor espacial 3D: timer de ~60 FPS que integra velocidad, swipe y
-            // refresca absorcion de aire / elevacion de los objetos activos.
-            _spatialTimer = new System.Threading.Timer(SpatialTick, null, 16, 16);
-
-            // DSP de atmosfera para la musica (perfil Atmos 3D): paso-bajo de
-            // "aire/distancia" + ensanchador estereo, para que la musica envuelva
-            // en vez de sonar seca y centrada. En otros perfiles el callback
-            // pasa el buffer intacto.
-            _musicAtmosphereDsp = MusicAtmosphereDsp;
 
             string audioPacPath = Path.Combine(baseDir, "audio.pac");
             _audioPac = new PacReader(audioPacPath);
@@ -595,11 +489,11 @@ namespace Bejeweled3Accessible.Audio
                     {
                         if (BASS_ChannelIsActive(sfx.Handle) == 0) // Stopped or finished
                         {
-                            if (sfx.Binaural != null)
+                            if (sfx.Spatial != null)
                             {
-                                // La fuente binaural libera el decodificador, el
+                                // La fuente espacial libera el decodificador, el
                                 // pin del OGG y el stream de salida.
-                                try { sfx.Binaural.Dispose(); } catch { }
+                                try { sfx.Spatial.Dispose(); } catch { }
                             }
                             else
                             {
@@ -824,42 +718,23 @@ namespace Bejeweled3Accessible.Audio
             PlaySoundPitch(soundName, 1.0f);
         }
 
-        private void SchedulePanSweep(int handle, float fromPan, float toPan, float volBase, float freqBase)
+        // Glide espacial: anima Pan (L/R) y Profundidad (frente/fondo) del
+        // renderizador de la fuente. Sustituye tanto el paneo clasico como el
+        // antiguo glide binaural (azimuth). Siempre espacial, sin perfiles.
+        private void ScheduleSfxSweep(SpatialSfxSource source, float fromPan, float fromDepth, float toPan, float toDepth)
         {
             lock (_panSweepLock)
             {
-                _panSweeps.RemoveAll(s => s.Handle == handle);
+                _panSweeps.RemoveAll(s => s.SourceHandle == source.OutputHandle);
                 _panSweeps.Add(new PanSweep
                 {
-                    Handle = handle,
+                    SourceHandle = source.OutputHandle,
                     FromPan = fromPan,
                     ToPan = toPan,
-                    VolBase = volBase,
-                    FreqBase = freqBase,
-                    StartMs = _panClock.ElapsedMilliseconds
-                });
-
-                if (_panSweepTimer == null)
-                {
-                    _panSweepTimer = new System.Threading.Timer(PanSweepTick, null, PAN_SWEEP_TICK_MS, PAN_SWEEP_TICK_MS);
-                }
-            }
-        }
-
-        // Glide binaural: anima el azimuth del renderer de A a B (y el bulge
-        // de Stage2D), en vez del PAN clásico.
-        private void ScheduleBinauralSweep(BinauralSfxSource source, float fromAz, float toAz)
-        {
-            lock (_panSweepLock)
-            {
-                _panSweeps.RemoveAll(s => s.Handle == source.OutputHandle);
-                _panSweeps.Add(new PanSweep
-                {
-                    Handle = source.OutputHandle,
-                    Binaural = source,
-                    FromAz = fromAz,
-                    ToAz = toAz,
-                    StartMs = _panClock.ElapsedMilliseconds
+                    FromDepth = fromDepth,
+                    ToDepth = toDepth,
+                    StartMs = _panClock.ElapsedMilliseconds,
+                    Source = source
                 });
 
                 if (_panSweepTimer == null)
@@ -879,7 +754,7 @@ namespace Bejeweled3Accessible.Audio
                     PanSweep s = _panSweeps[i];
                     try
                     {
-                        if (BASS_ChannelIsActive(s.Handle) == 0)
+                        if (BASS_ChannelIsActive(s.SourceHandle) == 0)
                         {
                             _panSweeps.RemoveAt(i);
                             continue;
@@ -894,56 +769,33 @@ namespace Bejeweled3Accessible.Audio
                     float elapsed = now - s.StartMs;
                     if (elapsed >= PAN_SWEEP_MS)
                     {
-                        if (s.Binaural != null)
+                        if (s.Source != null)
                         {
-                            // La pose final queda clavada y el bulge vuelve a 1.0.
-                            try { s.Binaural.Renderer.AzimuthDeg = s.ToAz; } catch { }
-                            try { s.Binaural.Renderer.Bulge = 1.0f; } catch { }
+                            try { s.Source.Spatializer.Pan = s.ToPan; } catch { }
+                            try { s.Source.Spatializer.Depth = s.ToDepth; } catch { }
                         }
                         else
                         {
-                            try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_PAN, s.ToPan); } catch { }
-                            try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_VOL, s.VolBase); } catch { }
-                            try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_FREQ, s.FreqBase); } catch { }
+                            try { BASS_ChannelSetAttribute(s.SourceHandle, BASS_ATTRIB_PAN, s.ToPan); } catch { }
+                            try { BASS_ChannelSetAttribute(s.SourceHandle, BASS_ATTRIB_VOL, s.VolBase); } catch { }
+                            try { BASS_ChannelSetAttribute(s.SourceHandle, BASS_ATTRIB_FREQ, s.FreqBase); } catch { }
                         }
                         _panSweeps.RemoveAt(i);
                         continue;
                     }
 
-                    float progress = elapsed / (float)PAN_SWEEP_MS;
-                    if (s.Binaural != null)
-                    {
-                        // El glide binaural anima el azimuth (ITD + ILD + sombra
-                        // van con el ángulo); el volumen del canal no se toca.
-                        try { s.Binaural.Renderer.AzimuthDeg = SpatialAudio.SweepAzimuth(s.FromAz, s.ToAz, progress); } catch { }
-                        if (SpatialProfile == SpatialProfile.Stage2D)
-                        {
-                            // Stage2D hincha el volumen al cruzar el centro; los
-                            // perfiles limpios glidean a volumen constante.
-                            try { s.Binaural.Renderer.Bulge = SpatialAudio.SweepPassBulge(progress); } catch { }
-                        }
-                        else
-                        {
-                            try { s.Binaural.Renderer.Bulge = 1.0f; } catch { }
-                        }
-                        continue;
-                    }
-
+                    float progress = SpatialAudio.EaseSweep(elapsed / (float)PAN_SWEEP_MS);
                     float pan = SpatialAudio.SweepPan(s.FromPan, s.ToPan, progress);
-                    try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_PAN, pan); } catch { }
-
-                    if (SpatialProfile == SpatialProfile.Stage2D)
+                    if (s.Source != null)
                     {
-                        // The gem swells a little as it crosses the middle of
-                        // the glide, like it is sweeping past the player. The
-                        // clean profiles glide at a constant volume and pitch
-                        // so nothing ever sounds "swollen".
-                        float bulge = SpatialAudio.SweepPassBulge(progress);
-                        try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_VOL, s.VolBase * bulge); } catch { }
+                        float depth = SpatialAudio.SweepPan(s.FromDepth, s.ToDepth, progress);
+                        try { s.Source.Spatializer.Pan = pan; } catch { }
+                        try { s.Source.Spatializer.Depth = depth; } catch { }
                     }
                     else
                     {
-                        try { BASS_ChannelSetAttribute(s.Handle, BASS_ATTRIB_VOL, s.VolBase); } catch { }
+                        try { BASS_ChannelSetAttribute(s.SourceHandle, BASS_ATTRIB_PAN, pan); } catch { }
+                        try { BASS_ChannelSetAttribute(s.SourceHandle, BASS_ATTRIB_VOL, s.VolBase); } catch { }
                     }
                 }
 
@@ -996,120 +848,115 @@ namespace Bejeweled3Accessible.Audio
             StartSfxStream(soundName, fromX, row, pitchMultiplier, toX);
         }
 
-        // Reproduce un efecto posicionado en una ALTURA concreta (metros) de la
-        // celda, para la calibracion "Escuela de Audio" (suelo / gema / aerea).
-        public void PlaySoundSpatialElevated(string soundName, int col, int row, float elevationMeters, float pitchMultiplier = 1.0f, float airCutoffOverrideHz = -1.0f, float distanceGainOverride = -1.0f, float elevationTiltOverrideDb = -1.0f)
+        // Reproduce un efecto posicionado por PAN (L/R, -1..+1) y PROFUNDIDAD
+        // (fila: 0 frente .. 1 fondo). Unico modelo espacial, siempre activo y
+        // sin perfiles. Lo usa la Escuela de Audio para demostrar el paneo.
+        public void PlaySoundSpatialPan(float pan, float depthFar, string soundName, float pitchMultiplier = 1.0f)
         {
             if (SfxVol <= 0) return;
             CleanFinishedSfxChannels();
-            StartSfxStreamWorld(soundName, SpatialAudio.WorldFromCell(col, row, elevationMeters), false, pitchMultiplier, airCutoffOverrideHz, distanceGainOverride, elevationTiltOverrideDb);
-        }
 
-        // Reproduce un efecto en una posicion mundial arbitraria (x,y,z metros)
-        // respecto al listener. Usado por la calibracion "Escuela de Audio" para
-        // probar direcciones y la absorcion de aire a gran distancia. Las fuentes
-        // volumetricas (isVolumetric) mantienen presencia en un radio amplio.
-        public void PlaySoundAtWorld(string soundName, float x, float y, float z, float pitchMultiplier = 1.0f, bool isVolumetric = false, float airCutoffOverrideHz = -1.0f, float distanceGainOverride = -1.0f)
-        {
-            if (SfxVol <= 0) return;
-            CleanFinishedSfxChannels();
-            StartSfxStreamWorld(soundName, new Vector3(x, y, z), isVolumetric, pitchMultiplier, airCutoffOverrideHz, distanceGainOverride);
-        }
-
-        // Ruta de objeto 3D para posiciones mundiales arbitrarias (calibracion y
-        // cualquier sonido que quiera forzar el paradigma Atmos con independencia
-        // del perfil seleccionado). Crea la fuente binaural, la registra como
-        // objeto espacial y la reproduce; el motor la da de baja al terminar.
-        private void StartSfxStreamWorld(string soundName, Vector3 world, bool isVolumetric, float pitchMultiplier, float airCutoffOverrideHz = -1.0f, float distanceGainOverride = -1.0f, float elevationTiltOverrideDb = -1.0f)
-        {
-            if (!_bassReady) return;
+            byte[] audioBytes = LoadAudioBytes(soundName);
+            if (audioBytes == null || audioBytes.Length == 0) return;
+            GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
             try
             {
-                byte[] audioBytes = LoadAudioBytes(soundName);
-                if (audioBytes == null || audioBytes.Length == 0) return;
-
-                GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
-                try
+                float depth = (depthFar < 0.0f) ? 0.0f : depthFar;
+                SpatialSfxSource source = new SpatialSfxSource(audioBytes, pinned, pan, depth);
+                int handle = source.OutputHandle;
+                if (handle == 0)
                 {
-                    BinauralSfxSource source = new BinauralSfxSource(audioBytes, pinned, 0.0f, 1.0f);
-                    // La Escuela de Audio siempre demuestra el posicionamiento 3D
-                    // completo (HRTF al maximo), sea cual sea el perfil activo.
-                    source.Renderer.HrtfStrength = 1.0f;
-                    int handle = source.OutputHandle;
-                    if (handle == 0)
+                    try { source.Dispose(); } catch { }
+                    return;
+                }
+                BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, (float)SfxVol / 100.0f);
+                if (Math.Abs(pitchMultiplier - 1.0f) > 0.01f)
+                {
+                    float currentFreq = 44100.0f;
+                    if (BASS_ChannelGetAttribute(handle, BASS_ATTRIB_FREQ, ref currentFreq))
+                        BASS_ChannelSetAttribute(handle, BASS_ATTRIB_FREQ, currentFreq * pitchMultiplier);
+                }
+                BASS_ChannelPlay(handle, true);
+                RegisterSfx(source, handle, pinned);
+            }
+            catch
+            {
+                if (pinned.IsAllocated) { try { pinned.Free(); } catch { } }
+            }
+        }
+
+        // Barrido espacial: desliza PAN y PROFUNDIDAD de A a B, para que la
+        // Escuela de Audio demuestre el movimiento lateral (L<->R) y de
+        // profundidad (frente<->fondo).
+        public void PlaySoundSpatialSweepPan(float fromPan, float toPan, float fromDepth, float toDepth, string soundName, float pitchMultiplier = 1.0f)
+        {
+            if (SfxVol <= 0) return;
+            CleanFinishedSfxChannels();
+
+            byte[] audioBytes = LoadAudioBytes(soundName);
+            if (audioBytes == null || audioBytes.Length == 0) return;
+            GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
+            try
+            {
+                SpatialSfxSource source = new SpatialSfxSource(audioBytes, pinned, fromPan, fromDepth);
+                int handle = source.OutputHandle;
+                if (handle == 0)
+                {
+                    try { source.Dispose(); } catch { }
+                    return;
+                }
+                BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, (float)SfxVol / 100.0f);
+                if (Math.Abs(pitchMultiplier - 1.0f) > 0.01f)
+                {
+                    float currentFreq = 44100.0f;
+                    if (BASS_ChannelGetAttribute(handle, BASS_ATTRIB_FREQ, ref currentFreq))
+                        BASS_ChannelSetAttribute(handle, BASS_ATTRIB_FREQ, currentFreq * pitchMultiplier);
+                }
+                BASS_ChannelPlay(handle, true);
+                RegisterSfx(source, handle, pinned);
+                ScheduleSfxSweep(source, fromPan, fromDepth, toPan, toDepth);
+            }
+            catch
+            {
+                if (pinned.IsAllocated) { try { pinned.Free(); } catch { } }
+            }
+        }
+
+        // Registra una fuente espacial en la lista activa: limpia canales ya
+        // terminados y, si se supera el tope, corta el mas antiguo para que el
+        // sonido nuevo siempre suene. Libera el decodificador/pin del cortado.
+        private void RegisterSfx(SpatialSfxSource source, int handle, GCHandle pinned)
+        {
+            lock (_activeSfxList)
+            {
+                for (int i = _activeSfxList.Count - 1; i >= 0; i--)
+                {
+                    if (BASS_ChannelIsActive(_activeSfxList[i].Handle) == 0)
                     {
-                        try { source.Dispose(); } catch { }
-                        return;
-                    }
-
-                    double min = isVolumetric ? SpatialAudio.VolumetricMinDistance : SpatialAudio.PointMinDistance;
-                    double max = isVolumetric ? SpatialAudio.VolumetricMaxDistance : SpatialAudio.PointMaxDistance;
-                    SpatialAudioObject obj = new SpatialAudioObject(world, min, max);
-                    obj.IsVolumetric = isVolumetric;
-                    obj.AngleSpreadDeg = isVolumetric ? 40.0f : 6.0f;
-                    obj.AirCutoffOverride = airCutoffOverrideHz;
-                    obj.DistanceGainOverride = distanceGainOverride;
-                    obj.ElevationTiltOverride = elevationTiltOverrideDb;
-                    obj.Renderer = source.Renderer;
-                    source.Renderer.SpatialPose = true;   // usa la geometria 3D (ganancia/aire), no la profundidad 2D
-                    source.Renderer.Depth = 1.0f;
-                    source.SpatialObject = obj;
-                    SpatialAudioEngine.Instance.Add(obj);
-                    SpatialAudioEngine.Instance.Update(0.0);
-
-                    BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, (float)SfxVol / 100.0f);
-                    if (Math.Abs(pitchMultiplier - 1.0f) > 0.01f)
-                    {
-                        float currentFreq = 44100.0f;
-                        if (BASS_ChannelGetAttribute(handle, BASS_ATTRIB_FREQ, ref currentFreq))
-                        {
-                            BASS_ChannelSetAttribute(handle, BASS_ATTRIB_FREQ, currentFreq * pitchMultiplier);
-                        }
-                    }
-
-                    BASS_ChannelPlay(handle, true);
-
-                    lock (_activeSfxList)
-                    {
-                        for (int i = _activeSfxList.Count - 1; i >= 0; i--)
-                        {
-                            if (BASS_ChannelIsActive(_activeSfxList[i].Handle) == 0)
-                            {
-                                ActiveSfx done = _activeSfxList[i];
-                                _activeSfxList.RemoveAt(i);
-                                if (done.Binaural != null) { try { done.Binaural.Dispose(); } catch { } }
-                                else
-                                {
-                                    if (done.Pin.IsAllocated) { try { done.Pin.Free(); } catch { } }
-                                    try { BASS_StreamFree(done.Handle); } catch { }
-                                }
-                            }
-                        }
-                        if (_activeSfxList.Count >= 25)
-                        {
-                            ActiveSfx oldest = _activeSfxList[0];
-                            _activeSfxList.RemoveAt(0);
-                            try { BASS_ChannelStop(oldest.Handle); } catch { }
-                            if (oldest.Binaural != null) { try { oldest.Binaural.Dispose(); } catch { } }
-                            else
-                            {
-                                if (oldest.Pin.IsAllocated) { try { oldest.Pin.Free(); } catch { } }
-                                try { BASS_StreamFree(oldest.Handle); } catch { }
-                            }
-                            _activeSfxList.Add(new ActiveSfx { Handle = handle, IsVoice = false, Binaural = source });
-                        }
+                        ActiveSfx done = _activeSfxList[i];
+                        _activeSfxList.RemoveAt(i);
+                        if (done.Spatial != null) { try { done.Spatial.Dispose(); } catch { } }
                         else
                         {
-                            _activeSfxList.Add(new ActiveSfx { Handle = handle, IsVoice = false, Binaural = source });
+                            if (done.Pin.IsAllocated) { try { done.Pin.Free(); } catch { } }
+                            try { BASS_StreamFree(done.Handle); } catch { }
                         }
                     }
                 }
-                catch
+                if (_activeSfxList.Count >= 25)
                 {
-                    if (pinned.IsAllocated) { try { pinned.Free(); } catch { } }
+                    ActiveSfx oldest = _activeSfxList[0];
+                    _activeSfxList.RemoveAt(0);
+                    try { BASS_ChannelStop(oldest.Handle); } catch { }
+                    if (oldest.Spatial != null) { try { oldest.Spatial.Dispose(); } catch { } }
+                    else
+                    {
+                        if (oldest.Pin.IsAllocated) { try { oldest.Pin.Free(); } catch { } }
+                        try { BASS_StreamFree(oldest.Handle); } catch { }
+                    }
                 }
+                _activeSfxList.Add(new ActiveSfx { Handle = handle, Pin = pinned, IsVoice = false, Spatial = source });
             }
-            catch { }
         }
 
         // Creates a one-shot BASS stream for a sound effect and hands the channel
@@ -1123,175 +970,21 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         // sweepToCol >= 0 desplaza el canal lateralmente desde la columna de
         // origen `col` hasta esa columna (glide A->B), para que el movimiento
         // de la gema se oiga y no solo su posicion final. `row` alimenta el
-        // plano de profundidad (fila 0 = lejos, fila 7 = frente).
+        // plano de profundidad (fila 0 = lejos, fila 7 = frente). Siempre
+        // espacial (sin perfiles): pan por columna + profundidad por fila, con
+        // volumen/aire/anchura ya aplicados por el GridSpatializer.
         private void StartSfxStream(string soundName, int col, int row, float pitchMultiplier, int sweepToCol)
         {
             if (!_bassReady) return;
+            byte[] audioBytes = LoadAudioBytes(soundName);
+            if (audioBytes == null || audioBytes.Length == 0) return;
+
+            GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
             try
             {
-                byte[] audioBytes = LoadAudioBytes(soundName);
-                if (audioBytes == null || audioBytes.Length == 0) return;
-
-                GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
-
-                // Ruta binaural: HRTF paramétrico (ITD + ILD + sombra de cabeza)
-                // para los efectos posicionados del tablero. El perfil SimplePan
-                // y los sonidos sin columna (UI) usan el pan clásico.
-                if (SpatialBinauralEnabled && SpatialProfile != SpatialProfile.SimplePan && col >= 0)
-                {
-                    StartBinauralSfx(audioBytes, pinned, col, row, pitchMultiplier, sweepToCol, soundName);
-                    return;
-                }
-
-                int handle = 0;
-                try
-                {
-                    // No AUTOFREE: CleanFinishedSfxChannels owns the channel lifecycle.
-                    handle = BASS_StreamCreateFile(true, pinned.AddrOfPinnedObject(), 0, audioBytes.Length, 0);
-                    if (handle == 0)
-                    {
-                        LogAudioError("SFX '" + soundName + "' StreamCreateFile fallo, err=" + BASS_LastError());
-                        if (pinned.IsAllocated)
-                        {
-                            try { pinned.Free(); } catch { }
-                        }
-                        return;
-                    }
-
-                    // Depth plane: a gem in the back rows (0..2) is quieter
-                    // and closer to the center; the front rows keep the full
-                    // presence. Non-positional sounds (row < 0) stay flat.
-                    // The depth plane is a Stage2D theatrical effect: the clean
-                    // profiles keep every row at full presence and pan only by
-                    // column, so no gem is ever "pushed away" from the player.
-                    // El tono NUNCA cambia por profundidad: los sonidos reales
-                    // se escuchan afinados como los mezcló PopCap.
-                    bool stage2dDepth = (SpatialProfile == SpatialProfile.Stage2D);
-                    float depthVol = stage2dDepth ? SpatialAudio.DepthVolumeForRow(row) : 1.0f;
-                    float panScale = stage2dDepth ? SpatialAudio.DepthPanScaleForRow(row) : 1.0f;
-
-                    BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, (float)SfxVol / 100.0f * depthVol);
-
-                    // A sound without a column stays centered (col=-1) and a
-                    // slide animates the pan from the source column to the target.
-                    float fromPan = 0.0f;
-                    if (SpatialBinauralEnabled)
-                    {
-                        fromPan = SpatialAudio.PanColumn(col) * panScale;
-                        BASS_ChannelSetAttribute(handle, BASS_ATTRIB_PAN, fromPan);
-                    }
-                    else
-                    {
-                        BASS_ChannelSetAttribute(handle, BASS_ATTRIB_PAN, 0.0f);
-                    }
-
-                    float currentFreq = 44100.0f;
-                    if (Math.Abs(pitchMultiplier - 1.0f) > 0.01f)
-                    {
-                        if (BASS_ChannelGetAttribute(handle, BASS_ATTRIB_FREQ, ref currentFreq))
-                        {
-                            BASS_ChannelSetAttribute(handle, BASS_ATTRIB_FREQ, currentFreq * pitchMultiplier);
-                        }
-                    }
-                    else if (BASS_ChannelGetAttribute(handle, BASS_ATTRIB_FREQ, ref currentFreq))
-                    {
-                        // Just read the real frequency for the swipe's glide.
-                    }
-
-                    BASS_ChannelPlay(handle, true);
-
-                    lock (_activeSfxList)
-                    {
-                        // Clean up any channels that have already finished so the
-                        // cap below never needs to cut a sound mid-playback.
-                        for (int i = _activeSfxList.Count - 1; i >= 0; i--)
-                        {
-                            if (BASS_ChannelIsActive(_activeSfxList[i].Handle) == 0)
-                            {
-                                ActiveSfx done = _activeSfxList[i];
-                                _activeSfxList.RemoveAt(i);
-                                if (done.Binaural != null)
-                                {
-                                    try { done.Binaural.Dispose(); } catch { }
-                                }
-                                else
-                                {
-                                    if (done.Pin.IsAllocated) { try { done.Pin.Free(); } catch { } }
-                                    try { BASS_StreamFree(done.Handle); } catch { }
-                                }
-                            }
-                        }
-
-                        if (_activeSfxList.Count >= 25)
-                        {
-                            // Cap reached with 25+ sounds still playing: stop the
-                            // oldest effect so the newest sound is always heard.
-                            // A short cut is less damaging for an accessible game
-                            // than silently swallowing the requested sound.
-                            ActiveSfx oldest = _activeSfxList[0];
-                            _activeSfxList.RemoveAt(0);
-                            try { BASS_ChannelStop(oldest.Handle); } catch { }
-                            if (oldest.Binaural != null)
-                            {
-                                try { oldest.Binaural.Dispose(); } catch { }
-                            }
-                            else
-                            {
-                                if (oldest.Pin.IsAllocated) { try { oldest.Pin.Free(); } catch { } }
-                                try { BASS_StreamFree(oldest.Handle); } catch { }
-                            }
-                            _activeSfxList.Add(new ActiveSfx { Handle = handle, Pin = pinned, IsVoice = false });
-                        }
-                        else
-                        {
-                            _activeSfxList.Add(new ActiveSfx { Handle = handle, Pin = pinned, IsVoice = false });
-                        }
-                    }
-
-                    // Animate the pan toward the destination column so the gem
-                    // movement is heard as a lateral glide (swipe), not a click.
-                    // The glide also swells volume/frequency at mid-flight.
-                    if (SpatialBinauralEnabled && sweepToCol >= 0 && sweepToCol != col)
-                    {
-                        float toPan = SpatialAudio.PanColumn(sweepToCol) * panScale;
-                        if (SpatialProfile == SpatialProfile.SimplePan)
-                        {
-                            // Simple profile: place the sound at the destination
-                            // column instantly, no animated glide at all.
-                            BASS_ChannelSetAttribute(handle, BASS_ATTRIB_PAN, toPan);
-                        }
-                        else
-                        {
-                            SchedulePanSweep(handle, fromPan, toPan, (float)SfxVol / 100.0f * depthVol, currentFreq);
-                        }
-                    }
-                }
-                catch
-                {
-                    // Failed half-way through: release the stream and the pin so
-                    // the BASS handle / GCHandle cannot linger for the whole session.
-                    if (handle != 0)
-                    {
-                        try { BASS_StreamFree(handle); } catch { }
-                    }
-                    if (pinned.IsAllocated)
-                    {
-                        try { pinned.Free(); } catch { }
-                    }
-                }
-            }
-            catch { }
-        }
-
-        // Ruta binaural: el efecto se decodifica a PCM (BASS_STREAM_DECODE),
-        // el BinauralRenderer lo coloca en el azimuth de la columna (ITD, ILD
-        // y sombra de cabeza) y BASS_StreamCreate lo entrega al dispositivo.
-        private void StartBinauralSfx(byte[] audioBytes, GCHandle pinned, int col, int row, float pitchMultiplier, int sweepToCol, string soundName)
-        {
-            try
-            {
-                float depth = (row < 0) ? 1.0f : SpatialAudio.Depth(row, SpatialAudio.BoardRows);
-                BinauralSfxSource source = new BinauralSfxSource(audioBytes, pinned, SpatialAudio.AzimuthDeg(col), depth);
+                float pan = SpatialAudio.PanColumn(col);
+                float depth = (row < 0) ? 0.0f : SpatialAudio.DepthForRow(row);
+                SpatialSfxSource source = new SpatialSfxSource(audioBytes, pinned, pan, depth);
                 int handle = source.OutputHandle;
                 if (handle == 0)
                 {
@@ -1299,119 +992,32 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     return;
                 }
 
-                // Fuerza HRTF por perfil: Atmos = completo (el mas espacial);
-                // Stage2D = teatral fuerte; CleanArcade = mas plano/sec; SimplePan
-                // = 0 (paneo plano, sin HRTF). Asi activar Atmos se nota de verdad.
-                float hrtf = 1.0f;
-                if (SpatialProfile == SpatialProfile.CleanArcade) hrtf = 0.6f;
-                else if (SpatialProfile == SpatialProfile.Stage2D) hrtf = 0.8f;
-                else if (SpatialProfile == SpatialProfile.SimplePan) hrtf = 0.4f;
-                source.Renderer.HrtfStrength = hrtf;
-
-                // Perfil Objeto 3D (Atmos): cada sonido es un objeto acustico en
-                // el espacio. El motor recalcula azimut/distancia/absorcion/tilt
-                // cada frame desde su posicion mundial relativa al listener.
-                if (SpatialProfile == SpatialProfile.Atmos3D)
-                {
-                    Vector3 world = SpatialAudio.WorldFromCell(col, row, SpatialAudio.GemElevationMeters);
-                    SpatialAudioObject obj = new SpatialAudioObject(world, SpatialAudio.PointMinDistance, SpatialAudio.PointMaxDistance);
-                    obj.AngleSpreadDeg = 6.0f;
-                    obj.DistanceGainExponent = 1.6;   // profundidad frente->fondo evidente
-                    obj.Renderer = source.Renderer;
-                    if (sweepToCol >= 0 && sweepToCol != col)
-                    {
-                        obj.SweepFromX = SpatialAudio.WorldFromCell(col, row, SpatialAudio.GemElevationMeters).X;
-                        obj.SweepToX = SpatialAudio.WorldFromCell(sweepToCol, row, SpatialAudio.GemElevationMeters).X;
-                        obj.SweepDurationMs = PAN_SWEEP_MS;
-                    }
-                    source.SpatialObject = obj;
-                    source.Renderer.SpatialPose = true;   // usa la geometria 3D, no la profundidad 2D
-                    source.Renderer.Depth = 1.0f;
-                    source.Renderer.Bulge = 1.0f;
-                    SpatialAudioEngine.Instance.Add(obj);
-                    // Pose inicial inmediata (por si el timer aun no ha corrido).
-                    Vector3 rel = world - SpatialAudioEngine.Instance.Listener.Position;
-                    source.Renderer.AzimuthDeg = (float)SpatialAudio.AzimuthFromRelative(rel.X, rel.Z);
-                    source.Renderer.DistanceGain = (float)SpatialAudio.DistanceGainFor(rel.Length(), obj.MinDistance, obj.MaxDistance);
-                    source.Renderer.AirCutoffHz = (float)SpatialAudio.AirAbsorptionCutoffHz(rel.Length());
-                    source.Renderer.ElevationTiltDb = (float)SpatialAudio.ElevationTiltDb(world.Y, SpatialAudioEngine.Instance.Listener.Position.Y);
-                    SpatialAudioEngine.Instance.Update(0.0);
-                }
-
-                // El renderer aplica la profundidad (volumen + aire) y el bulge
-                // del glide por dentro; el canal solo lleva el volumen de SFX.
                 BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, (float)SfxVol / 100.0f);
-
                 if (Math.Abs(pitchMultiplier - 1.0f) > 0.01f)
                 {
                     float currentFreq = 44100.0f;
                     if (BASS_ChannelGetAttribute(handle, BASS_ATTRIB_FREQ, ref currentFreq))
-                    {
                         BASS_ChannelSetAttribute(handle, BASS_ATTRIB_FREQ, currentFreq * pitchMultiplier);
-                    }
                 }
-
                 BASS_ChannelPlay(handle, true);
+                RegisterSfx(source, handle, pinned);
 
-                lock (_activeSfxList)
+                // Animate the pan toward the destination column so the gem
+                // movement is heard as a lateral glide (swipe); the depth stays
+                // fixed on the same row.
+                if (sweepToCol >= 0 && sweepToCol != col)
                 {
-                    for (int i = _activeSfxList.Count - 1; i >= 0; i--)
-                    {
-                        if (BASS_ChannelIsActive(_activeSfxList[i].Handle) == 0)
-                        {
-                            ActiveSfx done = _activeSfxList[i];
-                            _activeSfxList.RemoveAt(i);
-                            if (done.Binaural != null)
-                            {
-                                try { done.Binaural.Dispose(); } catch { }
-                            }
-                            else
-                            {
-                                if (done.Pin.IsAllocated) { try { done.Pin.Free(); } catch { } }
-                                try { BASS_StreamFree(done.Handle); } catch { }
-                            }
-                        }
-                    }
-
-                    if (_activeSfxList.Count >= 25)
-                    {
-                        ActiveSfx oldest = _activeSfxList[0];
-                        _activeSfxList.RemoveAt(0);
-                        try { BASS_ChannelStop(oldest.Handle); } catch { }
-                        if (oldest.Binaural != null)
-                        {
-                            try { oldest.Binaural.Dispose(); } catch { }
-                        }
-                        else
-                        {
-                            if (oldest.Pin.IsAllocated) { try { oldest.Pin.Free(); } catch { } }
-                            try { BASS_StreamFree(oldest.Handle); } catch { }
-                        }
-                        _activeSfxList.Add(new ActiveSfx { Handle = handle, IsVoice = false, Binaural = source });
-                    }
-                    else
-                    {
-                        _activeSfxList.Add(new ActiveSfx { Handle = handle, IsVoice = false, Binaural = source });
-                    }
-                }
-
-                // Glide binaural: anima el azimuth del renderer, no el PAN.
-                // En Atmos el swipe lo conduce el motor 3D (SweepFrom/ToX del
-                // objeto), no el scheduler 2D, asi que se omite aqui.
-                if (sweepToCol >= 0 && sweepToCol != col && SpatialProfile != SpatialProfile.Atmos3D)
-                {
-                    ScheduleBinauralSweep(source, SpatialAudio.AzimuthDeg(col), SpatialAudio.AzimuthDeg(sweepToCol));
+                    ScheduleSfxSweep(source, pan, depth, SpatialAudio.PanColumn(sweepToCol), depth);
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                LogAudioError("SFX binaural '" + soundName + "' fallo: " + ex.GetType().Name + ": " + ex.Message);
-                if (pinned.IsAllocated)
-                {
-                    try { pinned.Free(); } catch { }
-                }
+                if (pinned.IsAllocated) { try { pinned.Free(); } catch { } }
             }
         }
+
+        // (El antiguo camino binaural/HRTF por perfil fue eliminado: ahora todo
+        // efecto del tablero usa el unico render espacial GridSpatializer.)
 
         public void PlaySoundPitch(string soundName, float pitchMultiplier)
         {
@@ -1679,7 +1285,6 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 // mezcló PopCap, y el HRTF nunca la procesa. En el perfil Atmos
                 // 3D, el DSP de atmosfera la envuelve (aire + ensanchamiento).
                 BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, 0.0f);
-                try { BASS_ChannelSetDSP(handle, _musicAtmosphereDsp, IntPtr.Zero, 0); } catch { }
                 BASS_ChannelPlay(handle, true);
                 return handle;
             }
@@ -1762,7 +1367,6 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 // escuchan centradas y secas, tal cuál PopCap las mezcló. En el
                 // perfil Atmos 3D el DSP de atmosfera las envuelve.
                 BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, 0.0f);
-                try { BASS_ChannelSetDSP(handle, _musicAtmosphereDsp, IntPtr.Zero, 0); } catch { }
                 BASS_ChannelPlay(handle, true);
 
                 pin = pinned;
@@ -1949,13 +1553,6 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 _musicMonitorTimer = null;
             }
 
-            if (_spatialTimer != null)
-            {
-                try { _spatialTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite); } catch { }
-                try { _spatialTimer.Dispose(); } catch { }
-                _spatialTimer = null;
-            }
-
             System.Threading.Timer pumpTimer = null;
             lock (_voiceLock)
             {
@@ -2010,10 +1607,9 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 {
                     foreach (var sfx in _activeSfxList)
                     {
-                        if (sfx.Binaural != null)
+                        if (sfx.Spatial != null)
                         {
-                            try { sfx.Binaural.Dispose(); } catch { }
-                            continue;
+                            try { sfx.Spatial.Dispose(); } catch { }
                         }
                         if (sfx.Pin.IsAllocated)
                         {
@@ -2034,22 +1630,12 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         }
     }
 
-    // Cadena de reproducción binaural de un efecto del tablero:
-    // decodificador BASS (BASS_STREAM_DECODE, nunca suena) + BinauralRenderer
-    // + stream de salida estéreo creado con BASS_StreamCreate (STREAMPROC).
-    // El motor la usa en vez del canal directo cuando el HRTF binaural está
-    // activo (perfiles Stage2D y CleanArcade con columna).
-    // Fuente de SFX binaural. NOTA DE ARQUITECTURA: esta bass.dll reducida NO
-    // decodifica streams BASS_STREAM_DECODE (BASS_ChannelGetData devuelve 0)
-    // y tampoco resamplea vía BASS_ATTRIB_FREQ, así que la ruta binaural no
-    // puede usar "decodificar -> renderizar -> push". En su lugar se usa el
-    // camino de reproducción directa que sí funciona en este build:
-    // BASS_StreamCreateFile reproduce el OGG a su tasa nativa (44.1 kHz o
-    // 22.05 kHz en los ficheros reales), y un DSP instalado en el canal
-    // sustituye el buffer estéreo por la salida del renderer binaural. El
-    // renderer se configura con la tasa real del fichero (BASS_ChannelGetInfo)
-    // para que su matemática ITD/aire sea correcta en ambos casos.
-    internal sealed class BinauralSfxSource : IDisposable
+    // Cadena de reproducción espacial de un efecto del tablero:
+    // BASS_StreamCreateFile reproduce el OGG a su tasa nativa y un DSP
+    // instalado en el canal sustituye el buffer estéreo por la salida del
+    // GridSpatializer (pan L/R + profundidad frente/fondo). Unico modelo,
+    // siempre activo, sin perfiles.
+    internal sealed class SpatialSfxSource : IDisposable
     {
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
         private static extern int BASS_StreamCreateFile(bool mem, IntPtr file, long offset, long length, uint flags);
@@ -2069,7 +1655,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         private const uint BASS_SAMPLE_FLOAT = 0x100;
 
         // Máximo de frames por bloque de callback: ~186 ms a 44.1 kHz.
-        private const int BinauralSfxBlockFrames = 8192;
+        private const int SpatialSfxBlockFrames = 8192;
 
         [StructLayout(LayoutKind.Sequential)]
         private struct BassChannelInfo
@@ -2087,12 +1673,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         public int OutputHandle { get; private set; }
 
         // Pose que anima el motor (swipes): el hilo de audio la lee por bloque.
-        public BinauralRenderer Renderer { get; private set; }
-
-        // Objeto 3D (paradigma Atmos) asociado a esta fuente, si la reproduce el
-        // motor espacial. Al liberar la fuente se da de baja del motor para no
-        // dejar el canal/DSP colgando.
-        public SpatialAudioObject SpatialObject { get; set; }
+        public GridSpatializer Spatializer { get; private set; }
 
         private readonly GCHandle _pin;      // OGG en RAM: vive con la fuente
         private readonly GCHandle _selfPin;  // token para el callback de BASS
@@ -2102,7 +1683,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         private readonly float[] _monoBuf;   // downmix mono (dual-mono sin pérdida)
         private readonly float[] _stereoBuf; // salida intercalada del renderer
 
-        public BinauralSfxSource(byte[] oggBytes, GCHandle pin, float azimuthDeg, float depth)
+        public SpatialSfxSource(byte[] oggBytes, GCHandle pin, float pan, float depth)
         {
             _pin = pin;
             OutputHandle = BASS_StreamCreateFile(true, pin.AddrOfPinnedObject(), 0, oggBytes.Length, BASS_SAMPLE_FLOAT);
@@ -2120,11 +1701,11 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             // El DSP ve el buffer a la tasa nativa del fichero (sin
             // resampleo): el renderer se configura con esa tasa para que su
             // matemática de ITD/aire sea correcta también en los OGG a 22.05 kHz.
-            Renderer = new BinauralRenderer { SampleRate = info.freq, AzimuthDeg = azimuthDeg, Depth = depth };
+            Spatializer = new GridSpatializer { SampleRate = info.freq, Pan = pan, Depth = depth };
 
-            _inBuf = new float[BinauralSfxBlockFrames * 2];
-            _monoBuf = new float[BinauralSfxBlockFrames];
-            _stereoBuf = new float[BinauralSfxBlockFrames * 2];
+            _inBuf = new float[SpatialSfxBlockFrames * 2];
+            _monoBuf = new float[SpatialSfxBlockFrames];
+            _stereoBuf = new float[SpatialSfxBlockFrames * 2];
 
             _dsp = Dsp;
             _selfPin = GCHandle.Alloc(this);
@@ -2144,7 +1725,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         private void Dsp(int handle, int channel, IntPtr buffer, int length, IntPtr user)
         {
             int frames = length / 8;
-            if (frames <= 0 || frames > BinauralSfxBlockFrames) return;
+            if (frames <= 0 || frames > SpatialSfxBlockFrames) return;
 
             Marshal.Copy(buffer, _inBuf, 0, frames * _inChans);
             if (_inChans == 2)
@@ -2155,11 +1736,11 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 {
                     _monoBuf[i] = (_inBuf[i * 2] + _inBuf[i * 2 + 1]) * 0.5f;
                 }
-                Renderer.Process(_monoBuf, frames, _stereoBuf);
+                Spatializer.Process(_monoBuf, frames, _stereoBuf);
             }
             else
             {
-                Renderer.Process(_inBuf, frames, _stereoBuf);
+                Spatializer.Process(_inBuf, frames, _stereoBuf);
             }
 
             Marshal.Copy(_stereoBuf, 0, buffer, frames * 2);
@@ -2180,11 +1761,6 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             if (_selfPin.IsAllocated)
             {
                 try { _selfPin.Free(); } catch { }
-            }
-            if (SpatialObject != null)
-            {
-                try { SpatialAudioEngine.Instance.Release(SpatialObject); } catch { }
-                SpatialObject = null;
             }
         }
     }

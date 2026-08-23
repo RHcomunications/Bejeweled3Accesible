@@ -53,9 +53,9 @@ namespace Bejeweled3Accessible.Tests
         public static int Main(string[] args)
         {
             bool noAudio = args != null && Array.IndexOf(args, "--no-audio") >= 0;
-            if (args != null && args.Length > 0 && args[0] == "--hrtf-scan")
+            if (args != null && args.Length > 0 && args[0] == "--spatial-scan")
             {
-                RunHrtfScan();
+                RunSpatialScan();
                 return 0;
             }
             if (args != null && args.Length > 0 && args[0] == "--decode-probe")
@@ -1091,8 +1091,6 @@ namespace Bejeweled3Accessible.Tests
                 Assert.Equal(100, opt.SoundVolume, "Sonido");
                 Assert.Equal(100, opt.VoiceVolume, "Voz");
                 Assert.Equal(Language.Spanish, opt.SelectedLanguage, "Idioma");
-                Assert.Equal((int)SpatialProfile.CleanArcade, opt.EffectiveSpatialProfile, "Perfil espacial por defecto");
-                Assert.True(opt.EffectiveSpatialBinauralEnabled, "Binaural por defecto");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Options: persistencia roundtrip sin tocar AppData", () =>
@@ -1105,15 +1103,11 @@ namespace Bejeweled3Accessible.Tests
                     opt.MusicVolume = 35;
                     opt.SoundVolume = 55;
                     opt.SelectedLanguage = Language.English;
-                    opt.SpatialProfile = (int)SpatialProfile.SimplePan;
-                    opt.SpatialBinauralEnabled = false;
                     opt.Save();
                     GameOptions loaded = GameOptions.Load();
                     Assert.Equal(35, loaded.MusicVolume, "Musica persistida");
                     Assert.Equal(55, loaded.SoundVolume, "Sonido persistido");
                     Assert.Equal(Language.English, loaded.SelectedLanguage, "Idioma persistido");
-                    Assert.Equal((int)SpatialProfile.SimplePan, loaded.EffectiveSpatialProfile, "Perfil espacial persistido");
-                    Assert.False(loaded.EffectiveSpatialBinauralEnabled, "Binaural persistido");
                 }
                 finally
                 {
@@ -1136,8 +1130,8 @@ namespace Bejeweled3Accessible.Tests
                         "<SelectedLanguage>Spanish</SelectedLanguage><ZenAmbient>0</ZenAmbient>" +
                         "<ZenMantras>true</ZenMantras><ZenBreath>true</ZenBreath></GameOptions>");
                     GameOptions loaded = GameOptions.Load();
-                    Assert.Equal((int)SpatialProfile.CleanArcade, loaded.EffectiveSpatialProfile, "Perfil en XML viejo");
-                    Assert.True(loaded.EffectiveSpatialBinauralEnabled, "Binaural en XML viejo");
+                    Assert.Equal(80, loaded.MusicVolume, "Musica en XML viejo");
+                    Assert.Equal(100, loaded.SoundVolume, "Sonido en XML viejo");
                 }
                 finally
                 {
@@ -1378,32 +1372,34 @@ namespace Bejeweled3Accessible.Tests
                 Assert.Equal("01 - Intro.mp3", MusicMap.FileName(MusicMap.Intro), "Helper FileName");
             }));
 
-            // ======================= HRTF / SPATIAL AUDIO =======================
-            tests.Add(Tuple.Create<string, Action>("HRTF: columna A pan izquierdo completo (-0.85)", () =>
+            // ======================= AUDIO ESPACIAL (grid: pan + profundidad) =======================
+            // Unico modelo, siempre activo, sin perfiles. El tablero coloca cada
+            // efecto por columna (pan L/R) y por fila (profundidad frente/fondo).
+            tests.Add(Tuple.Create<string, Action>("Spatial: columna A pan izquierdo completo (-MaxPan)", () =>
             {
                 Assert.Near(-SpatialAudio.MaxPan, SpatialAudio.PanColumn(0), 0.0001f, "Pan col 0");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: columna H pan derecho completo (+0.85)", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: columna H pan derecho completo (+MaxPan)", () =>
             {
                 Assert.Near(SpatialAudio.MaxPan, SpatialAudio.PanColumn(7), 0.0001f, "Pan col 7");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: centro entre columnas 3 y 4", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: centro entre columnas 3 y 4", () =>
             {
-                Assert.True(SpatialAudio.PanColumn(3) < 0.0f, "Col 3 debe ser izquierda");
-                Assert.True(SpatialAudio.PanColumn(4) > 0.0f, "Col 4 debe ser derecha");
-                Assert.True(Math.Abs(SpatialAudio.PanColumn(3)) < 0.5f, "Col 3 cercano al centro");
-                Assert.True(Math.Abs(SpatialAudio.PanColumn(4)) < 0.5f, "Col 4 cercano al centro");
+                Assert.True(SpatialAudio.PanColumn(3) < 0.0f, "Col 3 izquierda");
+                Assert.True(SpatialAudio.PanColumn(4) > 0.0f, "Col 4 derecha");
+                Assert.True(Math.Abs(SpatialAudio.PanColumn(3)) < 0.5f, "Col 3 cerca del centro");
+                Assert.True(Math.Abs(SpatialAudio.PanColumn(4)) < 0.5f, "Col 4 cerca del centro");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: curva monotona creciente A->H", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: curva de pan monotona creciente A->H", () =>
             {
                 for (int i = 0; i < 7; i++)
                     Assert.True(SpatialAudio.PanColumn(i) < SpatialAudio.PanColumn(i + 1), "pan(" + i + ") < pan(" + (i + 1) + ")");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: curva simetrica izquierda/derecha", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: curva de pan simetrica izquierda/derecha", () =>
             {
                 Assert.Near(Math.Abs(SpatialAudio.PanColumn(0)), Math.Abs(SpatialAudio.PanColumn(7)), 0.001f, "Extremos");
                 Assert.Near(Math.Abs(SpatialAudio.PanColumn(1)), Math.Abs(SpatialAudio.PanColumn(6)), 0.001f, "Par 1/6");
@@ -1411,524 +1407,105 @@ namespace Bejeweled3Accessible.Tests
                 Assert.Near(Math.Abs(SpatialAudio.PanColumn(3)), Math.Abs(SpatialAudio.PanColumn(4)), 0.001f, "Par 3/4");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: sin columna (UI/menus) queda al centro (regresion #bug izquierda)", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: sin columna (UI/menus) queda al centro", () =>
             {
                 Assert.Near(0.0f, SpatialAudio.PanColumn(-1), 0.0001f, "col=-1 UI al centro");
                 Assert.Near(0.0f, SpatialAudio.Pan(-1, 8), 0.0001f, "Pan(-1,8) al centro");
-                Assert.True(SpatialAudio.PanColumn(-1) != SpatialAudio.PanColumn(0), "No debe volcarse a izquierda");
+                Assert.True(SpatialAudio.PanColumn(-1) != SpatialAudio.PanColumn(0), "No vuelca a izquierda");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: valores fuera de rango van al centro", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: valores fuera de rango van al centro", () =>
             {
                 Assert.Near(0.0f, SpatialAudio.PanColumn(-5), 0.0001f, "Izquierda fuera");
                 Assert.Near(0.0f, SpatialAudio.PanColumn(99), 0.0001f, "Derecha fuera");
-                Assert.Near(0.0f, SpatialAudio.PanColumn(Board.Cols), 0.0001f, "Primera col fuera del tablero");
+                Assert.Near(0.0f, SpatialAudio.PanColumn(Board.Cols), 0.0001f, "Primera col fuera");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: swipe anima el pan de una columna a otra", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: el swipe anima el pan de una columna a otra", () =>
             {
                 float fromPan = SpatialAudio.PanColumn(0);
                 float toPan = SpatialAudio.PanColumn(7);
-                // Primitive: a lone displaced near-mid progress must be between.
-                float prog = 0.5f;
-                float mid = SpatialAudio.SweepPan(fromPan, toPan, prog);
-                Assert.True(mid > fromPan && mid < toPan, "El punto medio del swipe debe estar entre A y H");
-                Assert.Near(toPan, SpatialAudio.SweepPan(fromPan, toPan, 1.0f), 0.0001f, "Al 100% debe llegar a H");
-                Assert.Near(fromPan, SpatialAudio.SweepPan(fromPan, toPan, 0.0f), 0.0001f, "Al 0% debe partir de A");
+                float mid = SpatialAudio.SweepPan(fromPan, toPan, 0.5f);
+                Assert.True(mid > fromPan && mid < toPan, "El punto medio del swipe esta entre A y H");
+                Assert.Near(toPan, SpatialAudio.SweepPan(fromPan, toPan, 1.0f), 0.0001f, "Al 100% llega a H");
+                Assert.Near(fromPan, SpatialAudio.SweepPan(fromPan, toPan, 0.0f), 0.0001f, "Al 0% parte de A");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: la voz siempre se reproduce al centro", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: la voz siempre suena al centro", () =>
             {
-                Assert.Near(0.0f, SpatialAudio.VoicePan, 0.0001f, "VoicePan constante = centro");
+                Assert.Near(0.0f, SpatialAudio.VoicePan, 0.0001f, "VoicePan = centro");
             }));
 
-            // ======================= CAPA BINAURAL (ITD + ILD) =====================
-            tests.Add(Tuple.Create<string, Action>("HRTF: azimuth columna A izquierda completa (-75)", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: profundidad fila 7 (frente)=0, fila 0 (fondo)=1", () =>
             {
-                Assert.Near(-SpatialAudio.MaxAzimuthDeg, SpatialAudio.AzimuthDeg(0), 0.001f, "Az col 0");
+                Assert.Near(0.0f, SpatialAudio.DepthForRow(7), 0.0001f, "Frente");
+                Assert.Near(1.0f, SpatialAudio.DepthForRow(0), 0.0001f, "Fondo");
+                Assert.True(SpatialAudio.DepthForRow(6) < SpatialAudio.DepthForRow(0), "Frente mas cercano que fondo");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: azimuth columna H derecha completa (+75)", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: volumen decrece con la profundidad", () =>
             {
-                Assert.Near(SpatialAudio.MaxAzimuthDeg, SpatialAudio.AzimuthDeg(7), 0.001f, "Az col 7");
+                float v0 = SpatialAudio.VolumeForDepth(0.0f);
+                float v1 = SpatialAudio.VolumeForDepth(1.0f);
+                Assert.Near(1.0f, v0, 0.001f, "Frente volumen pleno");
+                Assert.True(v1 < v0, "Fondo mas bajo");
+                Assert.True(v1 > 0.4f, "Fondo no se silencia (" + v1.ToString("F2") + ")");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: azimuth centro entre columnas 3 y 4", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: el aire oscurece al alejar (corte mas bajo)", () =>
             {
-                Assert.True(SpatialAudio.AzimuthDeg(3) < 0.0f, "Col 3 izquierda");
-                Assert.True(SpatialAudio.AzimuthDeg(4) > 0.0f, "Col 4 derecha");
-                Assert.True(Math.Abs(SpatialAudio.AzimuthDeg(3)) < 30.0f, "Col 3 cerca del centro");
-                Assert.True(Math.Abs(SpatialAudio.AzimuthDeg(4)) < 30.0f, "Col 4 cerca del centro");
+                float c0 = SpatialAudio.AirCutoffForDepth(0.0f);
+                float c1 = SpatialAudio.AirCutoffForDepth(1.0f);
+                Assert.Near(20000.0f, c0, 1.0f, "Frente transparente");
+                Assert.True(c1 < c0, "Fondo corta mas agudo");
+                Assert.True(c1 > 3000.0f && c1 < 9000.0f, "Fondo ~6 kHz, fue " + c1.ToString("F0"));
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: azimuth monotono y simetrico A->H", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: la anchura estereo crece con la profundidad", () =>
             {
-                for (int i = 0; i < 7; i++)
-                    Assert.True(SpatialAudio.AzimuthDeg(i) < SpatialAudio.AzimuthDeg(i + 1), "az(" + i + ") < az(" + (i + 1) + ")");
-                Assert.Near(Math.Abs(SpatialAudio.AzimuthDeg(0)), Math.Abs(SpatialAudio.AzimuthDeg(7)), 0.001f, "Extremos");
-                Assert.Near(Math.Abs(SpatialAudio.AzimuthDeg(1)), Math.Abs(SpatialAudio.AzimuthDeg(6)), 0.001f, "Par 1/6");
-                Assert.Near(Math.Abs(SpatialAudio.AzimuthDeg(2)), Math.Abs(SpatialAudio.AzimuthDeg(5)), 0.001f, "Par 2/5");
-                Assert.Near(Math.Abs(SpatialAudio.AzimuthDeg(3)), Math.Abs(SpatialAudio.AzimuthDeg(4)), 0.001f, "Par 3/4");
+                float w0 = SpatialAudio.WidthForDepth(0.0f);
+                float w1 = SpatialAudio.WidthForDepth(1.0f);
+                Assert.Near(1.0f, w0, 0.001f, "Frente sin ensanchar");
+                Assert.True(w1 > w0, "Fondo mas ancho");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF: sin columna (UI) azimuth al centro", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: GridSpatializer lateraliza L/R", () =>
             {
-                Assert.Near(0.0f, SpatialAudio.AzimuthDeg(-1), 0.0001f, "col=-1 al centro");
-                Assert.Near(0.0f, SpatialAudio.AzimuthDeg(99), 0.0001f, "Fuera de rango al centro");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: ITD de Woodworth - centro nulo, lateral creciente", () =>
-            {
-                Assert.Near(0.0f, SpatialAudio.ItdSeconds(0.0f), 0.00001f, "Frente sin retardo");
-                Assert.True(SpatialAudio.ItdSeconds(10.0f) < SpatialAudio.ItdSeconds(45.0f), "ITD crece con el angulo");
-                Assert.True(SpatialAudio.ItdSeconds(45.0f) < SpatialAudio.ItdSeconds(75.0f), "ITD crece hacia el extremo");
-                Assert.Near(SpatialAudio.ItdSeconds(-60.0f), SpatialAudio.ItdSeconds(60.0f), 0.00001f, "ITD simetrica");
-                float maxMs = SpatialAudio.ItdSeconds(75.0f) * 1000.0f;
-                Assert.True(maxMs > 0.4f && maxMs < 0.7f, "ITD maxima fisica (~0.58 ms), fue " + maxMs.ToString("F3"));
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: ILD - oido lejano mas bajo, simetrico", () =>
-            {
-                Assert.Near(0.0f, SpatialAudio.IldDb(0.0f), 0.001f, "Frente sin ILD");
-                Assert.True(SpatialAudio.IldDb(15.0f) < SpatialAudio.IldDb(45.0f), "ILD crece");
-                Assert.True(SpatialAudio.IldDb(45.0f) < SpatialAudio.IldDb(75.0f), "ILD crece hacia el extremo");
-                Assert.Near(SpatialAudio.IldDb(-60.0f), SpatialAudio.IldDb(60.0f), 0.001f, "ILD simetrica");
-                Assert.Near(1.0f, SpatialAudio.FarEarGain(0.0f), 0.0001f, "Oido lejano al frente = 1");
-                Assert.True(SpatialAudio.FarEarGain(75.0f) < SpatialAudio.FarEarGain(30.0f), "Extremo mas atenuado");
-                Assert.True(SpatialAudio.FarEarGain(75.0f) > 0.4f && SpatialAudio.FarEarGain(75.0f) < 0.6f,
-                    "ILD extrema entre -8 y -4 dB, fue " + SpatialAudio.IldDb(75.0f).ToString("F2") + " dB");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: objeto puro - cero filtrado espectral (principio Dolby)", () =>
-            {
-                // El objeto viaja con su senal INTACTA: el renderer solo aplica
-                // retardo y ganancia. Un seno agudo de 6 kHz debe conservar su
-                // brillo al 100% en AMBOS oidos (cualquier estante o paso-bajo
-                // lo reduciria y fallaria la assertion).
                 int frames = 17640;
                 float[] mono = new float[frames];
                 for (int i = 0; i < frames; i++)
-                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 6000.0 * i / 44100.0) * 0.5f;
-
-                BinauralRenderer r = new BinauralRenderer { AzimuthDeg = 75.0f, Depth = 1.0f };
-                float[] st = new float[frames * 2];
-                r.Process(mono, frames, st);
-
-                float brilloIn = HighFreqRatio(mono, 1);
-                float brilloL = HighFreqRatio(st, 2, 0); // +75: L = oido lejano
-                float brilloR = HighFreqRatio(st, 2, 1); // R = oido cercano
-                Assert.True(brilloL > 0.95f * brilloIn,
-                    "El oido lejano conserva el brillo, fue " + brilloL.ToString("F3") + " vs " + brilloIn.ToString("F3"));
-                Assert.True(brilloR > 0.95f * brilloIn,
-                    "El oido cercano conserva el brillo, fue " + brilloR.ToString("F3") + " vs " + brilloIn.ToString("F3"));
+                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0) * 0.5f;
+                GridSpatializer left = new GridSpatializer { SampleRate = 44100.0f, Pan = -1.0f, Depth = 0.0f };
+                GridSpatializer right = new GridSpatializer { SampleRate = 44100.0f, Pan = 1.0f, Depth = 0.0f };
+                GridSpatializer mid = new GridSpatializer { SampleRate = 44100.0f, Pan = 0.0f, Depth = 0.0f };
+                float[] sL = new float[frames * 2], sR = new float[frames * 2], sM = new float[frames * 2];
+                left.Process(mono, frames, sL);
+                right.Process(mono, frames, sR);
+                mid.Process(mono, frames, sM);
+                float lL = RmsChannel(sL, 0), rL = RmsChannel(sL, 1);
+                float lR = RmsChannel(sR, 0), rR = RmsChannel(sR, 1);
+                float lM = RmsChannel(sM, 0), rM = RmsChannel(sM, 1);
+                Assert.True(lL > 1.4f * rL, "Pan -1: izquierda mas fuerte (" + lL.ToString("F3") + " vs " + rL.ToString("F3") + ")");
+                Assert.True(rR > 1.4f * lR, "Pan +1: derecha mas fuerte (" + rR.ToString("F3") + " vs " + lR.ToString("F3") + ")");
+                Assert.True(Math.Abs(lM - rM) < 0.05f * (lM + rM + 1e-6f), "Pan 0 centrado");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("HRTF 3D: absorcion de aire por distancia", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: GridSpatializer la profundidad atenúa y oscurece", () =>
             {
-                // 20 kHz por debajo de 14 m; rolloff exponencial a ~1.2 kHz a 50 m.
-                Assert.Near(20000.0f, SpatialAudio.AirAbsorptionCutoffHz(10.0), 1.0f, "Cerca es transparente");
-                Assert.Near(20000.0f, SpatialAudio.AirAbsorptionCutoffHz(14.0), 1.0f, "En 14 m sigue a 20 kHz");
-                float c50 = SpatialAudio.AirAbsorptionCutoffHz(50.0);
-                Assert.True(c50 > 1000.0f && c50 < 1400.0f, "A 50 m ~1.2 kHz, fue " + c50.ToString("F0"));
-                Assert.True(SpatialAudio.AirAbsorptionCutoffHz(30.0) > SpatialAudio.AirAbsorptionCutoffHz(50.0),
-                    "El corte baja al alejarse");
-                Assert.True(SpatialAudio.AirAbsorptionCutoffHz(50.0) > SpatialAudio.AirAbsorptionCutoffHz(80.0),
-                    "El corte sigue bajando mas alla de 50 m");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF 3D: fuente volumetrica suena mas grande", () =>
-            {
-                // A 3 m la puntual ya decae; la volumetrica (minDistance mayor)
-                // mantiene presencia (ganancia 1): por eso "suena grande".
-                float puntual = SpatialAudio.DistanceGainFor(3.0, SpatialAudio.PointMinDistance, SpatialAudio.PointMaxDistance);
-                float vol = SpatialAudio.DistanceGainFor(3.0, SpatialAudio.VolumetricMinDistance, SpatialAudio.VolumetricMaxDistance);
-                Assert.True(vol > puntual, "Volumetrica mas fuerte a 3 m (" + vol.ToString("F2") + " vs " + puntual.ToString("F2") + ")");
-                Assert.True(vol > 0.9f, "Volumetrica casi plena a 3 m");
-                Assert.Near(1.0f, SpatialAudio.DistanceGainFor(1.0, SpatialAudio.PointMinDistance, SpatialAudio.PointMaxDistance), 0.001f, "Puntual plena dentro de minDistance");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF 3D: tilt de elevacion atenuda lo alto", () =>
-            {
-                float sube = SpatialAudio.ElevationTiltDb(2.5, 1.0);   // fuente por encima
-                float plano = SpatialAudio.ElevationTiltDb(1.0, 1.0);  // a la altura del oido
-                Assert.Near(0.0f, plano, 0.001f, "A la altura del oido no hay tilt");
-                Assert.True(sube < 0.0f, "Por encima se atenúa (tilt negativo), fue " + sube.ToString("F2"));
-                Assert.True(sube > -4.1f, "Tilt sutil (tope -4 dB), fue " + sube.ToString("F2"));
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF 3D: el paso-bajo de aire oscurece al alejar", () =>
-            {
-                // Senal de dos tonos (1 kHz por debajo de 3 kHz, 8 kHz por
-                // encima): el brillo es la energia >3 kHz. Con aire transparente
-                // (20 kHz) el 8 kHz suena; con corte de 1.2 kHz (50 m) el 8 kHz
-                // se apaga y el brillo cae mucho.
-                int frames = 17640;
-                float[] mono = new float[frames];
-                for (int i = 0; i < frames; i++)
-                {
-                    mono[i] = (float)(0.5 * Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0)
-                                   + 0.5 * Math.Sin(2.0 * Math.PI * 8000.0 * i / 44100.0));
-                }
-
-                BinauralRenderer libre = new BinauralRenderer { AzimuthDeg = 0.0f, Depth = 1.0f, AirCutoffHz = 0.0f };
-                BinauralRenderer lejos = new BinauralRenderer { AzimuthDeg = 0.0f, Depth = 1.0f, AirCutoffHz = SpatialAudio.AirAbsorptionCutoffHz(50.0) };
-                float[] sLibre = new float[frames * 2];
-                float[] sLejos = new float[frames * 2];
-                libre.Process(mono, frames, sLibre);
-                lejos.Process(mono, frames, sLejos);
-
-                float brilloLibre = HighFreqRatio(sLibre, 2, 0);
-                float brilloLejos = HighFreqRatio(sLejos, 2, 0);
-                Assert.True(brilloLejos < 0.5f * brilloLibre,
-                    "El aire a 50 m apaga el agudo (brillo " + brilloLejos.ToString("F3") + " vs " + brilloLibre.ToString("F3") + ")");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF 3D: el perfil Atmos suena distinto al 2D", () =>
-            {
-                // Comprueba que el camino de objeto 3D (SpatialPose) produce una
-                // senal DISTINTA de la ruta 2D para la misma celda: la geometria
-                // real (azimut segun fila + atenuacion por distancia) no debe
-                // colapsar en la mezcla 2D del tablero. Es la prueba de que el
-                // perfil Atmos tiene efecto y no es un no-op.
-                int frames = 17640;
-                float[] mono = new float[frames];
-                for (int i = 0; i < frames; i++)
-                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 600.0 * i / 44100.0) * 0.5f;
-
-                // Ruta 2D (Clasico Limpio): azimut de columna, profundidad 2D.
-                BinauralRenderer r2d = new BinauralRenderer
-                {
-                    AzimuthDeg = SpatialAudio.AzimuthDeg(0),
-                    Depth = SpatialAudio.Depth(0, SpatialAudio.BoardRows),
-                    SpatialPose = false
-                };
-                // Ruta Atmos: azimut y ganancia desde la pose mundial real.
-                Vector3 w = SpatialAudio.WorldFromCell(0, 0, SpatialAudio.GemElevationMeters);
-                Vector3 rel = w - new Vector3(0.0, 1.0, 0.0);
-                BinauralRenderer r3d = new BinauralRenderer
-                {
-                    AzimuthDeg = (float)SpatialAudio.AzimuthFromRelative(rel.X, rel.Z),
-                    SpatialPose = true,
-                    DistanceGain = (float)SpatialAudio.DistanceGainFor(rel.Length(), SpatialAudio.PointMinDistance, SpatialAudio.PointMaxDistance)
-                };
-                float[] s2d = new float[frames * 2];
-                float[] s3d = new float[frames * 2];
-                r2d.Process(mono, frames, s2d);
-                r3d.Process(mono, frames, s3d);
-
-                double diff = 0.0;
-                for (int i = 0; i < s2d.Length; i++)
-                    diff += (s2d[i] - s3d[i]) * (s2d[i] - s3d[i]);
-                diff = Math.Sqrt(diff / s2d.Length);
-                Assert.True(diff > 0.01,
-                    "Atmos y 2D deben diferir audiblemente (rms diff " + diff.ToString("F3") + ")");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF 3D: la demo de aire suena con ganancia plena", () =>
-            {
-                // La demo "lejos con aire" fuerza corte 1.2 kHz a ganancia 1: debe
-                // oscurecer el agudo SIN silenciarse (la atenuacion por distancia
-                // no la apaga antes de que se oiga el filtro).
                 int frames = 17640;
                 float[] mono = new float[frames];
                 for (int i = 0; i < frames; i++)
                     mono[i] = (float)(0.5 * Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0)
                                    + 0.5 * Math.Sin(2.0 * Math.PI * 8000.0 * i / 44100.0));
-                BinauralRenderer demo = new BinauralRenderer
-                {
-                    AzimuthDeg = 0.0f,
-                    SpatialPose = true,
-                    DistanceGain = 1.0f,
-                    AirCutoffHz = (float)SpatialAudio.AirAbsorptionCutoffHz(50.0)
-                };
-                float[] sDemo = new float[frames * 2];
-                demo.Process(mono, frames, sDemo);
-                float brillo = HighFreqRatio(sDemo, 2, 0);
-                double rms = 0.0;
-                for (int i = 0; i < sDemo.Length; i++) rms += sDemo[i] * sDemo[i];
-                rms = Math.Sqrt(rms / sDemo.Length);
-                Assert.True(brillo < 0.3, "El filtro de aire debe apagar el agudo (brillo " + brillo.ToString("F3") + ")");
-                Assert.True(rms > 0.05, "La demo no debe silenciarse (rms " + rms.ToString("F3") + ")");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF 3D: Escuela de Audio lateraliza bien las columnas (fila frontal)", () =>
-            {
-                // Las columnas A..H se calibran en la FILA FRONTAL (row 7): el
-                // azimut debe abarcar un cono amplio (~±60°), no el ±21° sutil
-                // de la fila trasera (antes sonaban casi centradas).
-                float azA = CellAzimuth(0, 7);
-                float azH = CellAzimuth(7, 7);
-                Assert.True(azA < -45.0f, "Columna A debe sonar a la izquierda (az " + azA.ToString("F1") + ")");
-                Assert.True(azH > 45.0f, "Columna H debe sonar a la derecha (az " + azH.ToString("F1") + ")");
-
-                // Renderiza un tono por el renderer 3D y comprueba que el oido
-                // correcto suena mas fuerte (lateralizacion real, no centrada).
-                int frames = 17640;
-                float[] mono = new float[frames];
-                for (int i = 0; i < frames; i++)
-                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0) * 0.5f;
-
-                BinauralRenderer rA = new BinauralRenderer { AzimuthDeg = azA, SpatialPose = true, DistanceGain = 1.0f, AirCutoffHz = 0.0f, ElevationTiltDb = 0.0f };
-                BinauralRenderer rH = new BinauralRenderer { AzimuthDeg = azH, SpatialPose = true, DistanceGain = 1.0f, AirCutoffHz = 0.0f, ElevationTiltDb = 0.0f };
-                float[] sA = new float[frames * 2];
-                float[] sH = new float[frames * 2];
-                rA.Process(mono, frames, sA);
-                rH.Process(mono, frames, sH);
-                float rmsLA = RmsChannel(sA, 0), rmsRA = RmsChannel(sA, 1);
-                float rmsLH = RmsChannel(sH, 0), rmsRH = RmsChannel(sH, 1);
-                Assert.True(rmsLA > 1.4f * rmsRA, "Columna A: izquierda mas fuerte (" + rmsLA.ToString("F3") + " vs " + rmsRA.ToString("F3") + ")");
-                Assert.True(rmsRH > 1.4f * rmsLH, "Columna H: derecha mas fuerte (" + rmsRH.ToString("F3") + " vs " + rmsLH.ToString("F3") + ")");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF 3D: Escuela de Audio exagera tilt de altura (override)", () =>
-            {
-                // La demo de altura (suelo/gema/aerea) exagera el tilt para que
-                // sea perceptible: el override debe aplicarse tal cual en el motor.
-                BinauralRenderer renderer = new BinauralRenderer();
-                SpatialAudioObject obj = new SpatialAudioObject(new Vector3(0.0, 0.0, 9.0), SpatialAudio.PointMinDistance, SpatialAudio.PointMaxDistance);
-                obj.Renderer = renderer;
-                obj.ElevationTiltOverride = 4.0;
-                SpatialAudioEngine.Instance.Add(obj);
-                try
-                {
-                    SpatialAudioEngine.Instance.Update(0.0);
-                    Assert.Near(4.0f, renderer.ElevationTiltDb, 0.001f, "Override de tilt (suelo) debe aplicarse");
-                    obj.ElevationTiltOverride = -6.0;
-                    SpatialAudioEngine.Instance.Update(0.0);
-                    Assert.Near(-6.0f, renderer.ElevationTiltDb, 0.001f, "Override de tilt (aerea) debe aplicarse");
-                }
-                finally { SpatialAudioEngine.Instance.Release(obj); }
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: la fuerza de perfil escala el paneo (ILD)", () =>
-            {
-                // El HRTF se escala por HrtfStrength: 0 = fuente centrada (sin
-                // ILD/ITD), 1 = lateralizada al maximo. Asi el perfil Atmos (fuerza
-                // 1) suena claramente mas abierto/espacial que los perfiles mas
-                // planos (CleanArcade/Stage2D/SimplePan, con fuerza menor).
-                int frames = 17640;
-                float[] mono = new float[frames];
-                for (int i = 0; i < frames; i++)
-                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0) * 0.5f;
-                float az = 60.0f;
-                BinauralRenderer r0 = new BinauralRenderer { AzimuthDeg = az, SpatialPose = true, HrtfStrength = 0.0f, DistanceGain = 1.0f, AirCutoffHz = 0.0f, ElevationTiltDb = 0.0f };
-                float[] s0 = new float[frames * 2];
-                r0.Process(mono, frames, s0);
-                float l0 = RmsChannel(s0, 0), r0r = RmsChannel(s0, 1);
-                Assert.True(Math.Abs(l0 - r0r) < 0.05f * (l0 + r0r + 1e-6f), "Fuerza 0 debe sonar centrado (L " + l0.ToString("F3") + " ~ R " + r0r.ToString("F3") + ")");
-                BinauralRenderer r1 = new BinauralRenderer { AzimuthDeg = az, SpatialPose = true, HrtfStrength = 1.0f, DistanceGain = 1.0f, AirCutoffHz = 0.0f, ElevationTiltDb = 0.0f };
-                float[] s1 = new float[frames * 2];
-                r1.Process(mono, frames, s1);
-                float l1 = RmsChannel(s1, 0), r1r = RmsChannel(s1, 1);
-                Assert.True(Math.Max(l1, r1r) > 1.3f * Math.Min(l1, r1r), "Fuerza 1 debe lateralizar (L " + l1.ToString("F3") + " vs R " + r1r.ToString("F3") + ")");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: SimplePan (fuerza 0.4) sigue ubicando las columnas L/R", () =>
-            {
-                // SimplePan usa HrtfStrength=0.4: el paneo es mas estrecho que
-                // Atmos pero sigue diferenciando izquierda/derecha, para no perder
-                // la referencia de columna en el tablero.
-                int frames = 17640;
-                float[] mono = new float[frames];
-                for (int i = 0; i < frames; i++)
-                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0) * 0.5f;
-                BinauralRenderer r = new BinauralRenderer { AzimuthDeg = 60.0f, SpatialPose = true, HrtfStrength = 0.4f, DistanceGain = 1.0f, AirCutoffHz = 0.0f, ElevationTiltDb = 0.0f };
-                float[] s = new float[frames * 2];
-                r.Process(mono, frames, s);
-                float l = RmsChannel(s, 0), rr = RmsChannel(s, 1);
-                Assert.True(Math.Max(l, rr) > 1.1f * Math.Min(l, rr), "SimplePan (0.4) debe seguir paneando L/R (L " + l.ToString("F3") + " vs R " + rr.ToString("F3") + ")");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("Musica: el perfil Atmos envuelve la musica (aire + widen)", () =>
-            {
-                using (SoundEngine sound = new SoundEngine(AppDomain.CurrentDomain.BaseDirectory))
-                {
-                    var method = typeof(SoundEngine).GetMethod("MusicAtmosphereDsp",
-                        System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                    Assert.NotNull(method, "MusicAtmosphereDsp debe existir");
-
-                    int frames = 4410; // 100 ms
-                    // Senal con contenido estereo: L=1 kHz, R=8 kHz.
-                    float[] sig = new float[frames * 2];
-                    for (int i = 0; i < frames; i++)
-                    {
-                        sig[i * 2] = (float)(0.4 * Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0));
-                        sig[i * 2 + 1] = (float)(0.4 * Math.Sin(2.0 * Math.PI * 8000.0 * i / 44100.0));
-                    }
-                    float rmsInR = RmsChannel(sig, 1);
-                    float sideIn = SideRatio(sig, 2);
-
-                    // Perfil Atmos: debe ensanchar y oscurecer el agudo (aire).
-                    sound.SpatialProfile = SpatialProfile.Atmos3D;
-                    float[] buf = (float[])sig.Clone();
-                    var handle = System.Runtime.InteropServices.GCHandle.Alloc(buf, System.Runtime.InteropServices.GCHandleType.Pinned);
-                    try
-                    {
-                        method.Invoke(sound, new object[] { 0, 0, handle.AddrOfPinnedObject(), buf.Length * 4, IntPtr.Zero });
-                    }
-                    finally { handle.Free(); }
-
-                    float rmsOutR = RmsChannel(buf, 1);
-                    float sideOut = SideRatio(buf, 2);
-                    Assert.True(sideOut > sideIn, "Atmos debe ensanchar el estereo (lado " + sideOut.ToString("F3") + " > " + sideIn.ToString("F3") + ")");
-                    Assert.True(rmsOutR < 0.8f * rmsInR, "Atmos oscurece el agudo (aire): rms R " + rmsOutR.ToString("F3") + " < " + rmsInR.ToString("F3"));
-
-                    // Otro perfil: la musica pasa intacta (sin procesar).
-                    sound.SpatialProfile = SpatialProfile.CleanArcade;
-                    float[] buf2 = (float[])sig.Clone();
-                    var h2 = System.Runtime.InteropServices.GCHandle.Alloc(buf2, System.Runtime.InteropServices.GCHandleType.Pinned);
-                    try { method.Invoke(sound, new object[] { 0, 0, h2.AddrOfPinnedObject(), buf2.Length * 4, IntPtr.Zero }); }
-                    finally { h2.Free(); }
-                    bool identical = true;
-                    for (int i = 0; i < buf2.Length; i++) if (buf2[i] != sig[i]) { identical = false; break; }
-                    Assert.True(identical, "Fuera de Atmos la musica debe pasar intacta");
-                }
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: swipe binaural anima el azimuth", () =>
-            {
-                float fromAz = SpatialAudio.AzimuthDeg(0);
-                float toAz = SpatialAudio.AzimuthDeg(7);
-                float mid = SpatialAudio.SweepAzimuth(fromAz, toAz, 0.5f);
-                Assert.True(mid > fromAz && mid < toAz, "El punto medio debe estar entre A y H");
-                Assert.Near(toAz, SpatialAudio.SweepAzimuth(fromAz, toAz, 1.0f), 0.0001f, "Al 100% debe llegar a H");
-                Assert.Near(fromAz, SpatialAudio.SweepAzimuth(fromAz, toAz, 0.0f), 0.0001f, "Al 0% debe partir de A");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: el renderer binaural emite estereo e ITD/ILD correctos", () =>
-            {
-                // Señal de prueba: 400 ms de impulso a 1 kHz, 44.1 kHz mono.
-                int frames = 17640;
-                float[] mono = new float[frames];
-                for (int i = 0; i < frames; i++)
-                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0) * 0.5f;
-
-                BinauralRenderer r = new BinauralRenderer();
-                float[] stereo = new float[frames * 2];
-
-                // Frente: ambos oídos casi iguales (sin ILD), sin retardo.
-                r.AzimuthDeg = 0.0f;
-                r.Depth = 1.0f;
-                r.Process(mono, frames, stereo);
-                double eL = 0, eR = 0;
-                for (int i = 0; i < frames; i++) { eL += stereo[i * 2] * stereo[i * 2]; eR += stereo[i * 2 + 1] * stereo[i * 2 + 1]; }
-                Assert.True(Math.Abs(eL - eR) / Math.Max(eL, eR) < 0.02, "Frente: energia L ~= R");
-
-                // Izquierda (-75): oido izquierdo (cercano) domina al derecho.
-                r.AzimuthDeg = -75.0f;
-                r.Process(mono, frames, stereo);
-                eL = 0; eR = 0;
-                for (int i = 0; i < frames; i++) { eL += stereo[i * 2] * stereo[i * 2]; eR += stereo[i * 2 + 1] * stereo[i * 2 + 1]; }
-                Assert.True(eL > eR * 1.5, "Izquierda: L domina a R");
-
-                // Derecha (+75): simétrica.
-                r.AzimuthDeg = 75.0f;
-                r.Process(mono, frames, stereo);
-                eL = 0; eR = 0;
-                for (int i = 0; i < frames; i++) { eL += stereo[i * 2] * stereo[i * 2]; eR += stereo[i * 2 + 1] * stereo[i * 2 + 1]; }
-                Assert.True(eR > eL * 1.5, "Derecha: R domina a L");
-
-                // El retardo ITD desplaza la señal del oido lejano: la energia
-                // del oido lejano arranca despues de la del cercano. El delay
-                // fraccional entrega la primera muestra en floor(ITD), asi que
-                // la ventana de silencio es floor(ITD) - margen. Renderer
-                // NUEVO: un delay line reutilizado arrastraria muestras viejas.
-                BinauralRenderer itdR = new BinauralRenderer { AzimuthDeg = -75.0f, Depth = 1.0f };
-                float[] sITD = new float[frames * 2];
-                itdR.Process(mono, frames, sITD);
-                double eFarEarly = 0;
-                int itdFrames = (int)Math.Floor(SpatialAudio.ItdSamples(75.0f, 44100.0f)) - 2;
-                for (int i = 0; i < itdFrames && i < frames; i++) eFarEarly += sITD[i * 2 + 1] * sITD[i * 2 + 1];
-                Assert.True(eFarEarly < 0.001, "ITD: oido lejano silencioso al inicio");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: el renderer respeta la distancia sin detonar", () =>
-            {
-                int frames = 17640;
-                float[] mono = new float[frames];
-                for (int i = 0; i < frames; i++)
-                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0) * 0.5f;
-
-                BinauralRenderer cerca = new BinauralRenderer { AzimuthDeg = 0.0f, Depth = 1.0f };
-                BinauralRenderer lejos = new BinauralRenderer { AzimuthDeg = 0.0f, Depth = 0.0f };
-                float[] sC = new float[frames * 2], sL = new float[frames * 2];
-                cerca.Process(mono, frames, sC);
-                lejos.Process(mono, frames, sL);
-
-                double eC = 0, eL = 0;
-                for (int i = 0; i < frames; i++) { eC += sC[i * 2] * sC[i * 2]; eL += sL[i * 2] * sL[i * 2]; }
-                // 0.80^2 = 0.64 de energia; tolerancia amplia por el filtro de aire.
-                Assert.True(eL < eC * 0.75, "Lejos suena mas bajo (" + (eL / Math.Max(eC, 1e-9)).ToString("F2") + ")");
-                Assert.True(eL > eC * 0.30, "Lejos no desaparece");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: profundidad monotona fondo->frente", () =>
-            {
-                Assert.Near(0.0f, SpatialAudio.Depth(0, 8), 0.0001f, "Fila 1 = fondo");
-                Assert.Near(1.0f, SpatialAudio.Depth(7, 8), 0.0001f, "Fila 8 = frente");
-                Assert.True(SpatialAudio.Depth(3, 8) < SpatialAudio.Depth(4, 8), "Profundidad creciente");
-                Assert.True(SpatialAudio.Depth(0, 8) < SpatialAudio.Depth(7, 8), "Fondo != frente");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: filas lejanas mas bajas y estrechas, sin cambio de tono", () =>
-            {
-                Assert.Near(0.80f, SpatialAudio.DepthVolumeForRow(0), 0.001f, "Volumen fondo");
-                Assert.Near(1.00f, SpatialAudio.DepthVolumeForRow(7), 0.001f, "Volumen frente");
-                Assert.Near(0.75f, SpatialAudio.DepthPanScaleForRow(0), 0.001f, "Pan fondo estrecho");
-                Assert.Near(1.00f, SpatialAudio.DepthPanScaleForRow(7), 0.001f, "Pan frente pleno");
-                Assert.True(SpatialAudio.DepthVolumeForRow(1) < SpatialAudio.DepthVolumeForRow(5), "Volumen crece hacia abajo");
-                // La profundidad NUNCA cambia el tono: el HRTF viejo detunaba los
-                // sonidos reales (0.965 en el fondo); hoy solo volumen + aire.
-                Assert.Near(1.0f, 1.0f, 0.0f, "El tono no depende de la profundidad");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: la distancia solo atenua volumen, el timbre se conserva", () =>
-            {
-                // Señal aguda (6 kHz): el modelo anterior la apagaba al fondo
-                // (paso-bajo de aire a 3.5 kHz); el modelo de objeto mantiene
-                // la brillantez y solo baja el nivel (0.80^2 = 0.64).
-                int frames = 17640;
-                float[] mono = new float[frames];
-                for (int i = 0; i < frames; i++)
-                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 6000.0 * i / 44100.0) * 0.5f;
-
-                BinauralRenderer cerca = new BinauralRenderer { AzimuthDeg = 0.0f, Depth = 1.0f };
-                BinauralRenderer lejos = new BinauralRenderer { AzimuthDeg = 0.0f, Depth = 0.0f };
-                float[] sC = new float[frames * 2], sL = new float[frames * 2];
-                cerca.Process(mono, frames, sC);
-                lejos.Process(mono, frames, sL);
-
-                double eC = 0, eL = 0;
-                for (int i = 0; i < frames; i++) { eC += sC[i * 2] * sC[i * 2]; eL += sL[i * 2] * sL[i * 2]; }
-                double ratio = eL / Math.Max(eC, 1e-9);
-                Assert.True(ratio > 0.50, "El agudo se conserva al fondo (ratio " + ratio.ToString("F3") + ")");
-                Assert.True(ratio < 0.80, "Y aun asi el fondo suena mas bajo (ratio " + ratio.ToString("F3") + ")");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: sin fila (UI) plana y al centro", () =>
-            {
-                Assert.Near(1.0f, SpatialAudio.DepthVolumeForRow(-1), 0.0001f, "UI sin atenuar");
-                Assert.Near(1.0f, SpatialAudio.DepthPanScaleForRow(-1), 0.0001f, "UI pan sin estrechar");
-                Assert.Near(0.0f, SpatialAudio.PanAt(-1, 4, 8), 0.0001f, "col=-1 al centro");
-                Assert.Near(SpatialAudio.PanColumn(3), SpatialAudio.PanAt(3, 7, 8), 0.001f, "Frente = pan pleno");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: pan plegado por profundidad", () =>
-            {
-                Assert.Near(0.6375f, Math.Abs(SpatialAudio.PanAt(0, 0, 8)), 0.001f, "Fondo col A = 0.85*0.75");
-                Assert.Near(0.8500f, Math.Abs(SpatialAudio.PanAt(0, 7, 8)), 0.001f, "Frente col A = 0.85");
-                Assert.True(Math.Abs(SpatialAudio.PanAt(0, 0, 8)) < Math.Abs(SpatialAudio.PanAt(0, 7, 8)), "Fondo mas centrado que frente");
-                Assert.True(Math.Abs(SpatialAudio.PanAt(3, 0, 8)) < Math.Abs(SpatialAudio.PanAt(3, 7, 8)), "Centro plegado simetrico");
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("HRTF: el glide cruza por delante (bulge)", () =>
-            {
-                Assert.Near(1.0f, SpatialAudio.SweepPassBulge(0.0f), 0.0001f, "Inicio plano");
-                Assert.Near(1.0f, SpatialAudio.SweepPassBulge(1.0f), 0.0001f, "Fin plano");
-                Assert.Near(1.1f, SpatialAudio.SweepPassBulge(0.5f), 0.001f, "Cima al cruzar el centro");
-                Assert.True(SpatialAudio.SweepPassBulge(0.25f) > 1.0f, "Crece hacia el centro");
-                Assert.True(SpatialAudio.SweepPassBulge(0.5f) > SpatialAudio.SweepPassBulge(0.9f), "Decae tras el centro");
-            }));
+                GridSpatializer front = new GridSpatializer { SampleRate = 44100.0f, Pan = 0.0f, Depth = 0.0f };
+                GridSpatializer back = new GridSpatializer { SampleRate = 44100.0f, Pan = 0.0f, Depth = 1.0f };
+                float[] sF = new float[frames * 2], sB = new float[frames * 2];
+                front.Process(mono, frames, sF);
+                back.Process(mono, frames, sB);
+                float rmsF = RmsChannel(sF, 0), rmsB = RmsChannel(sB, 0);
+                    Assert.True(rmsB < rmsF, "Fondo mas bajo (" + rmsB.ToString("F3") + " vs " + rmsF.ToString("F3") + ")");
+                    Assert.True(HighFreqRatio(sB, 2, 0) < HighFreqRatio(sF, 2, 0) * 0.9f, "Fondo oscurece el agudo");
+                }));
 
             tests.Add(Tuple.Create<string, Action>("Sound: valores por defecto del motor", () =>
             {
@@ -1938,7 +1515,6 @@ namespace Bejeweled3Accessible.Tests
                     Assert.Equal(80, sound.MusicVol, "Musica");
                     Assert.Equal(100, sound.SfxVol, "Sonido");
                     Assert.Equal(100, sound.VoiceVol, "Voz");
-                    Assert.True(sound.SpatialBinauralEnabled, "HRTF activado por defecto");
                 }
             }));
 
@@ -2518,15 +2094,6 @@ namespace Bejeweled3Accessible.Tests
             return n > 0 ? (float)Math.Sqrt(sum / n) : 0.0f;
         }
 
-        // Azimut (grados) de una celda respecto al listener, usando el mismo
-        // motor 3D que la Escuela de Audio.
-        private static float CellAzimuth(int col, int row)
-        {
-            Vector3 w = SpatialAudio.WorldFromCell(col, row, SpatialAudio.GemElevationMeters);
-            Vector3 rel = w - new Vector3(0.0, 1.0, 0.0);
-            return SpatialAudio.AzimuthFromRelative(rel.X, rel.Z);
-        }
-
         // Relacion lado/mono (0 = centrado, 1 = totalmente diferenciado L/R).
         private static float SideRatio(float[] interleaved, int chans)
         {
@@ -2545,7 +2112,7 @@ namespace Bejeweled3Accessible.Tests
         private static void RunDecodeProbe()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            Console.WriteLine("=== PROBE DE DECODIFICACION Y PIPELINE BINAURAL ===");
+                Console.WriteLine("=== PROBE DE DECODIFICACION Y PIPELINE ESPACIAL ===");
             using (SoundEngine sound = new SoundEngine(baseDir))
             {
                 foreach (string name in new[] { "select", "combo_1", "combo_2", "tick" })
@@ -2580,8 +2147,8 @@ namespace Bejeweled3Accessible.Tests
                 WriteWav16(path + ".ref.wav", refCap.Samples, 2);
                 Console.WriteLine("  direct+DSP: frames=" + refCap.TotalFrames + " (" + (refCap.TotalFrames / 44100.0).ToString("F3") + " s) RMS L=" + refCap.RmsL.ToString("F4") + " R=" + refCap.RmsR.ToString("F4") + " brillo=" + HighFreqRatio(refCap.Samples, 2).ToString("F3"));
 
-                // 2) Pipeline binaural REAL (BinauralSfxSource) + DSP capturador.
-                BinauralSfxSource src = new BinauralSfxSource(data, pin, 60.0f, 1.0f);
+                // 2) Pipeline espacial REAL (SpatialSfxSource) + DSP capturador.
+                SpatialSfxSource src = new SpatialSfxSource(data, pin, 0.5f, 0.0f);
                 BassProbe.DspCapture binCap = new BassProbe.DspCapture();
                 BassProbe.BASS_ChannelSetDSP(src.OutputHandle, binCap.Proc, IntPtr.Zero, 0);
                 BassProbe.BASS_ChannelPlay(src.OutputHandle, true);
@@ -2589,7 +2156,7 @@ namespace Bejeweled3Accessible.Tests
                 BassProbe.BASS_ChannelStop(src.OutputHandle);
                 WriteWav16(path + ".bin.wav", binCap.Samples, 2);
                 src.Dispose();
-                Console.WriteLine("  binaural:   frames=" + binCap.TotalFrames + " (" + (binCap.TotalFrames / 44100.0).ToString("F3") + " s) RMS L=" + binCap.RmsL.ToString("F4") + " R=" + binCap.RmsR.ToString("F4") + " brillo=" + HighFreqRatio(binCap.Samples, 2).ToString("F3"));
+                Console.WriteLine("  espacial:   frames=" + binCap.TotalFrames + " (" + (binCap.TotalFrames / 44100.0).ToString("F3") + " s) RMS L=" + binCap.RmsL.ToString("F4") + " R=" + binCap.RmsR.ToString("F4") + " brillo=" + HighFreqRatio(binCap.Samples, 2).ToString("F3"));
             }
             catch (Exception ex)
             {
@@ -2650,23 +2217,22 @@ namespace Bejeweled3Accessible.Tests
             }
         }
 
-        private static void RunHrtfScan()
+        private static void RunSpatialScan()
         {
             string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-            Console.WriteLine("=== ESCANEO HRTF (tablero 8x8): columna A (izquierda) a H (derecha) ===");
+            Console.WriteLine("=== ESCANEO ESPACIAL (tablero 8x8): columna A (izquierda) a H (derecha) ===");
             using (SoundEngine sound = new SoundEngine(baseDir))
             {
                 for (int col = 0; col < 8; col++)
                 {
-                    Console.WriteLine(string.Format("Columna {0}: pan = {1:F3}, azimuth = {2:F1} grados, ITD = {3:F3} ms",
-                        (char)('A' + col), SpatialAudio.PanColumn(col),
-                        SpatialAudio.AzimuthDeg(col), SpatialAudio.ItdSeconds(SpatialAudio.AzimuthDeg(col)) * 1000.0f));
+                    Console.WriteLine(string.Format("Columna {0}: pan = {1:F3}, profundidad = {2:F3}",
+                        (char)('A' + col), SpatialAudio.PanColumn(col), SpatialAudio.DepthForRow(3)));
                     sound.PlaySoundSpatial("select", col, 3);
                     System.Threading.Thread.Sleep(350);
                 }
                 System.Threading.Thread.Sleep(600);
             }
-            Console.WriteLine("Escaneo HRTF completado. Deberias escuchar el sonido moverse de izquierda a derecha.");
+            Console.WriteLine("Escaneo espacial completado. Deberias escuchar el sonido moverse de izquierda a derecha.");
         }
     }
 

@@ -183,8 +183,6 @@ namespace Bejeweled3Accessible.UI
             _sound.MusicVol = _options.MusicVolume;
             _sound.SfxVol = _options.SoundVolume;
             _sound.VoiceVol = _options.VoiceVolume;
-            _sound.SpatialProfile = (Audio.SpatialProfile)_options.EffectiveSpatialProfile;
-            _sound.SpatialBinauralEnabled = _options.EffectiveSpatialBinauralEnabled;
             Localization.CurrentLanguage = _options.SelectedLanguage;
 
             Text = Localization.Get("AppTitle");
@@ -248,8 +246,6 @@ namespace Bejeweled3Accessible.UI
             _options.ZenAmbient = (int)_zenMgr.SelectedAmbient;
             _options.ZenMantras = _zenMgr.MantrasEnabled;
             _options.ZenBreath = _zenMgr.BreathModulationEnabled;
-            _options.SpatialProfile = (int)_sound.SpatialProfile;
-            _options.SpatialBinauralEnabled = _sound.SpatialBinauralEnabled;
             _options.Save();
         }
 
@@ -941,60 +937,31 @@ namespace Bejeweled3Accessible.UI
 
         private string[] GetOptionsMenuItems()
         {
-            string spatialStr = _sound.SpatialBinauralEnabled ? Localization.Get("StateEnabled") : Localization.Get("StateDisabled");
             return new string[]
             {
                 Localization.Get("OptMusicVol", _sound.MusicVol),
                 Localization.Get("OptSoundVol", _sound.SfxVol),
                 Localization.Get("OptVoiceVol", _sound.VoiceVol),
-                Localization.Get("OptSpatialAudio", spatialStr),
-                Localization.Get("OptSpatialProfile", GetSpatialProfileName(_sound.SpatialProfile)),
                 Localization.Get("OptBack")
             };
         }
 
-        private string GetSpatialProfileName(Audio.SpatialProfile profile)
-        {
-            switch (profile)
-            {
-                case Audio.SpatialProfile.Stage2D: return Localization.Get("SpatialProfileStage2D");
-                case Audio.SpatialProfile.SimplePan: return Localization.Get("SpatialProfileSimple");
-                case Audio.SpatialProfile.Atmos3D: return Localization.Get("SpatialProfileAtmos3D");
-                default: return Localization.Get("SpatialProfileClean");
-            }
-        }
-
-        // "Escuela de Audio": mini menu de calibracion de auriculares anclado al
-        // tablero 8x8 (columnas A-H = azimut, filas 1-8 fondo->frente = profundidad,
-        // altura suelo/gema/aerea, mas un barrido y una demo de aire lejano). Cada
-        // entrada usa el motor de objetos 3D para que el usuario valide su imagen
-        // espacial sobre el propio tablero.
+        // "Escuela de Audio": demostracion corta del unico modelo espacial de
+        // este juego (sin perfiles): recorre columnas (L/R) y profundidad
+        // (frente/fondo) y un par de barridos, con un sonido real del tablero.
         private string[] GetAudioSchoolItems()
         {
             bool en = Localization.CurrentLanguage == Language.English;
             Func<string, string, string> L = (es, e) => en ? e : es;
             var items = new List<string>();
             string[] cols = { "A", "B", "C", "D", "E", "F", "G", "H" };
-            // Columnas A-H: en la FILA FRONTAL (cerca del listener) para que el
-            // azimut abarque un cono dramatico (~±60°): A a la izquierda, H a la
-            // derecha. Asi la prueba de direccion lateral se oye de verdad.
             for (int i = 0; i < 8; i++)
-                items.Add(L(string.Format("Columna {0} (frente, izquierda a derecha)", cols[i]),
-                            string.Format("Column {0} (front row, left to right)", cols[i])));
-            // Filas 1-8: columna central, variando la profundidad fondo -> frente.
-            // La direccion se aisla en el volumen (fondo mas lejos/quieto, frente mas cerca/fuerte).
-            for (int r = 0; r < 8; r++)
-                items.Add(L(string.Format("Fila {0} ({1})", r + 1, r == 0 ? "fondo, lejos" : (r == 7 ? "frente, cerca" : "profundidad media")),
-                            string.Format("Row {0} ({1})", r + 1, r == 0 ? "back, far" : (r == 7 ? "front, near" : "mid depth"))));
-            // Altura: suelo / gema / aerea en el centro del fondo. El tilt de
-            // elevacion real es sutil (~4 dB), asi que la demo lo exagera para
-            // que se perciba (suelo mas presente, zona aerea mas apagada).
-            items.Add(L("Altura suelo (centro, debajo del oido)", "Floor height (center, below ear)"));
-            items.Add(L("Altura gema (centro, a la altura del oido)", "Gem height (center, at ear level)"));
-            items.Add(L("Zona aerea (centro, encima del oido)", "Aerial zone (center, above ear)"));
-            // Barrido y aire.
-            items.Add(L("Barrido de columnas (A -> H)", "Column sweep (A -> H)"));
-            items.Add(L("Lejos con absorcion de aire", "Far with air absorption"));
+                items.Add(L(string.Format("Columna {0} (izquierda a derecha)", cols[i]),
+                            string.Format("Column {0} (left to right)", cols[i])));
+            items.Add(L("Profundidad frente (cerca)", "Front depth (near)"));
+            items.Add(L("Profundidad fondo (lejos)", "Back depth (far)"));
+            items.Add(L("Barrido izquierda -> derecha", "Sweep left -> right"));
+            items.Add(L("Barrido frente -> fondo", "Sweep front -> back"));
             return items.ToArray();
         }
 
@@ -1030,43 +997,24 @@ namespace Bejeweled3Accessible.UI
             }
         }
 
-        // Reproduce la prueba de calibracion indicada por indice (ver GetAudioSchoolItems).
-        // Indices: 0-7 columnas (fila frontal, azimut ±60°), 8-15 filas (columna
-        // central, profundidad fondo->frente), 16-18 altura (centro fondo, tilt
-        // exagerado), 19 barrido, 20 lejos con aire.
+        // Reproduce la prueba indicada por indice (ver GetAudioSchoolItems):
+        // 0-7 columnas (L/R), 8 frente, 9 fondo, 10 barrido L->R, 11 frente->fondo.
         private void PlayAudioSchoolTest(int idx)
         {
             string s = AudioMap.Select;
-            const int backRow = 0;       // fila 1 (fondo), Z maximo
-            const int frontRow = 7;      // fila 8 (frente), Z minimo -> azimut dramatico
-            const int centerCol = 3;     // columna D (~centro del tablero)
-            const float gem = (float)Audio.SpatialAudio.GemElevationMeters;
-            const float aerial = (float)Audio.SpatialAudio.AerialElevationMeters;
             if (idx >= 0 && idx <= 7)
-                // Columnas en la fila frontal: izquierda (A) -> derecha (H) con
-                // un cono de ±60°, se oye claramente el desplazamiento lateral.
-                _sound.PlaySoundSpatialElevated(s, idx, frontRow, gem);
-            else if (idx >= 8 && idx <= 15)
-                // Filas en columna central: el volumen marca la profundidad
-                // (fondo mas lejos/quieto, frente mas cerca/fuerte).
-                _sound.PlaySoundSpatialElevated(s, centerCol, idx - 8, gem);
-            else if (idx == 16)
-                // Suelo: el tilt exagerado lo hace sonar mas presente (cerca).
-                _sound.PlaySoundSpatialElevated(s, centerCol, backRow, 0.0f, 1.0f, -1.0f, -1.0f, 4.0f);
-            else if (idx == 17)
-                // Gema: a la altura del oido, sin tilt.
-                _sound.PlaySoundSpatialElevated(s, centerCol, backRow, gem, 1.0f, -1.0f, -1.0f, 0.0f);
-            else if (idx == 18)
-                // Zona aerea: tilt exagerado lo apaga (lejos/encima).
-                _sound.PlaySoundSpatialElevated(s, centerCol, backRow, aerial, 1.0f, -1.0f, -1.0f, -6.0f);
-            else if (idx == 19)
-                _sound.PlaySoundSpatialSweep(s, 0, 7, backRow, gem);
-            else if (idx == 20)
-                // Demo de absorcion de aire: fuerza el corte a 1,2 kHz (equivalente
-                // a ~50 m) con ganancia plena para que se oiga el telefono sin que
-                // la atenuacion por distancia la silencie.
-                _sound.PlaySoundAtWorld(s, 0.0f, 1.0f, 6.0f, 1.0f, false,
-                    (float)Audio.SpatialAudio.AirAbsorptionCutoffHz(50.0), 1.0f);
+            {
+                float pan = Audio.SpatialAudio.PanColumn(idx);
+                _sound.PlaySoundSpatialPan(pan, 0.0f, s);
+            }
+            else if (idx == 8)
+                _sound.PlaySoundSpatialPan(0.0f, 0.0f, s);
+            else if (idx == 9)
+                _sound.PlaySoundSpatialPan(0.0f, 1.0f, s);
+            else if (idx == 10)
+                _sound.PlaySoundSpatialSweepPan(-1.0f, 1.0f, 0.0f, 0.0f, s);
+            else if (idx == 11)
+                _sound.PlaySoundSpatialSweepPan(0.0f, 0.0f, 0.0f, 1.0f, s);
         }
 
         private void HandleOptionsKeys(KeyEventArgs e)
@@ -1102,19 +1050,6 @@ namespace Bejeweled3Accessible.UI
                 {
                     _sound.VoiceVol = (e.KeyCode == Keys.Right) ? Math.Min(100, _sound.VoiceVol + 5) : Math.Max(0, _sound.VoiceVol - 5);
                     _speech.Speak(Localization.Get("OptVoiceVol", _sound.VoiceVol), true);
-                }
-                else if (_optionsIdx == 3)
-                {
-                    _sound.SpatialBinauralEnabled = !_sound.SpatialBinauralEnabled;
-                    _sound.PlaySound(_sound.SpatialBinauralEnabled ? AudioMap.Select : AudioMap.Badmove);
-                    _speech.Speak(GetOptionsMenuItems()[3], true);
-                }
-                else if (_optionsIdx == 4)
-                {
-                    // Cycle the spatial profile: Stage2D -> CleanArcade -> SimplePan -> Atmos3D
-                    _sound.SpatialProfile = (Audio.SpatialProfile)(((int)_sound.SpatialProfile + 1) % 4);
-                    _sound.PlaySound(AudioMap.Select);
-                    _speech.Speak(GetOptionsMenuItems()[4], true);
                 }
                 SaveOptionsState();
             }
