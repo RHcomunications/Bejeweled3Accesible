@@ -354,27 +354,92 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         {
             string[] items = GetCurrentItems(out int activeIdx);
             int startY = 180;
-            int itemHeight = 90;
-
-            int clickedIdx = (int)((e.GetY() - startY) / itemHeight);
+            int itemHeight = 100;
 
             if (e.Action == MotionEventActions.Down)
             {
+                _startX = e.GetX();
+                _startY = e.GetY();
+
+                int clickedIdx = (int)((e.GetY() - startY) / itemHeight);
                 if (clickedIdx >= 0 && clickedIdx < items.Length)
                 {
-                    SetActiveIndex(clickedIdx);
+                    if (activeIdx != clickedIdx)
+                    {
+                        SetActiveIndex(clickedIdx);
+                        _sound?.PlaySound(AudioMap.ButtonMouseover);
+                        _talkBack?.Speak(items[clickedIdx], true);
+                        Invalidate();
+                    }
+                }
+            }
+            else if (e.Action == MotionEventActions.Move)
+            {
+                // Exploracion tactil fluida (como TalkBack)
+                int hoverIdx = (int)((e.GetY() - startY) / itemHeight);
+                if (hoverIdx >= 0 && hoverIdx < items.Length && hoverIdx != activeIdx)
+                {
+                    SetActiveIndex(hoverIdx);
                     _sound?.PlaySound(AudioMap.ButtonMouseover);
-                    _talkBack?.Speak(items[clickedIdx], true);
+                    _talkBack?.Speak(items[hoverIdx], true);
                     Invalidate();
                 }
             }
             else if (e.Action == MotionEventActions.Up)
             {
-                if (clickedIdx >= 0 && clickedIdx < items.Length)
+                float deltaX = e.GetX() - _startX;
+                float deltaY = e.GetY() - _startY;
+
+                // Deslizamiento vertical para cambiar de opcion
+                if (Math.Abs(deltaY) > 80 && Math.Abs(deltaY) > Math.Abs(deltaX))
                 {
-                    _sound?.PlaySound(AudioMap.ButtonPress);
-                    ExecuteMenuItem(clickedIdx);
-                    Invalidate();
+                    if (deltaY > 0) // Deslizar hacia abajo: siguiente opcion
+                    {
+                        int nextIdx = (activeIdx + 1) % items.Length;
+                        SetActiveIndex(nextIdx);
+                        _sound?.PlaySound(AudioMap.ButtonMouseover);
+                        _talkBack?.Speak(items[nextIdx], true);
+                        Invalidate();
+                        return true;
+                    }
+                    else // Deslizar hacia arriba: anterior opcion
+                    {
+                        int prevIdx = (activeIdx - 1 + items.Length) % items.Length;
+                        SetActiveIndex(prevIdx);
+                        _sound?.PlaySound(AudioMap.ButtonMouseover);
+                        _talkBack?.Speak(items[prevIdx], true);
+                        Invalidate();
+                        return true;
+                    }
+                }
+                // Deslizar hacia la izquierda para volver atras
+                else if (deltaX < -120 && Math.Abs(deltaX) > Math.Abs(deltaY))
+                {
+                    if (_currentScreen != AndroidGameScreen.MainMenu)
+                    {
+                        _sound?.PlaySound(AudioMap.ButtonPress);
+                        _currentScreen = AndroidGameScreen.MainMenu;
+                        AnnounceCurrentMenu();
+                        Invalidate();
+                        return true;
+                    }
+                }
+                // Toque / Doble toque para confirmar
+                else if (Math.Abs(deltaX) < 40 && Math.Abs(deltaY) < 40)
+                {
+                    int clickedIdx = (int)((e.GetY() - startY) / itemHeight);
+                    if (clickedIdx >= 0 && clickedIdx < items.Length)
+                    {
+                        _sound?.PlaySound(AudioMap.ButtonPress);
+                        ExecuteMenuItem(clickedIdx);
+                        Invalidate();
+                    }
+                    else if (activeIdx >= 0 && activeIdx < items.Length)
+                    {
+                        _sound?.PlaySound(AudioMap.ButtonPress);
+                        ExecuteMenuItem(activeIdx);
+                        Invalidate();
+                    }
                 }
             }
             return true;
@@ -426,7 +491,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             else if (modeKey == "ModeZen") _sound?.PlayMusic(MusicMap.FileName(MusicMap.ZenPart1));
             else _sound?.PlayMusic(MusicMap.FileName(MusicMap.ClassicPart1));
 
-            _talkBack?.Speak(Localization.Get(modeKey) + ". " + Localization.Get("GameReady"), true);
+            _talkBack?.Speak(Localization.Get(modeKey) + ". " + Localization.Get("GameReady") + ". Toca una gema y desliza hacia la gema vecina para intercambiar.", true);
         }
 
         private bool HandleBoardTouch(MotionEvent e)
@@ -448,19 +513,14 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     _cursorX = cellX;
                     _cursorY = cellY;
 
+                    // Si ya habia una gema seleccionada y tocamos su vecina -> intercambiar
                     if (_selectedX >= 0 && _selectedY >= 0)
                     {
                         int dx = cellX - _selectedX;
                         int dy = cellY - _selectedY;
                         if (Math.Abs(dx) + Math.Abs(dy) == 1)
                         {
-                            _sound?.PlaySoundSpatial(AudioMap.GemHit, cellX, cellY);
-                            _board.SwapGems(_selectedX, _selectedY, cellX, cellY);
-                            CascadeResult res = _board.ProcessMatchesAndGravity(false, false, false, false);
-                            if (res != null && res.AnyMatched) _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + "1", cellX, cellY);
-                            _selectedX = -1;
-                            _selectedY = -1;
-                            Invalidate();
+                            ExecuteSwap(_selectedX, _selectedY, cellX, cellY);
                             return true;
                         }
                     }
@@ -472,7 +532,46 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     Invalidate();
                 }
             }
+            else if (e.Action == MotionEventActions.Up)
+            {
+                float deltaX = e.GetX() - _startX;
+                float deltaY = e.GetY() - _startY;
+
+                // Deslizamiento sobre el tablero (Swipe to Swap)
+                if (Math.Abs(deltaX) > 50 || Math.Abs(deltaY) > 50)
+                {
+                    int swapDx = Math.Abs(deltaX) > Math.Abs(deltaY) ? (deltaX > 0 ? 1 : -1) : 0;
+                    int swapDy = Math.Abs(deltaX) > Math.Abs(deltaY) ? 0 : (deltaY > 0 ? 1 : -1);
+
+                    int fromX = (_selectedX >= 0) ? _selectedX : _cursorX;
+                    int fromY = (_selectedY >= 0) ? _selectedY : _cursorY;
+                    int targetX = fromX + swapDx;
+                    int targetY = fromY + swapDy;
+
+                    if (targetX >= 0 && targetX < Board.Cols && targetY >= 0 && targetY < Board.Rows)
+                    {
+                        ExecuteSwap(fromX, fromY, targetX, targetY);
+                    }
+                }
+            }
             return true;
+        }
+
+        private void ExecuteSwap(int fromX, int fromY, int toX, int toY)
+        {
+            _sound?.PlaySoundSpatial(AudioMap.GemHit, toX, toY);
+            _board.SwapGems(fromX, fromY, toX, toY);
+            CascadeResult res = _board.ProcessMatchesAndGravity(false, false, false, false);
+            if (res != null && res.AnyMatched)
+            {
+                _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + "1", toX, toY);
+            }
+            _selectedX = -1;
+            _selectedY = -1;
+            _cursorX = toX;
+            _cursorY = toY;
+            AnnounceCell(_cursorX, _cursorY);
+            Invalidate();
         }
 
         private void AnnounceCurrentMenu()
@@ -481,7 +580,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             string title = GetScreenTitle();
             if (items.Length > 0 && activeIdx < items.Length)
             {
-                _talkBack?.Speak(title + ". " + items[activeIdx], true);
+                _talkBack?.Speak(title + ". Opción actual: " + items[activeIdx] + ". Desliza arriba o abajo para navegar, toca dos veces para entrar, o desliza a la izquierda para volver.", true);
             }
         }
 
