@@ -122,9 +122,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         {
             List<string> list = new List<string>();
             var stats = Progress;
-            list.Add(string.Format("{0}: {1}", Localization.Get("ModeClassic"), stats.HighClassic));
-            list.Add(string.Format("{0}: {1}", Localization.Get("ModeLightning"), stats.HighLightning));
-            list.Add(string.Format("{0}: {1}", Localization.Get("ModeZen"), stats.HighZen));
+            list.Add(string.Format("{0}: Nivel {1}", Localization.Get("ModeClassic"), stats.ClassicLevel));
+            list.Add(string.Format("{0}: {1}", Localization.Get("ModeLightning"), stats.LightningHighScore));
+            list.Add(string.Format("{0}: Nivel {1}", Localization.Get("ModeZen"), stats.ZenLevel));
             list.Add(string.Format("{0}: {1}", Localization.Get("TotalGemsCleared"), stats.TotalGemsCleared));
             list.Add(Localization.Get("OptBack"));
             return list.ToArray();
@@ -424,7 +424,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             else if (modeKey == "ModePoker") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Poker));
             else if (modeKey == "ModeButterflies") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Butterflies));
             else if (modeKey == "ModeZen") _sound?.PlayMusic(MusicMap.FileName(MusicMap.ZenPart1));
-            else _sound?.PlayMusic(MusicMap.FileName(MusicMap.ClassicModePart1));
+            else _sound?.PlayMusic(MusicMap.FileName(MusicMap.ClassicPart1));
 
             _talkBack?.Speak(Localization.Get(modeKey) + ". " + Localization.Get("GameReady"), true);
         }
