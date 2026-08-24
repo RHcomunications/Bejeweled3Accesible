@@ -465,10 +465,10 @@ namespace Bejeweled3Accessible.Update
             sb.AppendLine("set \"SRC=" + extractDir + "\"");
             sb.AppendLine(":wait");
             sb.AppendLine("tasklist /fi \"IMAGENAME eq Bejeweled3Accessible.exe\" | find /i \"Bejeweled3Accessible.exe\" >nul");
-            sb.AppendLine("if not errorlevel 1 (");
+            sb.AppendLine("if errorlevel 1 goto continue");
             sb.AppendLine("    ping 127.0.0.1 -n 2 >nul");
             sb.AppendLine("    goto wait");
-            sb.AppendLine(")");
+            sb.AppendLine(":continue");
             sb.AppendLine("rd /s /q \"%DST%\" 2>nul");
             sb.AppendLine("mkdir \"%DST%\"");
             sb.AppendLine("xcopy /e /i /y \"%SRC%\" \"%DST%\" >nul");
