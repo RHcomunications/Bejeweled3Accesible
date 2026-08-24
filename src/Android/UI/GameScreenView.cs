@@ -650,7 +650,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 else if (idx == _profileMgr.Profiles.Count) // Crear nuevo perfil
                 {
                     string newName = "Jugador " + (_profileMgr.Profiles.Count + 1);
-                    _profileMgr.AddProfile(newName);
+                    _profileMgr.Profiles.Add(new PlayerProfile(newName));
                     _profileMgr.CurrentProfileIndex = _profileMgr.Profiles.Count - 1;
                     _profileMgr.Save();
                     _badgeMgr = BadgeManager.Load(newName);
@@ -855,15 +855,15 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             CascadeResult res = _board.ProcessMatchesAndGravity(false, false, false, false);
             if (res != null && res.AnyMatched)
             {
-                int combo = Math.Min(res.MaxCombo, 7);
+                int combo = Math.Min(res.CascadeDepth, 7);
                 _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + (combo > 0 ? combo.ToString() : "1"), toX, toY);
 
                 // Voces auténticas del locutor de PopCap según el rendimiento
-                if (res.GemsCleared >= 8) _sound?.PlaySound(AudioMap.VoiceUnbelievable);
-                else if (res.GemsCleared >= 6) _sound?.PlaySound(AudioMap.VoiceExtraordinary);
-                else if (res.GemsCleared >= 5) _sound?.PlaySound(AudioMap.VoiceAwesome);
-                else if (res.GemsCleared >= 4) _sound?.PlaySound(AudioMap.VoiceExcellent);
-                else if (res.MaxCombo >= 3) _sound?.PlaySound(AudioMap.VoiceSpectacular);
+                if (res.TotalGemsDestroyed >= 8) _sound?.PlaySound(AudioMap.VoiceUnbelievable);
+                else if (res.TotalGemsDestroyed >= 6) _sound?.PlaySound(AudioMap.VoiceExtraordinary);
+                else if (res.TotalGemsDestroyed >= 5) _sound?.PlaySound(AudioMap.VoiceAwesome);
+                else if (res.TotalGemsDestroyed >= 4) _sound?.PlaySound(AudioMap.VoiceExcellent);
+                else if (res.CascadeDepth >= 3) _sound?.PlaySound(AudioMap.VoiceSpectacular);
             }
             _selectedX = -1;
             _selectedY = -1;
