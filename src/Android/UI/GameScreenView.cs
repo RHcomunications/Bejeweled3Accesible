@@ -224,7 +224,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             return list.ToArray();
         }
 
-        private string[] GetCurrentItems(out int activeIdx)
+        public string[] GetCurrentItems(out int activeIdx)
         {
             switch (_currentScreen)
             {
@@ -276,6 +276,49 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
         }
 
+        public AndroidGameScreen CurrentScreen => _currentScreen;
+        public Board BoardInstance => _board;
+
+        public override AccessibilityNodeProvider AccessibilityNodeProvider
+        {
+            get
+            {
+                return new GameAccessibilityNodeProvider(this);
+            }
+        }
+
+        public void SelectOrSwapCell(int cellX, int cellY)
+        {
+            if (_board == null) return;
+
+            if (_selectedX >= 0 && _selectedY >= 0)
+            {
+                int dx = cellX - _selectedX;
+                int dy = cellY - _selectedY;
+                if (Math.Abs(dx) + Math.Abs(dy) == 1)
+                {
+                    ExecuteSwap(_selectedX, _selectedY, cellX, cellY);
+                    return;
+                }
+            }
+
+            _selectedX = cellX;
+            _selectedY = cellY;
+            _sound?.PlaySoundSpatial(AudioMap.Select, cellX, cellY);
+            AnnounceCell(cellX, cellY);
+            Invalidate();
+        }
+
+        public void TogglePause()
+        {
+            _sound?.PlaySound(AudioMap.ButtonPress);
+            _currentScreen = AndroidGameScreen.PauseMenu;
+            _pauseIdx = 0;
+            _sound?.StopMusic();
+            AnnounceCurrentMenu();
+            Invalidate();
+        }
+
         public override void OnInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info)
         {
             base.OnInitializeAccessibilityNodeInfo(info);
@@ -291,12 +334,12 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
             if (_currentScreen == AndroidGameScreen.Playing)
             {
-                return "Tablero de juego Bejeweled 3. Desliza para mover gemas.";
+                return "Tablero de juego Bejeweled 3. Desliza para mover gemas o usa los botones de la derecha.";
             }
             string[] items = GetCurrentItems(out int activeIdx);
             string title = GetScreenTitle();
             string cur = (items.Length > 0 && activeIdx < items.Length) ? items[activeIdx] : "";
-            return title + ". Opción seleccionada: " + cur;
+            return title + ". Opción actual: " + cur;
         }
 
         protected override void OnDraw(Canvas canvas)
@@ -609,7 +652,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             return true;
         }
 
-        private void ExecuteMenuItem(int idx)
+        public void ExecuteMenuItem(int idx)
         {
             if (_currentScreen == AndroidGameScreen.MainMenu)
             {
@@ -824,7 +867,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             return true;
         }
 
-        private void TriggerHint()
+        public void TriggerHint()
         {
             _sound?.PlaySound(AudioMap.ButtonPress);
             MoveHint? hint = HintFinder.FindValidMove(_board);
@@ -907,6 +950,184 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
             string desc = string.Format("{0}{1}: {2}{3}", col, row, gemName, movesDesc);
             _talkBack?.Speak(desc, true);
+        }
+    }
+
+    public class GameAccessibilityNodeProvider : AccessibilityNodeProvider
+    {
+        private readonly GameScreenView _view;
+
+        public const int VIRTUAL_ID_HINT = 200;
+        public const int VIRTUAL_ID_PAUSE = 201;
+        public const int VIRTUAL_BOARD_BASE = 100;
+
+        public GameAccessibilityNodeProvider(GameScreenView view)
+        {
+            _view = view;
+        }
+
+        public override AccessibilityNodeInfo CreateAccessibilityNodeInfo(int virtualViewId)
+        {
+            if (virtualViewId == View.NoId)
+            {
+                var root = AccessibilityNodeInfo.Obtain(_view);
+                _view.OnInitializeAccessibilityNodeInfo(root);
+
+                if (_view.CurrentScreen == AndroidGameScreen.Playing)
+                {
+                    for (int y = 0; y < Board.Rows; y++)
+                    {
+                        for (int x = 0; x < Board.Cols; x++)
+                        {
+                            root.AddChild(_view, VIRTUAL_BOARD_BASE + (y * Board.Cols + x));
+                        }
+                    }
+                    root.AddChild(_view, VIRTUAL_ID_HINT);
+                    root.AddChild(_view, VIRTUAL_ID_PAUSE);
+                }
+                else if (_view.CurrentScreen != AndroidGameScreen.Loading)
+                {
+                    string[] items = _view.GetCurrentItems(out int activeIdx);
+                    for (int i = 0; i < items.Length; i++)
+                    {
+                        root.AddChild(_view, i);
+                    }
+                }
+                return root;
+            }
+
+            var node = AccessibilityNodeInfo.Obtain(_view, virtualViewId);
+            node.PackageName = _view.Context.PackageName;
+            node.ClassName = "android.widget.Button";
+            node.Source = _view;
+            node.VisibleToUser = true;
+            node.Enabled = true;
+            node.Focusable = true;
+            node.Clickable = true;
+            node.AddAction(AccessibilityNodeInfo.AccessibilityAction.ActionClick);
+            node.AddAction(AccessibilityNodeInfo.AccessibilityAction.ActionAccessibilityFocus);
+            node.AddAction(AccessibilityNodeInfo.AccessibilityAction.ActionClearAccessibilityFocus);
+
+            if (_view.CurrentScreen == AndroidGameScreen.Playing)
+            {
+                int boardHeight = _view.Height - 40;
+                int tileSize = boardHeight / Board.Rows;
+                int offsetX = 30;
+                int offsetY = 20;
+
+                if (virtualViewId == VIRTUAL_ID_HINT)
+                {
+                    int panelLeft = offsetX + (Board.Cols * tileSize) + 40;
+                    int panelWidth = _view.Width - panelLeft - 30;
+                    Rect rect = new Rect(panelLeft, 60, panelLeft + panelWidth, 160);
+                    node.SetBoundsInParent(rect);
+                    node.Text = "💡 " + Localization.Get("HintTitle");
+                    node.ContentDescription = "Botón de Pista. Toca dos veces para encontrar un movimiento sugerido.";
+                    return node;
+                }
+
+                if (virtualViewId == VIRTUAL_ID_PAUSE)
+                {
+                    int panelLeft = offsetX + (Board.Cols * tileSize) + 40;
+                    int panelWidth = _view.Width - panelLeft - 30;
+                    Rect rect = new Rect(panelLeft, 190, panelLeft + panelWidth, 290);
+                    node.SetBoundsInParent(rect);
+                    node.Text = "⏸️ " + Localization.Get("PauseTitle");
+                    node.ContentDescription = "Botón de Pausa. Toca dos veces para pausar la partida o volver al menú.";
+                    return node;
+                }
+
+                if (virtualViewId >= VIRTUAL_BOARD_BASE && virtualViewId < VIRTUAL_BOARD_BASE + 64)
+                {
+                    int idx = virtualViewId - VIRTUAL_BOARD_BASE;
+                    int x = idx % Board.Cols;
+                    int y = idx / Board.Cols;
+
+                    int left = offsetX + (x * tileSize) + 2;
+                    int top = offsetY + (y * tileSize) + 2;
+                    Rect rect = new Rect(left, top, left + tileSize - 4, top + tileSize - 4);
+                    node.SetBoundsInParent(rect);
+
+                    Gem g = _view.BoardInstance?.GetGem(x, y);
+                    string colLetter = ((char)('A' + x)).ToString();
+                    int rowNum = y + 1;
+                    string gemName = g != null ? g.GetNameLocalized() : "Vacío";
+
+                    var moves = HintFinder.GetValidMovesFrom(_view.BoardInstance, x, y);
+                    string movesDesc = "";
+                    if (moves != null && moves.Count > 0)
+                    {
+                        List<string> dirs = new List<string>();
+                        foreach (var m in moves)
+                        {
+                            if (m.Key == 1) dirs.Add("derecha");
+                            else if (m.Key == -1) dirs.Add("izquierda");
+                            else if (m.Value == 1) dirs.Add("abajo");
+                            else if (m.Value == -1) dirs.Add("arriba");
+                        }
+                        movesDesc = ". Movimientos válidos hacia " + string.Join(" o ", dirs);
+                    }
+
+                    node.Text = string.Format("{0}{1}: {2}", colLetter, rowNum, gemName);
+                    node.ContentDescription = node.Text + movesDesc;
+                    return node;
+                }
+            }
+            else
+            {
+                string[] items = _view.GetCurrentItems(out int activeIdx);
+                if (virtualViewId >= 0 && virtualViewId < items.Length)
+                {
+                    int startY = 110;
+                    int itemHeight = 70;
+                    int top = startY + (virtualViewId * itemHeight);
+                    Rect rect = new Rect(50, top, _view.Width - 50, top + itemHeight - 10);
+                    node.SetBoundsInParent(rect);
+                    node.Text = items[virtualViewId];
+                    node.ContentDescription = string.Format("Opción {0} de {1}: {2}", virtualViewId + 1, items.Length, items[virtualViewId]);
+                    return node;
+                }
+            }
+
+            return node;
+        }
+
+        public override bool PerformAction(int virtualViewId, int action, Android.OS.Bundle arguments)
+        {
+            if (action == (int)AccessibilityAction.Click)
+            {
+                if (_view.CurrentScreen == AndroidGameScreen.Playing)
+                {
+                    if (virtualViewId == VIRTUAL_ID_HINT)
+                    {
+                        _view.TriggerHint();
+                        return true;
+                    }
+                    if (virtualViewId == VIRTUAL_ID_PAUSE)
+                    {
+                        _view.TogglePause();
+                        return true;
+                    }
+                    if (virtualViewId >= VIRTUAL_BOARD_BASE && virtualViewId < VIRTUAL_BOARD_BASE + 64)
+                    {
+                        int idx = virtualViewId - VIRTUAL_BOARD_BASE;
+                        int x = idx % Board.Cols;
+                        int y = idx / Board.Cols;
+                        _view.SelectOrSwapCell(x, y);
+                        return true;
+                    }
+                }
+                else
+                {
+                    string[] items = _view.GetCurrentItems(out int activeIdx);
+                    if (virtualViewId >= 0 && virtualViewId < items.Length)
+                    {
+                        _view.ExecuteMenuItem(virtualViewId);
+                        return true;
+                    }
+                }
+            }
+            return false;
         }
     }
 }

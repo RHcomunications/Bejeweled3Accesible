@@ -60,17 +60,62 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
                     _assetSoundFiles[file] = file;
                 }
 
-                // Pre-cargar sonidos principales del menu y tablero de inmediato
+                // Pre-cargar todos los sonidos frecuentes y voces del locutor de inmediato
                 EnsureSoundLoaded("select");
                 EnsureSoundLoaded("button_mouseover");
                 EnsureSoundLoaded("button_press");
                 EnsureSoundLoaded("gem_hit");
+                EnsureSoundLoaded("backtomain");
+                EnsureSoundLoaded("menuspin");
                 EnsureSoundLoaded("combo_1");
+                EnsureSoundLoaded("combo_2");
+                EnsureSoundLoaded("combo_3");
+                EnsureSoundLoaded("voice_welcometobejeweled");
+                EnsureSoundLoaded("voice_welcomeback");
                 EnsureSoundLoaded("voice_getready");
+                EnsureSoundLoaded("voice_go");
+                EnsureSoundLoaded("voice_good");
+                EnsureSoundLoaded("voice_excellent");
+                EnsureSoundLoaded("voice_awesome");
+                EnsureSoundLoaded("voice_spectacular");
+                EnsureSoundLoaded("voice_extraordinary");
+                EnsureSoundLoaded("voice_unbelievable");
+                EnsureSoundLoaded("voice_levelcomplete");
+                EnsureSoundLoaded("voice_gameover");
+                EnsureSoundLoaded("voice_nomoremoves");
             }
             catch (Exception ex)
             {
                 Android.Util.Log.Error("BejeweledAudio", "Error al listar assets: " + ex.Message);
+            }
+        }
+
+        private readonly List<PendingSound> _pendingSounds = new List<PendingSound>();
+
+        private struct PendingSound
+        {
+            public int SoundId;
+            public float LeftVol;
+            public float RightVol;
+        }
+
+        public void OnLoadComplete(SoundPool soundPool, int sampleId, int status)
+        {
+            if (status == 0)
+            {
+                lock (_soundMap)
+                {
+                    _loadedSoundIds.Add(sampleId);
+                    for (int i = _pendingSounds.Count - 1; i >= 0; i--)
+                    {
+                        if (_pendingSounds[i].SoundId == sampleId)
+                        {
+                            var ps = _pendingSounds[i];
+                            _soundPool.Play(ps.SoundId, ps.LeftVol, ps.RightVol, 1, 0, 1.0f);
+                            _pendingSounds.RemoveAt(i);
+                        }
+                    }
+                }
             }
         }
 
@@ -111,7 +156,17 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
             int soundId = EnsureSoundLoaded(key);
             if (soundId > 0)
             {
-                _soundPool.Play(soundId, volume, volume, 1, 0, 1.0f);
+                lock (_soundMap)
+                {
+                    if (_loadedSoundIds.Contains(soundId))
+                    {
+                        _soundPool.Play(soundId, volume, volume, 1, 0, 1.0f);
+                    }
+                    else
+                    {
+                        _pendingSounds.Add(new PendingSound { SoundId = soundId, LeftVol = volume, RightVol = volume });
+                    }
+                }
             }
         }
 
@@ -125,7 +180,17 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
                 float pan = SpatialAudio.PanColumn(col);
                 float leftVol = baseVol * Math.Min(1.0f, 1.0f - pan);
                 float rightVol = baseVol * Math.Min(1.0f, 1.0f + pan);
-                _soundPool.Play(soundId, leftVol, rightVol, 1, 0, 1.0f);
+                lock (_soundMap)
+                {
+                    if (_loadedSoundIds.Contains(soundId))
+                    {
+                        _soundPool.Play(soundId, leftVol, rightVol, 1, 0, 1.0f);
+                    }
+                    else
+                    {
+                        _pendingSounds.Add(new PendingSound { SoundId = soundId, LeftVol = leftVol, RightVol = rightVol });
+                    }
+                }
             }
         }
 

@@ -26,6 +26,13 @@ namespace Bejeweled3Accessible.AndroidApp
         {
             base.OnCreate(savedInstanceState);
 
+            string dataDir = FilesDir.AbsolutePath;
+            StoragePaths.ResolveDataDirectory(dataDir);
+            ProfileManager.OverrideDataDirectory = dataDir;
+            GameProgress.OverrideDataDirectory = dataDir;
+            GameOptions.OverrideDataDirectory = dataDir;
+            BadgeManager.OverrideDataDirectory = dataDir;
+
             _sound = new AndroidSoundEngine(this);
             _talkBack = new TalkBackBridge(this);
 
