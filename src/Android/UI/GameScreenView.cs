@@ -68,6 +68,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _talkBack = talkBack;
             _sound = sound;
 
+            _talkBack?.AttachView(this);
+
             _profileMgr = ProfileManager.Load();
             string profName = _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.ProfileName : "Jugador 1";
             _badgeMgr = BadgeManager.Load(profName);
@@ -633,6 +635,63 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     StartGame(selectedKey);
                 }
             }
+            else if (_currentScreen == AndroidGameScreen.ProfileSelectScreen)
+            {
+                if (idx < _profileMgr.Profiles.Count)
+                {
+                    _profileMgr.CurrentProfileIndex = idx;
+                    _profileMgr.Save();
+                    string name = _profileMgr.Profiles[idx].ProfileName;
+                    _badgeMgr = BadgeManager.Load(name);
+                    _sound?.PlaySound(AudioMap.ButtonPress);
+                    _talkBack?.Speak(string.Format("Perfil seleccionado: {0}", name), true);
+                    _currentScreen = AndroidGameScreen.MainMenu;
+                }
+                else if (idx == _profileMgr.Profiles.Count) // Crear nuevo perfil
+                {
+                    string newName = "Jugador " + (_profileMgr.Profiles.Count + 1);
+                    _profileMgr.AddProfile(newName);
+                    _profileMgr.CurrentProfileIndex = _profileMgr.Profiles.Count - 1;
+                    _profileMgr.Save();
+                    _badgeMgr = BadgeManager.Load(newName);
+                    _sound?.PlaySound(AudioMap.Rankup);
+                    _talkBack?.Speak(string.Format("Nuevo perfil creado: {0}", newName), true);
+                    _currentScreen = AndroidGameScreen.MainMenu;
+                }
+                else
+                {
+                    _currentScreen = AndroidGameScreen.MainMenu;
+                }
+            }
+            else if (_currentScreen == AndroidGameScreen.OptionsScreen)
+            {
+                string[] opts = GetOptionsMenuItems();
+                if (idx == opts.Length - 1)
+                {
+                    _currentScreen = AndroidGameScreen.MainMenu;
+                }
+                else
+                {
+                    _sound?.PlaySound(AudioMap.ButtonPress);
+                    _talkBack?.Speak(opts[idx] + " ajustado.", true);
+                }
+            }
+            else if (_currentScreen == AndroidGameScreen.BadgesScreen ||
+                     _currentScreen == AndroidGameScreen.RecordsScreen ||
+                     _currentScreen == AndroidGameScreen.TutorialScreen)
+            {
+                string[] curItems = GetCurrentItems(out int dummy);
+                if (idx == curItems.Length - 1) // Volver
+                {
+                    _currentScreen = AndroidGameScreen.MainMenu;
+                }
+                else
+                {
+                    _sound?.PlaySound(AudioMap.ButtonPress);
+                    _talkBack?.Speak(curItems[idx], true);
+                    return;
+                }
+            }
             else if (_currentScreen == AndroidGameScreen.PauseMenu)
             {
                 if (idx == 0) // Resume
@@ -654,7 +713,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 {
                     _currentScreen = AndroidGameScreen.MainMenu;
                     _sound?.StopMusic();
-                    _sound?.PlayMusic(MusicMap.FileName(MusicMap.Intro));
+                    _sound?.PlayMusic(MusicMap.MainTheme);
                 }
             }
             else
@@ -796,7 +855,15 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             CascadeResult res = _board.ProcessMatchesAndGravity(false, false, false, false);
             if (res != null && res.AnyMatched)
             {
-                _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + "1", toX, toY);
+                int combo = Math.Min(res.MaxCombo, 7);
+                _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + (combo > 0 ? combo.ToString() : "1"), toX, toY);
+
+                // Voces auténticas del locutor de PopCap según el rendimiento
+                if (res.GemsCleared >= 8) _sound?.PlaySound(AudioMap.VoiceUnbelievable);
+                else if (res.GemsCleared >= 6) _sound?.PlaySound(AudioMap.VoiceExtraordinary);
+                else if (res.GemsCleared >= 5) _sound?.PlaySound(AudioMap.VoiceAwesome);
+                else if (res.GemsCleared >= 4) _sound?.PlaySound(AudioMap.VoiceExcellent);
+                else if (res.MaxCombo >= 3) _sound?.PlaySound(AudioMap.VoiceSpectacular);
             }
             _selectedX = -1;
             _selectedY = -1;
