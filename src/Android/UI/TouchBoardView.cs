@@ -105,7 +105,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _paint.Color = Color.Yellow;
             _paint.SetStyle(Paint.Style.Fill);
 
-            Path path = new Path();
+            Android.Graphics.Path path = new Android.Graphics.Path();
             float cx = rect.CenterX();
             float cy = rect.CenterY();
             float arrowSize = 14f;
@@ -199,8 +199,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         {
             _sound?.PlaySoundSpatial(AudioMap.GemHit, toX, toY);
             _board.SwapGems(fromX, fromY, toX, toY);
-            int matches = _board.ProcessMatchesAndGravity(false, false, false, false);
-            if (matches > 0)
+            CascadeResult res = _board.ProcessMatchesAndGravity(false, false, false, false);
+            if (res != null && res.TotalMatches > 0)
             {
                 _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + "1", toX, toY);
             }
