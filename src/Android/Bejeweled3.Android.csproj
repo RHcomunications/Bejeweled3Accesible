@@ -1,4 +1,4 @@
-﻿<Project Sdk=Microsoft.NET.Sdk>
+<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net8.0-android</TargetFramework>
     <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
@@ -14,11 +14,11 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include=..\Engine\*.cs Link=Engine\%(FileName)%(Extension) />
-    <Compile Include=..\Audio\AudioMap.cs Link=Audio\AudioMap.cs />
-    <Compile Include=..\Audio\MusicMap.cs Link=Audio\MusicMap.cs />
-    <Compile Include=..\Audio\GridSpatializer.cs Link=Audio\GridSpatializer.cs />
-    <Compile Include=..\Audio\PacCipher.cs Link=Audio\PacCipher.cs />
-    <Compile Include=..\Audio\PacReader.cs Link=Audio\PacReader.cs />
+    <Compile Include="..\Engine\*.cs" Link="Engine\%(FileName)%(Extension)" />
+    <Compile Include="..\Audio\AudioMap.cs" Link="Audio\AudioMap.cs" />
+    <Compile Include="..\Audio\MusicMap.cs" Link="Audio\MusicMap.cs" />
+    <Compile Include="..\Audio\GridSpatializer.cs" Link="Audio\GridSpatializer.cs" />
+    <Compile Include="..\Audio\PacCipher.cs" Link="Audio\PacCipher.cs" />
+    <Compile Include="..\Audio\PacReader.cs" Link="Audio\PacReader.cs" />
   </ItemGroup>
 </Project>
