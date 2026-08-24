@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using Android.Content;
 using Android.Graphics;
 using Android.Views;
+using Android.Views.Accessibility;
 using Bejeweled3Accessible.Audio;
 using Bejeweled3Accessible.Engine;
 using Bejeweled3Accessible.AndroidApp.Accessibility;
@@ -12,6 +13,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 {
     public enum AndroidGameScreen
     {
+        Loading,
         MainMenu,
         GameSelect,
         BadgesScreen,
@@ -33,7 +35,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private BadgeManager _badgeMgr;
         private Board _board;
 
-        private AndroidGameScreen _currentScreen = AndroidGameScreen.MainMenu;
+        private AndroidGameScreen _currentScreen = AndroidGameScreen.Loading;
+        private int _loadingProgress = 0;
         private int _menuIdx = 0;
         private int _gameModeIdx = 0;
         private int _badgeIdx = 0;
@@ -71,8 +74,35 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
             Focusable = true;
             Clickable = true;
+            ImportantForAccessibility = ImportantForAccessibility.Yes;
 
+            StartLoadingSequence();
+        }
+
+        private void StartLoadingSequence()
+        {
+            _currentScreen = AndroidGameScreen.Loading;
+            _loadingProgress = 0;
+            _sound?.PlayMusic("24 - Coastal");
+            _sound?.PlaySound(AudioMap.VoiceWelcometobejeweled);
+            _talkBack?.Speak("Cargando Bejeweled 3 Accesible. Toca la pantalla para continuar al menú principal.", true);
+
+            PostDelayed(() =>
+            {
+                if (_currentScreen == AndroidGameScreen.Loading)
+                {
+                    TransitionToMainMenu();
+                }
+            }, 3000);
+        }
+
+        private void TransitionToMainMenu()
+        {
+            _currentScreen = AndroidGameScreen.MainMenu;
+            _menuIdx = 0;
+            _sound?.PlaySound(AudioMap.VoiceWelcomeback);
             AnnounceCurrentMenu();
+            Invalidate();
         }
 
         private GameProgress Progress => _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.Progress : new GameProgress();
@@ -243,10 +273,39 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
         }
 
+        public override void OnInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info)
+        {
+            base.OnInitializeAccessibilityNodeInfo(info);
+            info.ClassName = "android.view.View";
+            info.ContentDescription = GetScreenDescriptionForAccessibility();
+        }
+
+        private string GetScreenDescriptionForAccessibility()
+        {
+            if (_currentScreen == AndroidGameScreen.Loading)
+            {
+                return "Cargando Bejeweled 3 Accesible. Toca para continuar.";
+            }
+            if (_currentScreen == AndroidGameScreen.Playing)
+            {
+                return "Tablero de juego Bejeweled 3. Desliza para mover gemas.";
+            }
+            string[] items = GetCurrentItems(out int activeIdx);
+            string title = GetScreenTitle();
+            string cur = (items.Length > 0 && activeIdx < items.Length) ? items[activeIdx] : "";
+            return title + ". Opción seleccionada: " + cur;
+        }
+
         protected override void OnDraw(Canvas canvas)
         {
             base.OnDraw(canvas);
             canvas.DrawColor(Color.Rgb(15, 15, 28));
+
+            if (_currentScreen == AndroidGameScreen.Loading)
+            {
+                DrawLoadingScreen(canvas);
+                return;
+            }
 
             if (_currentScreen == AndroidGameScreen.Playing)
             {
@@ -254,7 +313,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 return;
             }
 
-            // Dibujar Menu Actual en Pantalla Completa
             string[] items = GetCurrentItems(out int activeIdx);
             _paint.Color = Color.White;
             _paint.TextSize = 44f;
@@ -294,10 +352,28 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
         }
 
+        private void DrawLoadingScreen(Canvas canvas)
+        {
+            _paint.Color = Color.White;
+            _paint.TextSize = 56f;
+            _paint.SetTypeface(Typeface.DefaultBold);
+            _paint.TextAlign = Paint.Align.Center;
+
+            canvas.DrawText("BEJEWELED 3 ACCESIBLE", Width / 2f, Height / 2f - 40, _paint);
+
+            _paint.TextSize = 32f;
+            _paint.SetTypeface(Typeface.Default);
+            _paint.Color = Color.Rgb(255, 200, 0);
+            canvas.DrawText("Cargando... Toca la pantalla para comenzar", Width / 2f, Height / 2f + 40, _paint);
+
+            _paint.TextAlign = Paint.Align.Left;
+        }
+
         private string GetScreenTitle()
         {
             switch (_currentScreen)
             {
+                case AndroidGameScreen.Loading: return Localization.Get("LoadingTitle");
                 case AndroidGameScreen.MainMenu: return Localization.Get("AppTitle");
                 case AndroidGameScreen.GameSelect: return Localization.Get("SelectMode");
                 case AndroidGameScreen.BadgesScreen: return Localization.Get("MenuBadges");
@@ -314,13 +390,11 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         {
             if (_board == null) return;
 
-            // Tablero cuadrado centrado a la izquierda en modo horizontal
             int boardHeight = Height - 40;
             int tileSize = boardHeight / Board.Rows;
             int offsetX = 30;
             int offsetY = 20;
 
-            // Dibujar casillas y gemas
             for (int y = 0; y < Board.Rows; y++)
             {
                 for (int x = 0; x < Board.Cols; x++)
@@ -344,7 +418,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         canvas.DrawCircle(rect.CenterX(), rect.CenterY(), (tileSize - 10) / 2f, _paint);
                     }
 
-                    // Dibujar flechas direccionales si hay jugadas validas desde esta gema
                     var validMoves = HintFinder.GetValidMovesFrom(_board, x, y);
                     if (validMoves != null && validMoves.Count > 0)
                     {
@@ -371,11 +444,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 }
             }
 
-            // Panel Lateral Derecho: Botones de Pistas (HINT) y Pausa (PAUSE)
             int panelLeft = offsetX + (Board.Cols * tileSize) + 40;
             int panelWidth = Width - panelLeft - 30;
 
-            // Boton PISTA / HINT
             RectF hintRect = new RectF(panelLeft, 60, panelLeft + panelWidth, 160);
             _paint.Color = Color.Rgb(0, 150, 255);
             _paint.SetStyle(Paint.Style.Fill);

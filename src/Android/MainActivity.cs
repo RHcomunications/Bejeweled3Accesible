@@ -18,10 +18,9 @@ namespace Bejeweled3Accessible.AndroidApp
               Theme = "@android:style/Theme.NoTitleBar.Fullscreen")]
     public class MainActivity : Activity
     {
-        private Board _board;
         private TalkBackBridge _talkBack;
         private AndroidSoundEngine _sound;
-        private TouchBoardView _boardView;
+        private GameScreenView _screenView;
 
         protected override void OnCreate(Bundle savedInstanceState)
         {
@@ -30,16 +29,13 @@ namespace Bejeweled3Accessible.AndroidApp
             _sound = new AndroidSoundEngine(this);
             _talkBack = new TalkBackBridge(this);
 
-            var screenView = new GameScreenView(this, _talkBack, _sound);
-            SetContentView(screenView);
-
-            _sound.PlayMusic(MusicMap.FileName(MusicMap.Intro));
+            _screenView = new GameScreenView(this, _talkBack, _sound);
+            SetContentView(_screenView);
         }
 
         protected override void OnResume()
         {
             base.OnResume();
-            _sound?.PlayMusic(MusicMap.AllTrackKeys[0]);
         }
 
         protected override void OnPause()
