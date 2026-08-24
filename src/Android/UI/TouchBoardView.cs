@@ -200,7 +200,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _sound?.PlaySoundSpatial(AudioMap.GemHit, toX, toY);
             _board.SwapGems(fromX, fromY, toX, toY);
             CascadeResult res = _board.ProcessMatchesAndGravity(false, false, false, false);
-            if (res != null && res.TotalMatches > 0)
+            if (res != null && res.AnyMatched)
             {
                 _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + "1", toX, toY);
             }
