@@ -1,7 +1,9 @@
 bin/
 obj/
 *.zip
+*.apk
 *.log
 pack_error.txt
 *.tmp.mp3
 *.tmp.ogg
+android_apk*/
