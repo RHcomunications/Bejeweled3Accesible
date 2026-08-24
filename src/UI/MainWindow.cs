@@ -3411,6 +3411,16 @@ case Engine.QuestType.TimeBomb:
                             g.DrawRectangle(p, rect);
                         }
                     }
+
+                    // Flechas visuales para jugadores normovisuales que indican hacia dónde se puede mover la gema
+                    if ((x == _cursorX && y == _cursorY) || (_selectedGemX == x && _selectedGemY == y))
+                    {
+                        List<KeyValuePair<int, int>> validMoves = HintFinder.GetValidMovesFrom(_board, x, y);
+                        foreach (KeyValuePair<int, int> move in validMoves)
+                        {
+                            DrawDirectionArrow(g, rect, move.Key, move.Value);
+                        }
+                    }
                 }
             }
         }
@@ -3509,7 +3519,30 @@ case Engine.QuestType.TimeBomb:
                 return;
             }
 
-            // En los menús, actualizar el cursor según la posición del ratón
+            // Eco del ratón en el tablero (anunciar casilla al pasar el ratón)
+            if (e.Button == MouseButtons.None && _screen == GameScreen.Playing)
+            {
+                int boardStartX = 200;
+                int boardStartY = 80;
+                int tileSize = 60;
+
+                int cellX = (e.X - boardStartX) / tileSize;
+                int cellY = (e.Y - boardStartY) / tileSize;
+
+                if (cellX >= 0 && cellX < Board.Cols && cellY >= 0 && cellY < Board.Rows)
+                {
+                    if (cellX != _cursorX || cellY != _cursorY)
+                    {
+                        _cursorX = cellX;
+                        _cursorY = cellY;
+                        _sound.PlaySoundSpatial(AudioMap.Select, _cursorX, _cursorY);
+                        AnnounceCurrentCell();
+                    }
+                }
+                return;
+            }
+
+            // Eco del ratón en los menús (actualizar y verbalizar opción señalada)
             if (e.Button == MouseButtons.None && _screen != GameScreen.Loading && _screen != GameScreen.Playing && _screen != GameScreen.GameOver && _screen != GameScreen.ProfileInput)
             {
                 int menuStartY = 220;
@@ -3556,18 +3589,32 @@ case Engine.QuestType.TimeBomb:
 
         private void SetCurrentMenuIndex(int idx)
         {
-            if (_screen == GameScreen.MainMenu && _menuIdx != idx) { _menuIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
-            else if (_screen == GameScreen.GameSelect && _menuIdx != idx) { _menuIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
-            else if (_screen == GameScreen.Options && _optionsIdx != idx) { _optionsIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
-            else if (_screen == GameScreen.BadgesScreen && _badgeIdx != idx) { _badgeIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
-            else if (_screen == GameScreen.RecordsScreen && _recordsIdx != idx) { _recordsIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
-            else if (_screen == GameScreen.TutorialScreen && _tutorialIdx != idx) { _tutorialIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
-            else if (_screen == GameScreen.QuestRelicScreen && _relicIdx != idx) { _relicIdx = idx; _sound.PlaySound(AudioMap.QuestMenuButtonMouseover1); }
-            else if (_screen == GameScreen.QuestChallengeScreen && _questChallengeIdx != idx) { _questChallengeIdx = idx; _sound.PlaySound(AudioMap.QuestMenuButtonMouseover1); }
-            else if (_screen == GameScreen.ProfileSelectScreen && _profileSelectIdx != idx) { _profileSelectIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
-            else if (_screen == GameScreen.ZenOptionsScreen && _zenOptionsIdx != idx) { _zenOptionsIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
-            else if (_screen == GameScreen.PauseMenu && _pauseIdx != idx) { _pauseIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
-            else if (_screen == GameScreen.AudioSchool && _audioSchoolIdx != idx) { _audioSchoolIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
+            string[] items = GetCurrentMenuItems();
+            if (items == null || idx < 0 || idx >= items.Length) return;
+
+            bool changed = false;
+            if (_screen == GameScreen.MainMenu && _menuIdx != idx) { _menuIdx = idx; changed = true; }
+            else if (_screen == GameScreen.GameSelect && _menuIdx != idx) { _menuIdx = idx; changed = true; }
+            else if (_screen == GameScreen.Options && _optionsIdx != idx) { _optionsIdx = idx; changed = true; }
+            else if (_screen == GameScreen.BadgesScreen && _badgeIdx != idx) { _badgeIdx = idx; changed = true; }
+            else if (_screen == GameScreen.RecordsScreen && _recordsIdx != idx) { _recordsIdx = idx; changed = true; }
+            else if (_screen == GameScreen.TutorialScreen && _tutorialIdx != idx) { _tutorialIdx = idx; changed = true; }
+            else if (_screen == GameScreen.QuestRelicScreen && _relicIdx != idx) { _relicIdx = idx; changed = true; }
+            else if (_screen == GameScreen.QuestChallengeScreen && _questChallengeIdx != idx) { _questChallengeIdx = idx; changed = true; }
+            else if (_screen == GameScreen.ProfileSelectScreen && _profileSelectIdx != idx) { _profileSelectIdx = idx; changed = true; }
+            else if (_screen == GameScreen.ZenOptionsScreen && _zenOptionsIdx != idx) { _zenOptionsIdx = idx; changed = true; }
+            else if (_screen == GameScreen.PauseMenu && _pauseIdx != idx) { _pauseIdx = idx; changed = true; }
+            else if (_screen == GameScreen.AudioSchool && _audioSchoolIdx != idx) { _audioSchoolIdx = idx; changed = true; }
+
+            if (changed)
+            {
+                if (_screen == GameScreen.QuestRelicScreen || _screen == GameScreen.QuestChallengeScreen)
+                    _sound.PlaySound(AudioMap.QuestMenuButtonMouseover1);
+                else
+                    _sound.PlaySound(AudioMap.ButtonMouseover);
+
+                _speech.Speak(items[idx], true);
+            }
         }
 
         private void HandleMenuMouseClick(MouseEventArgs e)
@@ -3626,6 +3673,13 @@ case Engine.QuestType.TimeBomb:
                         g.FillEllipse(b, cx - 10, cy - 10, 20, 20);
                         g.DrawEllipse(p, cx - 10, cy - 10, 20, 20);
                     }
+                    using (Font f = new Font("Segoe UI", 9, FontStyle.Bold))
+                    using (SolidBrush tb = new SolidBrush(Color.White))
+                    {
+                        string str = gem.BombTimer.ToString();
+                        SizeF sz = g.MeasureString(str, f);
+                        g.DrawString(str, f, tb, cx - sz.Width / 2, cy - sz.Height / 2);
+                    }
                     break;
                 case SpecialType.Butterfly:
                     using (Brush b = new SolidBrush(Color.FromArgb(150, 200, 240)))
@@ -3642,7 +3696,7 @@ case Engine.QuestType.TimeBomb:
                     }
                     break;
                 case SpecialType.Dirt:
-                    using (Brush b = new SolidBrush(Color.FromArgb(150, 110, 70)))
+                    using (Brush b = new SolidBrush(Color.FromArgb(139, 90, 43)))
                     {
                         g.FillRectangle(b, rect.X + 2, rect.Y + 2, rect.Width - 4, rect.Height - 4);
                     }
@@ -3669,6 +3723,49 @@ case Engine.QuestType.TimeBomb:
                         g.DrawEllipse(p, cx - 10, cy - 10, 20, 20);
                     }
                     break;
+            }
+        }
+
+        private static void DrawDirectionArrow(Graphics g, Rectangle rect, int dx, int dy)
+        {
+            int cx = rect.X + rect.Width / 2;
+            int cy = rect.Y + rect.Height / 2;
+            int margin = 6;
+            int arrowLen = 14;
+            int arrowWidth = 7;
+
+            Point tip, b1, b2;
+            if (dx == 1) // Derecha
+            {
+                tip = new Point(rect.Right - margin, cy);
+                b1 = new Point(tip.X - arrowLen, tip.Y - arrowWidth);
+                b2 = new Point(tip.X - arrowLen, tip.Y + arrowWidth);
+            }
+            else if (dx == -1) // Izquierda
+            {
+                tip = new Point(rect.Left + margin, cy);
+                b1 = new Point(tip.X + arrowLen, tip.Y - arrowWidth);
+                b2 = new Point(tip.X + arrowLen, tip.Y + arrowWidth);
+            }
+            else if (dy == 1) // Abajo
+            {
+                tip = new Point(cx, rect.Bottom - margin);
+                b1 = new Point(tip.X - arrowWidth, tip.Y - arrowLen);
+                b2 = new Point(tip.X + arrowWidth, tip.Y - arrowLen);
+            }
+            else // Arriba
+            {
+                tip = new Point(cx, rect.Top + margin);
+                b1 = new Point(tip.X - arrowWidth, tip.Y + arrowLen);
+                b2 = new Point(tip.X + arrowWidth, tip.Y + arrowLen);
+            }
+
+            Point[] arrowPts = new Point[] { tip, b1, b2 };
+            using (SolidBrush fillBrush = new SolidBrush(Color.FromArgb(240, 255, 255, 0)))
+            using (Pen borderPen = new Pen(Color.FromArgb(200, 0, 0, 0), 1.5f))
+            {
+                g.FillPolygon(fillBrush, arrowPts);
+                g.DrawPolygon(borderPen, arrowPts);
             }
         }
 
