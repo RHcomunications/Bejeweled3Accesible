@@ -152,7 +152,7 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
                     }
                 }
 
-                // Si la pista solicitada no existe, usar la primera pista disponible (ej. 24 - Coastal.mp3)
+                // Fallback si no existe la pista
                 if (targetFile == null && musicAssets.Length > 0)
                 {
                     targetFile = musicAssets[0];
@@ -166,7 +166,18 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
                         _musicPlayer = new MediaPlayer();
                         _musicPlayer.SetDataSource(afd.FileDescriptor, afd.StartOffset, afd.Length);
                         _musicPlayer.Prepare();
-                        _musicPlayer.Looping = loop;
+
+                        // Enlace automático y continuo para las 4 partes de Clásico y Zen
+                        if (IsClassicTrack(targetFile) || IsZenTrack(targetFile))
+                        {
+                            _musicPlayer.Looping = false;
+                            _musicPlayer.SetOnCompletionListener(new MusicCompletionListener(this, targetFile));
+                        }
+                        else
+                        {
+                            _musicPlayer.Looping = loop;
+                        }
+
                         _musicPlayer.SetVolume(0.85f, 0.85f);
                         _musicPlayer.Start();
                         _currentMusicTrack = trackName;
@@ -176,6 +187,58 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
             catch (Exception ex)
             {
                 Android.Util.Log.Error("BejeweledMusic", "Error al reproducir musica " + trackName + ": " + ex.Message);
+            }
+        }
+
+        private static bool IsClassicTrack(string filename)
+        {
+            return filename.IndexOf("Classic Mode", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool IsZenTrack(string filename)
+        {
+            return filename.IndexOf("Zen - Part", StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private class MusicCompletionListener : Java.Lang.Object, MediaPlayer.IOnCompletionListener
+        {
+            private readonly AndroidSoundEngine _engine;
+            private readonly string _finishedTrack;
+
+            public MusicCompletionListener(AndroidSoundEngine engine, string finishedTrack)
+            {
+                _engine = engine;
+                _finishedTrack = finishedTrack;
+            }
+
+            public void OnCompletion(MediaPlayer mp)
+            {
+                string nextTrack = GetNextChainedTrack(_finishedTrack);
+                if (!string.IsNullOrEmpty(nextTrack))
+                {
+                    _engine.PlayMusic(nextTrack, false);
+                }
+            }
+
+            private string GetNextChainedTrack(string current)
+            {
+                if (current.IndexOf("Part 1", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return current.IndexOf("Zen", StringComparison.OrdinalIgnoreCase) >= 0 ? "12 - Zen - Part 2 - Schein Zwei" : "04 - Classic Mode - Part 2";
+                }
+                if (current.IndexOf("Part 2", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return current.IndexOf("Zen", StringComparison.OrdinalIgnoreCase) >= 0 ? "13 - Zen - Part 3 - The Return" : "05 - Classic Mode - Part 3";
+                }
+                if (current.IndexOf("Part 3", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return current.IndexOf("Zen", StringComparison.OrdinalIgnoreCase) >= 0 ? "14 - Zen - Part 4" : "06 - Classic Mode - Part 4";
+                }
+                if (current.IndexOf("Part 4", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    return current.IndexOf("Zen", StringComparison.OrdinalIgnoreCase) >= 0 ? "11 - Zen - Part 1" : "03 - Classic Mode - Part 1";
+                }
+                return null;
             }
         }
 
