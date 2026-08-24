@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <Compile Include="..\Engine\Board.cs" Link="Engine\Board.cs" />
+    <Compile Include="..\Engine\AmbientType.cs" Link="Engine\AmbientType.cs" />
     <Compile Include="..\Engine\Gem.cs" Link="Engine\Gem.cs" />
     <Compile Include="..\Engine\HintFinder.cs" Link="Engine\HintFinder.cs" />
     <Compile Include="..\Engine\Localization.cs" Link="Engine\Localization.cs" />

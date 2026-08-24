@@ -6,8 +6,6 @@ using Bejeweled3Accessible.Audio;
 
 namespace Bejeweled3Accessible.Engine
 {
-    public enum AmbientType { None, Coastal, Crickets, Forest, OceanSurf, RainLeaves, Waterfall }
-
     public class ZenManager : IDisposable
     {
         private readonly NvdaSpeech _speech;
