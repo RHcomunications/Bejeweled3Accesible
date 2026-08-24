@@ -999,7 +999,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             var node = AccessibilityNodeInfo.Obtain(_view, virtualViewId);
             node.PackageName = _view.Context.PackageName;
             node.ClassName = "android.widget.Button";
-            node.Source = _view;
+            node.SetSource(_view, virtualViewId);
             node.VisibleToUser = true;
             node.Enabled = true;
             node.Focusable = true;
