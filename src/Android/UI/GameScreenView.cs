@@ -83,7 +83,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         {
             _currentScreen = AndroidGameScreen.Loading;
             _loadingProgress = 0;
-            _sound?.PlayMusic("24 - Coastal");
+            _sound?.PlayMusic(MusicMap.Intro);
             _sound?.PlaySound(AudioMap.VoiceWelcometobejeweled);
             _talkBack?.Speak("Cargando Bejeweled 3 Accesible. Toca la pantalla para continuar al menú principal.", true);
 
@@ -93,13 +93,14 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 {
                     TransitionToMainMenu();
                 }
-            }, 3000);
+            }, 3500);
         }
 
         private void TransitionToMainMenu()
         {
             _currentScreen = AndroidGameScreen.MainMenu;
             _menuIdx = 0;
+            _sound?.PlayMusic(MusicMap.MainTheme);
             _sound?.PlaySound(AudioMap.VoiceWelcomeback);
             AnnounceCurrentMenu();
             Invalidate();
