@@ -1,0 +1,37 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - android
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '8.0.x'
+
+    - name: Install .NET Android Workload
+      run: dotnet workload install android
+
+    - name: Build Android APK
+      run: dotnet build src/Android/Bejeweled3.Android.csproj -c Release
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Bejeweled3Accessible-Android-APK
+        path: src/Android/bin/Release/net8.0-android/*-Signed.apk

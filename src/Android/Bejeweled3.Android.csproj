@@ -1,0 +1,24 @@
+﻿<Project Sdk=Microsoft.NET.Sdk>
+  <PropertyGroup>
+    <TargetFramework>net8.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationTitle>Bejeweled 3 Accesible</ApplicationTitle>
+    <ApplicationId>com.narayan.bejeweled3accessible</ApplicationId>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationDisplayVersion>2026.08.24.3</ApplicationDisplayVersion>
+    <RootNamespace>Bejeweled3Accessible.AndroidApp</RootNamespace>
+    <AssemblyName>Bejeweled3Accessible.Android</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include=..\Engine\*.cs Link=Engine\%(FileName)%(Extension) />
+    <Compile Include=..\Audio\AudioMap.cs Link=Audio\AudioMap.cs />
+    <Compile Include=..\Audio\MusicMap.cs Link=Audio\MusicMap.cs />
+    <Compile Include=..\Audio\GridSpatializer.cs Link=Audio\GridSpatializer.cs />
+    <Compile Include=..\Audio\PacCipher.cs Link=Audio\PacCipher.cs />
+    <Compile Include=..\Audio\PacReader.cs Link=Audio\PacReader.cs />
+  </ItemGroup>
+</Project>
