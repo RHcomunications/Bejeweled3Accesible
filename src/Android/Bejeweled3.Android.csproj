@@ -15,7 +15,19 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="..\Engine\*.cs" Link="Engine\%(FileName)%(Extension)" />
+    <Compile Include="..\Engine\Board.cs" Link="Engine\Board.cs" />
+    <Compile Include="..\Engine\Gem.cs" Link="Engine\Gem.cs" />
+    <Compile Include="..\Engine\HintFinder.cs" Link="Engine\HintFinder.cs" />
+    <Compile Include="..\Engine\Localization.cs" Link="Engine\Localization.cs" />
+    <Compile Include="..\Engine\Affirmations.cs" Link="Engine\Affirmations.cs" />
+    <Compile Include="..\Engine\BadgeManager.cs" Link="Engine\BadgeManager.cs" />
+    <Compile Include="..\Engine\GameOptions.cs" Link="Engine\GameOptions.cs" />
+    <Compile Include="..\Engine\GameProgress.cs" Link="Engine\GameProgress.cs" />
+    <Compile Include="..\Engine\PokerHandEvaluator.cs" Link="Engine\PokerHandEvaluator.cs" />
+    <Compile Include="..\Engine\ProfileManager.cs" Link="Engine\ProfileManager.cs" />
+    <Compile Include="..\Engine\QuestManager.cs" Link="Engine\QuestManager.cs" />
+    <Compile Include="..\Engine\RankSystem.cs" Link="Engine\RankSystem.cs" />
+    <Compile Include="..\Engine\StoragePaths.cs" Link="Engine\StoragePaths.cs" />
     <Compile Include="..\Audio\AudioMap.cs" Link="Audio\AudioMap.cs" />
     <Compile Include="..\Audio\MusicMap.cs" Link="Audio\MusicMap.cs" />
     <Compile Include="..\Audio\GridSpatializer.cs" Link="Audio\GridSpatializer.cs" />
