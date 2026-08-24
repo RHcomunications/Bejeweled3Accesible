@@ -1092,9 +1092,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             return node;
         }
 
-        public override bool PerformAction(int virtualViewId, int action, Android.OS.Bundle arguments)
+        public override bool PerformAction(int virtualViewId, Action action, Android.OS.Bundle arguments)
         {
-            if (action == (int)AccessibilityAction.Click)
+            if (action == Action.Click)
             {
                 if (_view.CurrentScreen == AndroidGameScreen.Playing)
                 {

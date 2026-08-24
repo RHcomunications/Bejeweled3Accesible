@@ -37,17 +37,6 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
             IndexAssetSounds();
         }
 
-        public void OnLoadComplete(SoundPool soundPool, int sampleId, int status)
-        {
-            if (status == 0)
-            {
-                lock (_soundMap)
-                {
-                    _loadedSoundIds.Add(sampleId);
-                }
-            }
-        }
-
         private void IndexAssetSounds()
         {
             try
