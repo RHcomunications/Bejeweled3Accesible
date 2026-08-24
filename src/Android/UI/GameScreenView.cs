@@ -600,7 +600,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 float deltaX = e.GetX() - _startX;
                 float deltaY = e.GetY() - _startY;
 
-                if (Math.Abs(deltaY) > 60 && Math.Abs(deltaY) > Math.Abs(deltaX))
+                // Deslizamiento vertical deliberado (navegacion anterior/siguiente)
+                if (Math.Abs(deltaY) > 80 && Math.Abs(deltaY) > Math.Abs(deltaX) * 1.5f)
                 {
                     if (deltaY > 0)
                     {
@@ -621,7 +622,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         return true;
                     }
                 }
-                else if (deltaX < -100 && Math.Abs(deltaX) > Math.Abs(deltaY))
+                // Deslizamiento horizontal izquierdo (volver)
+                else if (deltaX < -120 && Math.Abs(deltaX) > Math.Abs(deltaY) * 1.5f)
                 {
                     if (_currentScreen != AndroidGameScreen.MainMenu)
                     {
@@ -632,20 +634,27 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         return true;
                     }
                 }
-                else if (Math.Abs(deltaX) < 40 && Math.Abs(deltaY) < 40)
+                // Toque estático sin desplazamiento: activar SOLO si se pulsa sobre la opción ya seleccionada
+                else if (Math.Abs(deltaX) < 25 && Math.Abs(deltaY) < 25)
                 {
                     int clickedIdx = (int)((e.GetY() - startY) / itemHeight);
                     if (clickedIdx >= 0 && clickedIdx < items.Length)
                     {
-                        _sound?.PlaySound(AudioMap.ButtonPress);
-                        ExecuteMenuItem(clickedIdx);
-                        Invalidate();
-                    }
-                    else if (activeIdx >= 0 && activeIdx < items.Length)
-                    {
-                        _sound?.PlaySound(AudioMap.ButtonPress);
-                        ExecuteMenuItem(activeIdx);
-                        Invalidate();
+                        if (clickedIdx == activeIdx)
+                        {
+                            _sound?.PlaySound(AudioMap.ButtonPress);
+                            ExecuteMenuItem(clickedIdx);
+                            Invalidate();
+                            return true;
+                        }
+                        else
+                        {
+                            SetActiveIndex(clickedIdx);
+                            _sound?.PlaySound(AudioMap.ButtonMouseover);
+                            _talkBack?.Speak(items[clickedIdx], true);
+                            Invalidate();
+                            return true;
+                        }
                     }
                 }
             }
