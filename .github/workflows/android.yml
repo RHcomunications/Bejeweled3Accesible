@@ -24,6 +24,9 @@ jobs:
       with:
         dotnet-version: '9.0.x'
 
+    - name: Restore Workloads
+      run: dotnet workload restore src/Android/Bejeweled3.Android.csproj
+
     - name: Build Android APK
       run: dotnet build src/Android/Bejeweled3.Android.csproj -c Release -t:PackageForAndroid
 
