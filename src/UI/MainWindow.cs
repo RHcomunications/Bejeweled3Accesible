@@ -114,9 +114,10 @@ namespace Bejeweled3Accessible.UI
             { GemColor.Orange, Color.Orange }
         };
 
-        private Bitmap[] _gemImages;
+        private Bitmap[][] _gemFrames;
         private Bitmap[] _gemShadows;
         private Bitmap _heatwaveLogo;
+        private int _gemAnimTick = 0;
 
         private GameProgress _progress
         {
@@ -3093,10 +3094,16 @@ case Engine.QuestType.TimeBomb:
 
         private void DisposeVisualAssets()
         {
-            if (_gemImages != null)
+            if (_gemFrames != null)
             {
-                foreach (var b in _gemImages) { if (b != null) b.Dispose(); }
-                _gemImages = null;
+                foreach (var frames in _gemFrames)
+                {
+                    if (frames != null)
+                    {
+                        foreach (var b in frames) { if (b != null) b.Dispose(); }
+                    }
+                }
+                _gemFrames = null;
             }
             if (_gemShadows != null)
             {
@@ -3117,13 +3124,15 @@ case Engine.QuestType.TimeBomb:
                 string shadowDir = Path.Combine(resDir, "GemsShadow");
 
                 string[] gemNames = Enum.GetNames(typeof(GemColor));
-                _gemImages = new Bitmap[gemNames.Length];
+                _gemFrames = new Bitmap[gemNames.Length][];
                 _gemShadows = new Bitmap[gemNames.Length];
                 for (int i = 0; i < gemNames.Length; i++)
                 {
                     string name = gemNames[i];
-                    _gemImages[i] = LoadGemFrame(Path.Combine(normalDir, name + ".png"), 56);
-                    _gemShadows[i] = LoadGemFrame(Path.Combine(shadowDir, name + ".png"), 60);
+                    GemColor col = (GemColor)i;
+                    Color tint = _gemColors.ContainsKey(col) ? _gemColors[col] : Color.White;
+                    _gemFrames[i] = LoadGemFrames(Path.Combine(normalDir, name + ".png"), 54, tint);
+                    _gemShadows[i] = LoadGemFrame(Path.Combine(shadowDir, name + ".png"), 58);
                 }
 
                 string heatwavePath = Path.Combine(resDir, "..", "NonResize", "heatwave.png");
@@ -3135,8 +3144,85 @@ case Engine.QuestType.TimeBomb:
             catch { }
         }
 
-        // Cada PNG de gema es una hoja 5x4 (20 fotogramas de animacion); se usa
-        // solo el fotograma 0 (gema en reposo) recortado a su contenido real.
+        // Carga los 20 fotogramas animados de la gema (hoja 5x4) y aplica el tinte cromático
+        // para que cada gema tenga su color vibrante y resplandor original.
+        private static Bitmap[] LoadGemFrames(string path, int maxSize, Color tint)
+        {
+            if (!File.Exists(path)) return null;
+            try
+            {
+                using (Bitmap sheet = new Bitmap(path))
+                {
+                    int pitchW = Math.Max(1, sheet.Width / 5);
+                    int pitchH = Math.Max(1, sheet.Height / 4);
+                    Rectangle bounds = GetContentBounds(sheet, 0, 0, pitchW, pitchH);
+                    if (bounds.Width <= 0 || bounds.Height <= 0)
+                        bounds = new Rectangle(0, 0, pitchW, pitchH);
+
+                    Bitmap[] frames = new Bitmap[20];
+                    for (int row = 0; row < 4; row++)
+                    {
+                        for (int col = 0; col < 5; col++)
+                        {
+                            int idx = row * 5 + col;
+                            int srcX = col * pitchW + bounds.X;
+                            int srcY = row * pitchH + bounds.Y;
+                            if (srcX + bounds.Width <= sheet.Width && srcY + bounds.Height <= sheet.Height)
+                            {
+                                Rectangle frameRect = new Rectangle(srcX, srcY, bounds.Width, bounds.Height);
+                                using (Bitmap sprite = sheet.Clone(frameRect, sheet.PixelFormat))
+                                using (Bitmap scaled = ScaleToFit(sprite, maxSize, maxSize))
+                                {
+                                    frames[idx] = ApplyGemColorTint(scaled, tint);
+                                }
+                            }
+                            else
+                            {
+                                frames[idx] = frames[0] != null ? new Bitmap(frames[0]) : null;
+                            }
+                        }
+                    }
+                    return frames;
+                }
+            }
+            catch { return null; }
+        }
+
+        // Tinte cromático con realce de contraste: intensifica el color de la gema manteniendo
+        // los brillos especulares blancos y los bordes tallados.
+        private static Bitmap ApplyGemColorTint(Bitmap src, Color tint)
+        {
+            if (src == null) return null;
+            Bitmap dst = new Bitmap(src.Width, src.Height, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+            float tr = tint.R / 255.0f;
+            float tg = tint.G / 255.0f;
+            float tb = tint.B / 255.0f;
+
+            for (int y = 0; y < src.Height; y++)
+            {
+                for (int x = 0; x < src.Width; x++)
+                {
+                    Color px = src.GetPixel(x, y);
+                    if (px.A <= 5)
+                    {
+                        dst.SetPixel(x, y, Color.Transparent);
+                        continue;
+                    }
+
+                    // Luminancia del pixel de la escala de grises original
+                    float lum = (px.R * 0.299f + px.G * 0.587f + px.B * 0.114f) / 255.0f;
+
+                    // Mezcla aditiva y multiplicativa: color base enriquecido con brillo de facetas
+                    float r = Math.Min(255f, (lum * tr * 1.6f + (float)Math.Pow(lum, 2.5) * 0.4f) * 255f);
+                    float g = Math.Min(255f, (lum * tg * 1.6f + (float)Math.Pow(lum, 2.5) * 0.4f) * 255f);
+                    float b = Math.Min(255f, (lum * tb * 1.6f + (float)Math.Pow(lum, 2.5) * 0.4f) * 255f);
+
+                    dst.SetPixel(x, y, Color.FromArgb(px.A, (int)r, (int)g, (int)b));
+                }
+            }
+            return dst;
+        }
+
         private static Bitmap LoadGemFrame(string path, int maxSize)
         {
             if (!File.Exists(path)) return null;
@@ -3236,6 +3322,8 @@ case Engine.QuestType.TimeBomb:
             int startX = 200;
             int startY = 80;
 
+            _gemAnimTick++;
+
             using (Font font = new Font("Segoe UI", 16, FontStyle.Bold))
             {
                 g.DrawString(string.Format("Mode: {0}", Localization.Get(_currentModeKey)), font, Brushes.Cyan, 20, 20);
@@ -3258,23 +3346,36 @@ case Engine.QuestType.TimeBomb:
                     Rectangle rect = new Rectangle(startX + (x * tileSize), startY + (y * tileSize), tileSize - 4, tileSize - 4);
                     Gem gem = _board.GetGem(x, y);
 
+                    // Fondo de celda sutil para contraste nítido del tablero
+                    using (Brush cellBg = new SolidBrush(Color.FromArgb(40, 255, 255, 255)))
+                    {
+                        g.FillRectangle(cellBg, rect);
+                    }
+
                     if (gem != null)
                     {
-                        Bitmap gemImg = (_gemImages != null && (int)gem.Color < _gemImages.Length) ? _gemImages[(int)gem.Color] : null;
-                        if (gemImg != null)
+                        Bitmap[] frames = (_gemFrames != null && (int)gem.Color < _gemFrames.Length) ? _gemFrames[(int)gem.Color] : null;
+                        if (frames != null && frames.Length > 0)
                         {
+                            // Animación sutil y fluida: desfasada por posición de celda (x, y) para brillo orgánico
+                            int frameIdx = ((_gemAnimTick / 3) + (x * 3) + (y * 5)) % frames.Length;
+                            Bitmap gemImg = frames[frameIdx] ?? frames[0];
+
                             Bitmap shadowImg = (_gemShadows != null && (int)gem.Color < _gemShadows.Length) ? _gemShadows[(int)gem.Color] : null;
                             if (shadowImg != null)
                             {
                                 int sw = Math.Min(shadowImg.Width, rect.Width - 2);
                                 int sh = Math.Min(shadowImg.Height, rect.Height - 2);
-                                g.DrawImage(shadowImg, rect.X + (rect.Width - sw) / 2, rect.Y + (rect.Height - sh) / 2, sw, sh);
+                                g.DrawImage(shadowImg, rect.X + (rect.Width - sw) / 2, rect.Y + (rect.Height - sh) / 2 + 2, sw, sh);
                             }
-                            int dw = Math.Min(gemImg.Width, rect.Width - 2);
-                            int dh = Math.Min(gemImg.Height, rect.Height - 2);
-                            int dx = rect.X + (rect.Width - dw) / 2;
-                            int dy = rect.Y + (rect.Height - dh) / 2;
-                            g.DrawImage(gemImg, dx, dy, dw, dh);
+                            if (gemImg != null)
+                            {
+                                int dw = Math.Min(gemImg.Width, rect.Width - 2);
+                                int dh = Math.Min(gemImg.Height, rect.Height - 2);
+                                int dx = rect.X + (rect.Width - dw) / 2;
+                                int dy = rect.Y + (rect.Height - dh) / 2;
+                                g.DrawImage(gemImg, dx, dy, dw, dh);
+                            }
                         }
                         else
                         {
