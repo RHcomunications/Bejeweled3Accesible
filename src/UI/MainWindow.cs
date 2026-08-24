@@ -3419,9 +3419,10 @@ case Engine.QuestType.TimeBomb:
         {
             if (e.Button != MouseButtons.Left) return;
 
+            // En pantalla de carga, un clic en cualquier momento avanza al menú principal
             if (_screen == GameScreen.Loading)
             {
-                if (_loadingComplete) TransitionToMainMenu(true);
+                TransitionToMainMenu(true);
                 return;
             }
 
@@ -3443,6 +3444,7 @@ case Engine.QuestType.TimeBomb:
                     _dragStartPixel = e.Location;
                     _isDragging = false;
 
+                    // Si ya había una gema previamente seleccionada y se hace clic en una contigua, intercambiar
                     if (_selectedGemX >= 0 && _selectedGemY >= 0)
                     {
                         int dx = cellX - _selectedGemX;
@@ -3460,6 +3462,7 @@ case Engine.QuestType.TimeBomb:
                         }
                     }
 
+                    // Seleccionar gema actual
                     _selectedGemX = cellX;
                     _selectedGemY = cellY;
                     _sound.PlaySound(AudioMap.Select);
@@ -3473,34 +3476,51 @@ case Engine.QuestType.TimeBomb:
                 return;
             }
 
-            // Menu mouse clicks
+            // Manejo de clics de menú y subpantallas
             HandleMenuMouseClick(e);
         }
 
         private void MainWindow_MouseMove(object sender, MouseEventArgs e)
         {
-            if (e.Button != MouseButtons.Left || _screen != GameScreen.Playing || _dragStartX < 0) return;
-
-            int dxPx = e.X - _dragStartPixel.X;
-            int dyPx = e.Y - _dragStartPixel.Y;
-            int threshold = 20;
-
-            if (!_isDragging && (Math.Abs(dxPx) > threshold || Math.Abs(dyPx) > threshold))
+            // Arrastre en el tablero (Drag & Drop)
+            if (e.Button == MouseButtons.Left && _screen == GameScreen.Playing && _dragStartX >= 0)
             {
-                _isDragging = true;
-                int swapDx = 0, swapDy = 0;
-                if (Math.Abs(dxPx) > Math.Abs(dyPx))
-                    swapDx = dxPx > 0 ? 1 : -1;
-                else
-                    swapDy = dyPx > 0 ? 1 : -1;
+                int dxPx = e.X - _dragStartPixel.X;
+                int dyPx = e.Y - _dragStartPixel.Y;
+                int threshold = 16;
 
-                _cursorX = _dragStartX;
-                _cursorY = _dragStartY;
-                _selectedGemX = -1;
-                _selectedGemY = -1;
-                _dragStartX = -1;
-                _dragStartY = -1;
-                PerformSwap(swapDx, swapDy);
+                if (!_isDragging && (Math.Abs(dxPx) > threshold || Math.Abs(dyPx) > threshold))
+                {
+                    _isDragging = true;
+                    int swapDx = 0, swapDy = 0;
+                    if (Math.Abs(dxPx) > Math.Abs(dyPx))
+                        swapDx = dxPx > 0 ? 1 : -1;
+                    else
+                        swapDy = dyPx > 0 ? 1 : -1;
+
+                    _cursorX = _dragStartX;
+                    _cursorY = _dragStartY;
+                    _selectedGemX = -1;
+                    _selectedGemY = -1;
+                    _dragStartX = -1;
+                    _dragStartY = -1;
+                    PerformSwap(swapDx, swapDy);
+                }
+                return;
+            }
+
+            // En los menús, actualizar el cursor según la posición del ratón
+            if (e.Button == MouseButtons.None && _screen != GameScreen.Loading && _screen != GameScreen.Playing && _screen != GameScreen.GameOver && _screen != GameScreen.ProfileInput)
+            {
+                int menuStartY = 220;
+                int itemHeight = 45;
+                int hoverIdx = (e.Y - menuStartY) / itemHeight;
+
+                string[] items = GetCurrentMenuItems();
+                if (items != null && hoverIdx >= 0 && hoverIdx < items.Length && e.X >= 100 && e.X <= 800)
+                {
+                    SetCurrentMenuIndex(hoverIdx);
+                }
             }
         }
 
@@ -3511,29 +3531,57 @@ case Engine.QuestType.TimeBomb:
             _isDragging = false;
         }
 
+        private string[] GetCurrentMenuItems()
+        {
+            if (_screen == GameScreen.MainMenu) return GetMainMenuItems();
+            if (_screen == GameScreen.GameSelect)
+            {
+                string[] keys = GetGameModeKeys();
+                string[] res = new string[keys.Length];
+                for (int i = 0; i < keys.Length; i++) res[i] = Localization.Get(keys[i]);
+                return res;
+            }
+            if (_screen == GameScreen.Options) return GetOptionsMenuItems();
+            if (_screen == GameScreen.BadgesScreen) return GetBadgeListItems();
+            if (_screen == GameScreen.RecordsScreen) return GetRecordsItems();
+            if (_screen == GameScreen.TutorialScreen) return GetTutorialItems();
+            if (_screen == GameScreen.QuestRelicScreen) return GetQuestRelicItems();
+            if (_screen == GameScreen.QuestChallengeScreen) return GetQuestChallengeItems();
+            if (_screen == GameScreen.ProfileSelectScreen) return GetProfileSelectItems();
+            if (_screen == GameScreen.ZenOptionsScreen) return GetZenOptionsMenuItems();
+            if (_screen == GameScreen.PauseMenu) return GetPauseMenuItems();
+            if (_screen == GameScreen.AudioSchool) return GetAudioSchoolItems();
+            return null;
+        }
+
+        private void SetCurrentMenuIndex(int idx)
+        {
+            if (_screen == GameScreen.MainMenu && _menuIdx != idx) { _menuIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
+            else if (_screen == GameScreen.GameSelect && _menuIdx != idx) { _menuIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
+            else if (_screen == GameScreen.Options && _optionsIdx != idx) { _optionsIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
+            else if (_screen == GameScreen.BadgesScreen && _badgeIdx != idx) { _badgeIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
+            else if (_screen == GameScreen.RecordsScreen && _recordsIdx != idx) { _recordsIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
+            else if (_screen == GameScreen.TutorialScreen && _tutorialIdx != idx) { _tutorialIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
+            else if (_screen == GameScreen.QuestRelicScreen && _relicIdx != idx) { _relicIdx = idx; _sound.PlaySound(AudioMap.QuestMenuButtonMouseover1); }
+            else if (_screen == GameScreen.QuestChallengeScreen && _questChallengeIdx != idx) { _questChallengeIdx = idx; _sound.PlaySound(AudioMap.QuestMenuButtonMouseover1); }
+            else if (_screen == GameScreen.ProfileSelectScreen && _profileSelectIdx != idx) { _profileSelectIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
+            else if (_screen == GameScreen.ZenOptionsScreen && _zenOptionsIdx != idx) { _zenOptionsIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
+            else if (_screen == GameScreen.PauseMenu && _pauseIdx != idx) { _pauseIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
+            else if (_screen == GameScreen.AudioSchool && _audioSchoolIdx != idx) { _audioSchoolIdx = idx; _sound.PlaySound(AudioMap.ButtonMouseover); }
+        }
+
         private void HandleMenuMouseClick(MouseEventArgs e)
         {
             int menuStartY = 220;
             int itemHeight = 45;
             int clickedIdx = (e.Y - menuStartY) / itemHeight;
 
-            string[] items = null;
-            if (_screen == GameScreen.MainMenu) items = GetMainMenuItems();
-            else if (_screen == GameScreen.Options) items = GetOptionsMenuItems();
-            else if (_screen == GameScreen.BadgesScreen) items = GetBadgeListItems();
-            else if (_screen == GameScreen.RecordsScreen) items = GetRecordsItems();
-            else if (_screen == GameScreen.TutorialScreen) items = GetTutorialItems();
-            else if (_screen == GameScreen.QuestRelicScreen) items = GetQuestRelicItems();
-            else if (_screen == GameScreen.QuestChallengeScreen) items = GetQuestChallengeItems();
-            else if (_screen == GameScreen.ProfileSelectScreen) items = GetProfileSelectItems();
-            else if (_screen == GameScreen.ZenOptionsScreen) items = GetZenOptionsMenuItems();
-            else if (_screen == GameScreen.PauseMenu) items = GetPauseMenuItems();
-            else if (_screen == GameScreen.AudioSchool) items = GetAudioSchoolItems();
-
-            if (items != null && clickedIdx >= 0 && clickedIdx < items.Length && e.X >= 180 && e.X <= 750)
+            string[] items = GetCurrentMenuItems();
+            if (items != null && clickedIdx >= 0 && clickedIdx < items.Length && e.X >= 100 && e.X <= 800)
             {
                 KeyEventArgs enterKey = new KeyEventArgs(Keys.Enter);
                 if (_screen == GameScreen.MainMenu) { _menuIdx = clickedIdx; HandleMainMenuKeys(enterKey); }
+                else if (_screen == GameScreen.GameSelect) { _menuIdx = clickedIdx; HandleGameSelectKeys(enterKey); }
                 else if (_screen == GameScreen.Options) { _optionsIdx = clickedIdx; HandleOptionsKeys(enterKey); }
                 else if (_screen == GameScreen.BadgesScreen) { _badgeIdx = clickedIdx; HandleBadgesKeys(enterKey); }
                 else if (_screen == GameScreen.RecordsScreen) { _recordsIdx = clickedIdx; HandleRecordsKeys(enterKey); }
