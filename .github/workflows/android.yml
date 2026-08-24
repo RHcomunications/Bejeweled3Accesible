@@ -24,14 +24,11 @@ jobs:
       with:
         dotnet-version: '9.0.x'
 
-    - name: Install .NET Android Workload
-      run: dotnet workload install android
-
     - name: Build Android APK
-      run: dotnet publish src/Android/Bejeweled3.Android.csproj -c Release -p:AndroidPackageFormat=apk
+      run: dotnet build src/Android/Bejeweled3.Android.csproj -c Release -t:PackageForAndroid
 
     - name: Upload APK Artifact
       uses: actions/upload-artifact@v4
       with:
         name: Bejeweled3Accessible-Android-APK
-        path: src/Android/bin/Release/net9.0-android/publish/*.apk
+        path: src/Android/bin/Release/net9.0-android/*-Signed.apk
