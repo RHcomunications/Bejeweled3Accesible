@@ -144,11 +144,18 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
                 foreach (string m in musicAssets)
                 {
                     if (m.StartsWith(baseName, StringComparison.OrdinalIgnoreCase) ||
-                        Path.GetFileNameWithoutExtension(m).Equals(baseName, StringComparison.OrdinalIgnoreCase))
+                        Path.GetFileNameWithoutExtension(m).Equals(baseName, StringComparison.OrdinalIgnoreCase) ||
+                        m.IndexOf(baseName, StringComparison.OrdinalIgnoreCase) >= 0)
                     {
                         targetFile = m;
                         break;
                     }
+                }
+
+                // Si la pista solicitada no existe, usar la primera pista disponible (ej. 24 - Coastal.mp3)
+                if (targetFile == null && musicAssets.Length > 0)
+                {
+                    targetFile = musicAssets[0];
                 }
 
                 if (targetFile != null)

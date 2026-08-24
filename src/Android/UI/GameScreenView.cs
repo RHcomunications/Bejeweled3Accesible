@@ -19,6 +19,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         TutorialScreen,
         ProfileSelectScreen,
         OptionsScreen,
+        PauseMenu,
         Playing,
         GameOver
     }
@@ -40,6 +41,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private int _tutorialIdx = 0;
         private int _profileIdx = 0;
         private int _optionsIdx = 0;
+        private int _pauseIdx = 0;
+        private string _currentModeKey = "ModeClassic";
         private int _cursorX = 3, _cursorY = 3;
         private int _selectedX = -1, _selectedY = -1;
         private float _startX, _startY;
@@ -115,6 +118,17 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 Localization.Get("OptVoiceVol", 100),
                 Localization.Get("OptBinaural", Localization.Get("StateOn")),
                 Localization.Get("OptBack")
+            };
+        }
+
+        private string[] GetPauseMenuItems()
+        {
+            return new string[]
+            {
+                Localization.Get("PauseResume"),
+                Localization.Get("PauseRestart"),
+                Localization.Get("PauseOptions"),
+                Localization.Get("PauseMainMenu")
             };
         }
 
@@ -205,6 +219,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 case AndroidGameScreen.OptionsScreen:
                     activeIdx = _optionsIdx;
                     return GetOptionsMenuItems();
+                case AndroidGameScreen.PauseMenu:
+                    activeIdx = _pauseIdx;
+                    return GetPauseMenuItems();
                 default:
                     activeIdx = 0;
                     return Array.Empty<string>();
@@ -222,6 +239,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 case AndroidGameScreen.TutorialScreen: _tutorialIdx = idx; break;
                 case AndroidGameScreen.ProfileSelectScreen: _profileIdx = idx; break;
                 case AndroidGameScreen.OptionsScreen: _optionsIdx = idx; break;
+                case AndroidGameScreen.PauseMenu: _pauseIdx = idx; break;
             }
         }
 
@@ -232,26 +250,26 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
             if (_currentScreen == AndroidGameScreen.Playing)
             {
-                DrawBoard(canvas);
+                DrawLandscapeBoard(canvas);
                 return;
             }
 
-            // Dibujar Menu Actual
+            // Dibujar Menu Actual en Pantalla Completa
             string[] items = GetCurrentItems(out int activeIdx);
             _paint.Color = Color.White;
-            _paint.TextSize = 48f;
+            _paint.TextSize = 44f;
             _paint.SetTypeface(Typeface.DefaultBold);
 
             string title = GetScreenTitle();
-            canvas.DrawText(title, 40, 100, _paint);
+            canvas.DrawText(title, 50, 70, _paint);
 
-            int startY = 180;
-            int itemHeight = 90;
+            int startY = 110;
+            int itemHeight = 70;
 
             for (int i = 0; i < items.Length; i++)
             {
                 int top = startY + (i * itemHeight);
-                RectF itemRect = new RectF(30, top, Width - 30, top + itemHeight - 15);
+                RectF itemRect = new RectF(50, top, Width - 50, top + itemHeight - 10);
 
                 if (i == activeIdx)
                 {
@@ -270,9 +288,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     _paint.Color = Color.White;
                 }
 
-                _paint.TextSize = 38f;
+                _paint.TextSize = 34f;
                 _paint.SetTypeface(Typeface.Default);
-                canvas.DrawText(items[i], 50, top + 50, _paint);
+                canvas.DrawText(items[i], 70, top + 42, _paint);
             }
         }
 
@@ -287,29 +305,33 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 case AndroidGameScreen.TutorialScreen: return Localization.Get("TutorialTitle");
                 case AndroidGameScreen.ProfileSelectScreen: return Localization.Get("ProfileSelectTitle");
                 case AndroidGameScreen.OptionsScreen: return Localization.Get("OptionsTitle");
+                case AndroidGameScreen.PauseMenu: return Localization.Get("PauseTitle");
                 default: return "Bejeweled 3";
             }
         }
 
-        private void DrawBoard(Canvas canvas)
+        private void DrawLandscapeBoard(Canvas canvas)
         {
             if (_board == null) return;
 
-            int tileSize = Math.Min(Width / Board.Cols, (Height - 120) / Board.Rows);
-            int offsetX = (Width - (tileSize * Board.Cols)) / 2;
-            int offsetY = 100;
+            // Tablero cuadrado centrado a la izquierda en modo horizontal
+            int boardHeight = Height - 40;
+            int tileSize = boardHeight / Board.Rows;
+            int offsetX = 30;
+            int offsetY = 20;
 
+            // Dibujar casillas y gemas
             for (int y = 0; y < Board.Rows; y++)
             {
                 for (int x = 0; x < Board.Cols; x++)
                 {
-                    int left = offsetX + (x * tileSize) + 4;
-                    int top = offsetY + (y * tileSize) + 4;
-                    int right = left + tileSize - 8;
-                    int bottom = top + tileSize - 8;
+                    int left = offsetX + (x * tileSize) + 2;
+                    int top = offsetY + (y * tileSize) + 2;
+                    int right = left + tileSize - 4;
+                    int bottom = top + tileSize - 4;
                     RectF rect = new RectF(left, top, right, bottom);
 
-                    _paint.Color = Color.Argb(40, 255, 255, 255);
+                    _paint.Color = Color.Argb(35, 255, 255, 255);
                     _paint.SetStyle(Paint.Style.Fill);
                     canvas.DrawRoundRect(rect, 8, 8, _paint);
 
@@ -319,7 +341,17 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         Color c = _gemColors.ContainsKey(gem.Color) ? _gemColors[gem.Color] : Color.Gray;
                         _paint.Color = c;
                         _paint.SetStyle(Paint.Style.Fill);
-                        canvas.DrawCircle(rect.CenterX(), rect.CenterY(), (tileSize - 14) / 2f, _paint);
+                        canvas.DrawCircle(rect.CenterX(), rect.CenterY(), (tileSize - 10) / 2f, _paint);
+                    }
+
+                    // Dibujar flechas direccionales si hay jugadas validas desde esta gema
+                    var validMoves = HintFinder.GetValidMovesFrom(_board, x, y);
+                    if (validMoves != null && validMoves.Count > 0)
+                    {
+                        foreach (var m in validMoves)
+                        {
+                            DrawArrow(canvas, rect, m.Key, m.Value);
+                        }
                     }
 
                     if (_selectedX == x && _selectedY == y)
@@ -338,6 +370,404 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     }
                 }
             }
+
+            // Panel Lateral Derecho: Botones de Pistas (HINT) y Pausa (PAUSE)
+            int panelLeft = offsetX + (Board.Cols * tileSize) + 40;
+            int panelWidth = Width - panelLeft - 30;
+
+            // Boton PISTA / HINT
+            RectF hintRect = new RectF(panelLeft, 60, panelLeft + panelWidth, 160);
+            _paint.Color = Color.Rgb(0, 150, 255);
+            _paint.SetStyle(Paint.Style.Fill);
+            canvas.DrawRoundRect(hintRect, 16, 16, _paint);
+
+            _paint.Color = Color.White;
+            _paint.TextSize = 36f;
+            _paint.SetTypeface(Typeface.DefaultBold);
+            canvas.DrawText("💡 " + Localization.Get("HintTitle"), panelLeft + 30, 125, _paint);
+
+            // Boton PAUSA / MENU
+            RectF pauseRect = new RectF(panelLeft, 190, panelLeft + panelWidth, 290);
+            _paint.Color = Color.Rgb(220, 50, 50);
+            _paint.SetStyle(Paint.Style.Fill);
+            canvas.DrawRoundRect(pauseRect, 16, 16, _paint);
+
+            _paint.Color = Color.White;
+            canvas.DrawText("⏸️ " + Localization.Get("PauseTitle"), panelLeft + 30, 255, _paint);
+        }
+
+        private void DrawArrow(Canvas canvas, RectF rect, int dx, int dy)
+        {
+            _paint.Color = Color.Yellow;
+            _paint.SetStyle(Paint.Style.Fill);
+
+            Android.Graphics.Path path = new Android.Graphics.Path();
+            float cx = rect.CenterX();
+            float cy = rect.CenterY();
+            float arrowSize = 10f;
+
+            if (dx == 1) // Derecha
+            {
+                path.MoveTo(rect.Right - 3, cy);
+                path.LineTo(rect.Right - 3 - arrowSize, cy - arrowSize / 2);
+                path.LineTo(rect.Right - 3 - arrowSize, cy + arrowSize / 2);
+            }
+            else if (dx == -1) // Izquierda
+            {
+                path.MoveTo(rect.Left + 3, cy);
+                path.LineTo(rect.Left + 3 + arrowSize, cy - arrowSize / 2);
+                path.LineTo(rect.Left + 3 + arrowSize, cy + arrowSize / 2);
+            }
+            else if (dy == 1) // Abajo
+            {
+                path.MoveTo(cx, rect.Bottom - 3);
+                path.LineTo(cx - arrowSize / 2, rect.Bottom - 3 - arrowSize);
+                path.LineTo(cx + arrowSize / 2, rect.Bottom - 3 - arrowSize);
+            }
+            else // Arriba
+            {
+                path.MoveTo(cx, rect.Top + 3);
+                path.LineTo(cx - arrowSize / 2, rect.Top + 3 + arrowSize);
+                path.LineTo(cx + arrowSize / 2, rect.Top + 3 + arrowSize);
+            }
+            path.Close();
+            canvas.DrawPath(path, _paint);
+        }
+
+        public override bool OnTouchEvent(MotionEvent e)
+        {
+            if (_currentScreen == AndroidGameScreen.Playing)
+            {
+                return HandleBoardTouch(e);
+            }
+
+            return HandleMenuTouch(e);
+        }
+
+        private bool HandleMenuTouch(MotionEvent e)
+        {
+            string[] items = GetCurrentItems(out int activeIdx);
+            int startY = 110;
+            int itemHeight = 70;
+
+            if (e.Action == MotionEventActions.Down)
+            {
+                _startX = e.GetX();
+                _startY = e.GetY();
+
+                int clickedIdx = (int)((e.GetY() - startY) / itemHeight);
+                if (clickedIdx >= 0 && clickedIdx < items.Length)
+                {
+                    if (activeIdx != clickedIdx)
+                    {
+                        SetActiveIndex(clickedIdx);
+                        _sound?.PlaySound(AudioMap.ButtonMouseover);
+                        _talkBack?.Speak(items[clickedIdx], true);
+                        Invalidate();
+                    }
+                }
+            }
+            else if (e.Action == MotionEventActions.Move)
+            {
+                int hoverIdx = (int)((e.GetY() - startY) / itemHeight);
+                if (hoverIdx >= 0 && hoverIdx < items.Length && hoverIdx != activeIdx)
+                {
+                    SetActiveIndex(hoverIdx);
+                    _sound?.PlaySound(AudioMap.ButtonMouseover);
+                    _talkBack?.Speak(items[hoverIdx], true);
+                    Invalidate();
+                }
+            }
+            else if (e.Action == MotionEventActions.Up)
+            {
+                float deltaX = e.GetX() - _startX;
+                float deltaY = e.GetY() - _startY;
+
+                if (Math.Abs(deltaY) > 60 && Math.Abs(deltaY) > Math.Abs(deltaX))
+                {
+                    if (deltaY > 0)
+                    {
+                        int nextIdx = (activeIdx + 1) % items.Length;
+                        SetActiveIndex(nextIdx);
+                        _sound?.PlaySound(AudioMap.ButtonMouseover);
+                        _talkBack?.Speak(items[nextIdx], true);
+                        Invalidate();
+                        return true;
+                    }
+                    else
+                    {
+                        int prevIdx = (activeIdx - 1 + items.Length) % items.Length;
+                        SetActiveIndex(prevIdx);
+                        _sound?.PlaySound(AudioMap.ButtonMouseover);
+                        _talkBack?.Speak(items[prevIdx], true);
+                        Invalidate();
+                        return true;
+                    }
+                }
+                else if (deltaX < -100 && Math.Abs(deltaX) > Math.Abs(deltaY))
+                {
+                    if (_currentScreen != AndroidGameScreen.MainMenu)
+                    {
+                        _sound?.PlaySound(AudioMap.ButtonPress);
+                        _currentScreen = AndroidGameScreen.MainMenu;
+                        AnnounceCurrentMenu();
+                        Invalidate();
+                        return true;
+                    }
+                }
+                else if (Math.Abs(deltaX) < 40 && Math.Abs(deltaY) < 40)
+                {
+                    int clickedIdx = (int)((e.GetY() - startY) / itemHeight);
+                    if (clickedIdx >= 0 && clickedIdx < items.Length)
+                    {
+                        _sound?.PlaySound(AudioMap.ButtonPress);
+                        ExecuteMenuItem(clickedIdx);
+                        Invalidate();
+                    }
+                    else if (activeIdx >= 0 && activeIdx < items.Length)
+                    {
+                        _sound?.PlaySound(AudioMap.ButtonPress);
+                        ExecuteMenuItem(activeIdx);
+                        Invalidate();
+                    }
+                }
+            }
+            return true;
+        }
+
+        private void ExecuteMenuItem(int idx)
+        {
+            if (_currentScreen == AndroidGameScreen.MainMenu)
+            {
+                if (idx == 0) { _currentScreen = AndroidGameScreen.GameSelect; _gameModeIdx = 0; }
+                else if (idx == 1) { _currentScreen = AndroidGameScreen.BadgesScreen; _badgeIdx = 0; }
+                else if (idx == 2) { _currentScreen = AndroidGameScreen.RecordsScreen; _recordsIdx = 0; }
+                else if (idx == 3) { _currentScreen = AndroidGameScreen.TutorialScreen; _tutorialIdx = 0; }
+                else if (idx == 4) { _currentScreen = AndroidGameScreen.ProfileSelectScreen; _profileIdx = 0; }
+                else if (idx == 5) { Localization.ToggleLanguage(); }
+                else if (idx == 6) { _currentScreen = AndroidGameScreen.OptionsScreen; _optionsIdx = 0; }
+                else if (idx == 7) { System.Environment.Exit(0); }
+            }
+            else if (_currentScreen == AndroidGameScreen.GameSelect)
+            {
+                string[] keys = GetGameModeKeys();
+                string selectedKey = keys[idx];
+                if (selectedKey == "BackToMain")
+                {
+                    _currentScreen = AndroidGameScreen.MainMenu;
+                }
+                else
+                {
+                    StartGame(selectedKey);
+                }
+            }
+            else if (_currentScreen == AndroidGameScreen.PauseMenu)
+            {
+                if (idx == 0) // Resume
+                {
+                    _currentScreen = AndroidGameScreen.Playing;
+                    _sound?.PlaySound(AudioMap.ButtonPress);
+                    _talkBack?.Speak(Localization.Get("GameResumed"), true);
+                }
+                else if (idx == 1) // Restart
+                {
+                    StartGame(_currentModeKey);
+                }
+                else if (idx == 2) // Options
+                {
+                    _currentScreen = AndroidGameScreen.OptionsScreen;
+                    _optionsIdx = 0;
+                }
+                else if (idx == 3) // Main Menu
+                {
+                    _currentScreen = AndroidGameScreen.MainMenu;
+                    _sound?.StopMusic();
+                    _sound?.PlayMusic(MusicMap.FileName(MusicMap.Intro));
+                }
+            }
+            else
+            {
+                _currentScreen = AndroidGameScreen.MainMenu;
+            }
+
+            AnnounceCurrentMenu();
+        }
+
+        private void StartGame(string modeKey)
+        {
+            _currentModeKey = modeKey;
+            _board = new Board(new Random().Next());
+            _currentScreen = AndroidGameScreen.Playing;
+            _sound?.PlaySound(AudioMap.VoiceGetready);
+
+            if (modeKey == "ModeLightning") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Lightning));
+            else if (modeKey == "ModePoker") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Poker));
+            else if (modeKey == "ModeButterflies") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Butterflies));
+            else if (modeKey == "ModeZen") _sound?.PlayMusic(MusicMap.FileName(MusicMap.ZenPart1));
+            else _sound?.PlayMusic(MusicMap.FileName(MusicMap.ClassicPart1));
+
+            _talkBack?.Speak(Localization.Get(modeKey) + ". " + Localization.Get("GameReady") + ". Toca una gema para ver hacia dónde moverla o toca los botones de pista y pausa a la derecha.", true);
+        }
+
+        private bool HandleBoardTouch(MotionEvent e)
+        {
+            int boardHeight = Height - 40;
+            int tileSize = boardHeight / Board.Rows;
+            int offsetX = 30;
+            int offsetY = 20;
+
+            int cellX = (int)((e.GetX() - offsetX) / tileSize);
+            int cellY = (int)((e.GetY() - offsetY) / tileSize);
+
+            int panelLeft = offsetX + (Board.Cols * tileSize) + 40;
+            int panelWidth = Width - panelLeft - 30;
+
+            if (e.Action == MotionEventActions.Down)
+            {
+                _startX = e.GetX();
+                _startY = e.GetY();
+
+                // Verificar si toco el panel lateral de botones
+                if (e.GetX() >= panelLeft && e.GetX() <= panelLeft + panelWidth)
+                {
+                    if (e.GetY() >= 60 && e.GetY() <= 160) // Boton PISTA
+                    {
+                        TriggerHint();
+                        return true;
+                    }
+                    else if (e.GetY() >= 190 && e.GetY() <= 290) // Boton PAUSA
+                    {
+                        _currentScreen = AndroidGameScreen.PauseMenu;
+                        _pauseIdx = 0;
+                        _sound?.PlaySound(AudioMap.ButtonPress);
+                        AnnounceCurrentMenu();
+                        Invalidate();
+                        return true;
+                    }
+                }
+
+                if (cellX >= 0 && cellX < Board.Cols && cellY >= 0 && cellY < Board.Rows)
+                {
+                    _cursorX = cellX;
+                    _cursorY = cellY;
+
+                    if (_selectedX >= 0 && _selectedY >= 0)
+                    {
+                        int dx = cellX - _selectedX;
+                        int dy = cellY - _selectedY;
+                        if (Math.Abs(dx) + Math.Abs(dy) == 1)
+                        {
+                            ExecuteSwap(_selectedX, _selectedY, cellX, cellY);
+                            return true;
+                        }
+                    }
+
+                    _selectedX = cellX;
+                    _selectedY = cellY;
+                    _sound?.PlaySoundSpatial(AudioMap.Select, cellX, cellY);
+                    AnnounceCell(cellX, cellY);
+                    Invalidate();
+                }
+            }
+            else if (e.Action == MotionEventActions.Up)
+            {
+                float deltaX = e.GetX() - _startX;
+                float deltaY = e.GetY() - _startY;
+
+                if (Math.Abs(deltaX) > 40 || Math.Abs(deltaY) > 40)
+                {
+                    int swapDx = Math.Abs(deltaX) > Math.Abs(deltaY) ? (deltaX > 0 ? 1 : -1) : 0;
+                    int swapDy = Math.Abs(deltaX) > Math.Abs(deltaY) ? 0 : (deltaY > 0 ? 1 : -1);
+
+                    int fromX = (_selectedX >= 0) ? _selectedX : _cursorX;
+                    int fromY = (_selectedY >= 0) ? _selectedY : _cursorY;
+                    int targetX = fromX + swapDx;
+                    int targetY = fromY + swapDy;
+
+                    if (targetX >= 0 && targetX < Board.Cols && targetY >= 0 && targetY < Board.Rows)
+                    {
+                        ExecuteSwap(fromX, fromY, targetX, targetY);
+                    }
+                }
+            }
+            return true;
+        }
+
+        private void TriggerHint()
+        {
+            _sound?.PlaySound(AudioMap.ButtonPress);
+            MoveHint? hint = HintFinder.FindValidMove(_board);
+            if (hint.HasValue)
+            {
+                var h = hint.Value;
+                _selectedX = h.FromX;
+                _selectedY = h.FromY;
+                _cursorX = h.ToX;
+                _cursorY = h.ToY;
+                string colFrom = ((char)('A' + h.FromX)).ToString();
+                string colTo = ((char)('A' + h.ToX)).ToString();
+                string dir = h.ToX > h.FromX ? "la derecha" : (h.ToX < h.FromX ? "la izquierda" : (h.ToY > h.FromY ? "abajo" : "arriba"));
+                _talkBack?.Speak(string.Format("Pista: Mueve {0}{1} hacia {2} a {3}{4}", colFrom, h.FromY + 1, dir, colTo, h.ToY + 1), true);
+                _sound?.PlaySoundSpatial(AudioMap.Select, h.FromX, h.FromY);
+                Invalidate();
+            }
+            else
+            {
+                _talkBack?.Speak("No hay movimientos válidos disponibles. Mezclando tablero.", true);
+            }
+        }
+
+        private void ExecuteSwap(int fromX, int fromY, int toX, int toY)
+        {
+            _sound?.PlaySoundSpatial(AudioMap.GemHit, toX, toY);
+            _board.SwapGems(fromX, fromY, toX, toY);
+            CascadeResult res = _board.ProcessMatchesAndGravity(false, false, false, false);
+            if (res != null && res.AnyMatched)
+            {
+                _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + "1", toX, toY);
+            }
+            _selectedX = -1;
+            _selectedY = -1;
+            _cursorX = toX;
+            _cursorY = toY;
+            AnnounceCell(_cursorX, _cursorY);
+            Invalidate();
+        }
+
+        private void AnnounceCurrentMenu()
+        {
+            string[] items = GetCurrentItems(out int activeIdx);
+            string title = GetScreenTitle();
+            if (items.Length > 0 && activeIdx < items.Length)
+            {
+                _talkBack?.Speak(title + ". Opción: " + items[activeIdx] + ". Desliza arriba o abajo para navegar, toca para confirmar.", true);
+            }
+        }
+
+        private void AnnounceCell(int x, int y)
+        {
+            Gem g = _board.GetGem(x, y);
+            string col = ((char)('A' + x)).ToString();
+            int row = y + 1;
+            string gemName = g != null ? g.GetNameLocalized() : "Vacío";
+
+            var moves = HintFinder.GetValidMovesFrom(_board, x, y);
+            string movesDesc = "";
+            if (moves != null && moves.Count > 0)
+            {
+                List<string> dirs = new List<string>();
+                foreach (var m in moves)
+                {
+                    if (m.Key == 1) dirs.Add("derecha");
+                    else if (m.Key == -1) dirs.Add("izquierda");
+                    else if (m.Value == 1) dirs.Add("abajo");
+                    else if (m.Value == -1) dirs.Add("arriba");
+                }
+                movesDesc = ". Puedes mover hacia " + string.Join(" o ", dirs);
+            }
+
+            string desc = string.Format("{0}{1}: {2}{3}", col, row, gemName, movesDesc);
+            _talkBack?.Speak(desc, true);
         }
 
         public override bool OnTouchEvent(MotionEvent e)

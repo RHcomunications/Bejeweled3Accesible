@@ -14,7 +14,7 @@ namespace Bejeweled3Accessible.AndroidApp
 {
     [Activity(Label = "@string/app_name",
               MainLauncher = true,
-              ScreenOrientation = ScreenOrientation.Portrait,
+              ScreenOrientation = ScreenOrientation.SensorLandscape,
               Theme = "@android:style/Theme.NoTitleBar.Fullscreen")]
     public class MainActivity : Activity
     {
