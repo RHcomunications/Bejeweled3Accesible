@@ -38,4 +38,11 @@
     <Compile Include="..\Audio\PacCipher.cs" Link="Audio\PacCipher.cs" />
     <Compile Include="..\Audio\PacReader.cs" Link="Audio\PacReader.cs" />
   </ItemGroup>
+
+  <ItemGroup>
+    <AndroidAsset Include="..\..\sounds\*.ogg" Link="Assets\sounds\%(FileName)%(Extension)" />
+    <AndroidAsset Include="..\..\sounds\*.wav" Link="Assets\sounds\%(FileName)%(Extension)" />
+    <AndroidAsset Include="..\..\music\*.mp3" Link="Assets\music\%(FileName)%(Extension)" />
+    <AndroidAsset Include="..\..\music\*.ogg" Link="Assets\music\%(FileName)%(Extension)" />
+  </ItemGroup>
 </Project>

@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using Android.Content;
 using Android.Graphics;
 using Android.Views;
+using Bejeweled3Accessible.Audio;
 using Bejeweled3Accessible.Engine;
 using Bejeweled3Accessible.AndroidApp.Accessibility;
+using Bejeweled3Accessible.AndroidApp.Audio;
 
 namespace Bejeweled3Accessible.AndroidApp.UI
 {
@@ -12,6 +14,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
     {
         private Board _board;
         private TalkBackBridge _talkBack;
+        private AndroidSoundEngine _sound;
         private int _cursorX = 3, _cursorY = 3;
         private int _selectedX = -1, _selectedY = -1;
         private float _startX, _startY;
@@ -28,10 +31,11 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             { GemColor.Orange, Color.Rgb(255, 140, 0) }
         };
 
-        public TouchBoardView(Context context, Board board, TalkBackBridge talkBack) : base(context)
+        public TouchBoardView(Context context, Board board, TalkBackBridge talkBack, AndroidSoundEngine sound) : base(context)
         {
             _board = board;
             _talkBack = talkBack;
+            _sound = sound;
             Focusable = true;
             Clickable = true;
         }
@@ -82,8 +86,56 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         _paint.StrokeWidth = 4;
                         canvas.DrawRoundRect(rect, 8, 8, _paint);
                     }
+
+                    // Dibujar flechas de movimientos validos para jugadores normovisuales
+                    if ((x == _cursorX && y == _cursorY) || (_selectedX == x && _selectedY == y))
+                    {
+                        List<KeyValuePair<int, int>> validMoves = HintFinder.GetValidMovesFrom(_board, x, y);
+                        foreach (var m in validMoves)
+                        {
+                            DrawArrow(canvas, rect, m.Key, m.Value);
+                        }
+                    }
                 }
             }
+        }
+
+        private void DrawArrow(Canvas canvas, RectF rect, int dx, int dy)
+        {
+            _paint.Color = Color.Yellow;
+            _paint.SetStyle(Paint.Style.Fill);
+
+            Path path = new Path();
+            float cx = rect.CenterX();
+            float cy = rect.CenterY();
+            float arrowSize = 14f;
+
+            if (dx == 1) // Derecha
+            {
+                path.MoveTo(rect.Right - 4, cy);
+                path.LineTo(rect.Right - 4 - arrowSize, cy - arrowSize / 2);
+                path.LineTo(rect.Right - 4 - arrowSize, cy + arrowSize / 2);
+            }
+            else if (dx == -1) // Izquierda
+            {
+                path.MoveTo(rect.Left + 4, cy);
+                path.LineTo(rect.Left + 4 + arrowSize, cy - arrowSize / 2);
+                path.LineTo(rect.Left + 4 + arrowSize, cy + arrowSize / 2);
+            }
+            else if (dy == 1) // Abajo
+            {
+                path.MoveTo(cx, rect.Bottom - 4);
+                path.LineTo(cx - arrowSize / 2, rect.Bottom - 4 - arrowSize);
+                path.LineTo(cx + arrowSize / 2, rect.Bottom - 4 - arrowSize);
+            }
+            else // Arriba
+            {
+                path.MoveTo(cx, rect.Top + 4);
+                path.LineTo(cx - arrowSize / 2, rect.Top + 4 + arrowSize);
+                path.LineTo(cx + arrowSize / 2, rect.Top + 4 + arrowSize);
+            }
+            path.Close();
+            canvas.DrawPath(path, _paint);
         }
 
         public override bool OnTouchEvent(MotionEvent e)
@@ -111,17 +163,14 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         int dy = cellY - _selectedY;
                         if (Math.Abs(dx) + Math.Abs(dy) == 1)
                         {
-                            _board.SwapGems(_selectedX, _selectedY, cellX, cellY);
-                            _board.ProcessMatchesAndGravity(false, false, false, false);
-                            _selectedX = -1;
-                            _selectedY = -1;
-                            Invalidate();
+                            ExecuteSwap(_selectedX, _selectedY, cellX, cellY);
                             return true;
                         }
                     }
 
                     _selectedX = cellX;
                     _selectedY = cellY;
+                    _sound?.PlaySoundSpatial(AudioMap.Select, cellX, cellY);
                     AnnounceCell(cellX, cellY);
                     Invalidate();
                 }
@@ -139,18 +188,28 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
                     if (targetX >= 0 && targetX < Board.Cols && targetY >= 0 && targetY < Board.Rows)
                     {
-                        _board.SwapGems(_cursorX, _cursorY, targetX, targetY);
-                        _board.ProcessMatchesAndGravity(false, false, false, false);
-                        _selectedX = -1;
-                        _selectedY = -1;
-                        _cursorX = targetX;
-                        _cursorY = targetY;
-                        AnnounceCell(_cursorX, _cursorY);
-                        Invalidate();
+                        ExecuteSwap(_cursorX, _cursorY, targetX, targetY);
                     }
                 }
             }
             return true;
+        }
+
+        private void ExecuteSwap(int fromX, int fromY, int toX, int toY)
+        {
+            _sound?.PlaySoundSpatial(AudioMap.GemHit, toX, toY);
+            _board.SwapGems(fromX, fromY, toX, toY);
+            int matches = _board.ProcessMatchesAndGravity(false, false, false, false);
+            if (matches > 0)
+            {
+                _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + "1", toX, toY);
+            }
+            _selectedX = -1;
+            _selectedY = -1;
+            _cursorX = toX;
+            _cursorY = toY;
+            AnnounceCell(_cursorX, _cursorY);
+            Invalidate();
         }
 
         private void AnnounceCell(int x, int y)
