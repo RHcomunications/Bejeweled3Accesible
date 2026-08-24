@@ -29,12 +29,11 @@ namespace Bejeweled3Accessible.AndroidApp
 
             _sound = new AndroidSoundEngine(this);
             _talkBack = new TalkBackBridge(this);
-            _board = new Board(new Random().Next());
-            _boardView = new TouchBoardView(this, _board, _talkBack, _sound);
 
-            SetContentView(_boardView);
-            _sound.PlayMusic(MusicMap.AllTrackKeys[0]); // Pista de inicio / Menu
-            _talkBack.Speak("Bejeweled 3 Accesible. Toca o desliza en la pantalla para jugar.", true);
+            var screenView = new GameScreenView(this, _talkBack, _sound);
+            SetContentView(screenView);
+
+            _sound.PlayMusic(MusicMap.FileName(MusicMap.Intro));
         }
 
         protected override void OnResume()
