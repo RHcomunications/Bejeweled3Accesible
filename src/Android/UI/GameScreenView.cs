@@ -1406,19 +1406,21 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 float deltaX = e.GetX() - _startX;
                 float deltaY = e.GetY() - _startY;
 
-                if (Math.Abs(deltaX) > 40 || Math.Abs(deltaY) > 40)
+                // Soporte para gesto TalkBack: Doble toque, mantener y deslizar
+                if (Math.Abs(deltaX) > 30 || Math.Abs(deltaY) > 30)
                 {
                     int swapDx = Math.Abs(deltaX) > Math.Abs(deltaY) ? (deltaX > 0 ? 1 : -1) : 0;
                     int swapDy = Math.Abs(deltaX) > Math.Abs(deltaY) ? 0 : (deltaY > 0 ? 1 : -1);
 
-                    int fromX = (_selectedX >= 0) ? _selectedX : _cursorX;
-                    int fromY = (_selectedY >= 0) ? _selectedY : _cursorY;
+                    int fromX = (_selectedX >= 0) ? _selectedX : cellX;
+                    int fromY = (_selectedY >= 0) ? _selectedY : cellY;
                     int targetX = fromX + swapDx;
                     int targetY = fromY + swapDy;
 
                     if (targetX >= 0 && targetX < Board.Cols && targetY >= 0 && targetY < Board.Rows)
                     {
                         ExecuteSwap(fromX, fromY, targetX, targetY);
+                        return true;
                     }
                 }
             }
