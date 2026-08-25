@@ -55,6 +55,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private int _zenOptionsIdx = 0;
         private int _pauseIdx = 0;
         private int _gameOverIdx = 0;
+        private int _score = 0;
+        private int _level = 1;
+        private int _shufflesRemaining = 3;
         private string _currentModeKey = "ModeClassic";
         private int _cursorX = 3, _cursorY = 3;
         private int _selectedX = -1, _selectedY = -1;
@@ -1298,12 +1301,87 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 int combo = Math.Min(res.CascadeDepth, 7);
                 _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + (combo > 0 ? combo.ToString() : "1"), toX, toY);
 
-                // Voces auténticas del locutor de PopCap según el rendimiento
+                // Explosiones y creación de gemas especiales
+                if (res.SupernovaCreated > 0)
+                {
+                    _sound?.PlaySound(AudioMap.FireworkLaunch);
+                    _sound?.PlaySound(AudioMap.FireworkThump);
+                    _sound?.PlaySound(AudioMap.FireworkCrackle);
+                    _sound?.PlaySound(AudioMap.LasergemCreated);
+                    _sound?.PlaySound(AudioMap.ElectroExplode);
+                }
+                else if (res.HypercubeCreated > 0)
+                {
+                    _sound?.PlaySound(AudioMap.HypercubeCreate);
+                    _sound?.PlaySound(AudioMap.Hyperspace);
+                }
+                else if (res.StarCreated > 0)
+                {
+                    _sound?.PlaySound(AudioMap.LasergemCreated);
+                    _sound?.PlaySound(AudioMap.ElectroExplode);
+                }
+                else if (res.FlameCreated > 0)
+                {
+                    _sound?.PlaySound(AudioMap.PowergemCreated);
+                    _sound?.PlaySound(AudioMap.Flamebonus);
+                }
+
+                // Cálculo y acumulación de puntuación
+                int matchScore = res.TotalGemsDestroyed * 50 * Math.Max(1, res.CascadeDepth);
+                _score += matchScore;
+                Progress.TotalGemsCleared += res.TotalGemsDestroyed;
+                _profileMgr.Save();
+
+                // Locuciones auténticas de PopCap
                 if (res.TotalGemsDestroyed >= 8) _sound?.PlaySound(AudioMap.VoiceUnbelievable);
                 else if (res.TotalGemsDestroyed >= 6) _sound?.PlaySound(AudioMap.VoiceExtraordinary);
                 else if (res.TotalGemsDestroyed >= 5) _sound?.PlaySound(AudioMap.VoiceAwesome);
                 else if (res.TotalGemsDestroyed >= 4) _sound?.PlaySound(AudioMap.VoiceExcellent);
                 else if (res.CascadeDepth >= 3) _sound?.PlaySound(AudioMap.VoiceSpectacular);
+
+                string matchDesc = res.CascadeDepth > 1
+                    ? Localization.Get("CascadeAnnounce", res.CascadeDepth, res.TotalGemsDestroyed, _score)
+                    : Localization.Get("MatchAnnounce", res.TotalGemsDestroyed, _score);
+                _talkBack?.Speak(matchDesc, true);
+
+                // Verificación de movimientos restantes
+                MoveHint? validHint = HintFinder.FindValidMove(_board);
+                if (!validHint.HasValue)
+                {
+                    _sound?.PlaySound(AudioMap.VoiceNomoremoves);
+                    if (_currentModeKey == "ModeClassic")
+                    {
+                        if (_shufflesRemaining > 0)
+                        {
+                            _shufflesRemaining--;
+                            _sound?.PlaySound(AudioMap.Scramble);
+                            _talkBack?.Speak(Localization.Get("ShuffleAnnounce", _shufflesRemaining), true);
+                            _board.InitializeBoard();
+                        }
+                        else
+                        {
+                            _currentScreen = AndroidGameScreen.GameOver;
+                            _gameOverIdx = 0;
+                            _sound?.PlaySound(AudioMap.VoiceGameover);
+                            _talkBack?.Speak(Localization.Get("NoShufflesLeft") + " " + Localization.Get("GameOver", _score), true);
+                            Invalidate();
+                            return;
+                        }
+                    }
+                    else
+                    {
+                        _sound?.PlaySound(AudioMap.Scramble);
+                        _talkBack?.Speak(Localization.Get("NoMoreMovesScramble"), true);
+                        _board.InitializeBoard();
+                    }
+                }
+            }
+            else
+            {
+                // Movimiento inválido: deshacer swap
+                _board.SwapGems(toX, toY, fromX, fromY);
+                _sound?.PlaySound(AudioMap.Badmove);
+                _talkBack?.Speak(Localization.Get("InvalidMove"), true);
             }
             _selectedX = -1;
             _selectedY = -1;
