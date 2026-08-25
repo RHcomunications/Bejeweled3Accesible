@@ -14,13 +14,18 @@ namespace Bejeweled3Accessible.AndroidApp
 {
     [Activity(Label = "@string/app_name",
               MainLauncher = true,
-              ScreenOrientation = ScreenOrientation.SensorLandscape,
+              ScreenOrientation = ScreenOrientation.Portrait,
               Theme = "@android:style/Theme.NoTitleBar.Fullscreen")]
     public class MainActivity : Activity
     {
         private TalkBackBridge _talkBack;
         private AndroidSoundEngine _sound;
         private GameScreenView _screenView;
+
+        public void SetDesiredOrientation(bool landscape)
+        {
+            RequestedOrientation = landscape ? ScreenOrientation.SensorLandscape : ScreenOrientation.Portrait;
+        }
 
         protected override void OnCreate(Bundle savedInstanceState)
         {

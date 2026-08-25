@@ -131,6 +131,11 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         private void TransitionToMainMenu()
         {
+            if (_context is MainActivity mainAct)
+            {
+                mainAct.SetDesiredOrientation(false); // Retrato para menús
+            }
+
             if (_profileMgr.Profiles.Count == 0)
             {
                 PromptCreateProfile();
@@ -406,6 +411,44 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         public AndroidGameScreen CurrentScreen => _currentScreen;
         public Board BoardInstance => _board;
+        public int SoundVolume => _sound != null ? _sound.SfxVol : 100;
+        public int MusicVolume => _sound != null ? _sound.MusicVol : 80;
+        public int VoiceVolume => _sound != null ? _sound.VoiceVol : 100;
+
+        public void AdjustOptionSlider(int sliderIdx, int delta)
+        {
+            if (_currentScreen != AndroidGameScreen.OptionsScreen) return;
+
+            if (sliderIdx == 0) // Sound
+            {
+                int next = Math.Max(0, Math.Min(100, (_options.SoundVolume + delta)));
+                _options.SoundVolume = next;
+                _sound.SfxVol = next;
+                _sound.PlaySound(AudioMap.Select);
+                _options.Save();
+                _talkBack?.Speak(Localization.Get("OptSoundVol", next), true);
+            }
+            else if (sliderIdx == 1) // Music
+            {
+                int next = Math.Max(0, Math.Min(100, (_options.MusicVolume + delta)));
+                _options.MusicVolume = next;
+                _sound.MusicVol = next;
+                _sound.UpdateMusicVolume();
+                _sound.PlaySound(AudioMap.Select);
+                _options.Save();
+                _talkBack?.Speak(Localization.Get("OptMusicVol", next), true);
+            }
+            else if (sliderIdx == 2) // Voice
+            {
+                int next = Math.Max(0, Math.Min(100, (_options.VoiceVolume + delta)));
+                _options.VoiceVolume = next;
+                _sound.VoiceVol = next;
+                _sound.PlaySound(AudioMap.VoiceAwesome);
+                _options.Save();
+                _talkBack?.Speak(Localization.Get("OptVoiceVol", next), true);
+            }
+            Invalidate();
+        }
 
         public override AccessibilityNodeProvider AccessibilityNodeProvider
         {
@@ -439,6 +482,11 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         public void TogglePause()
         {
+            if (_context is MainActivity mainAct)
+            {
+                mainAct.SetDesiredOrientation(false); // Retrato para menús
+            }
+
             _sound?.PlaySound(AudioMap.ButtonPress);
             _currentScreen = AndroidGameScreen.PauseMenu;
             _pauseIdx = 0;
@@ -489,25 +537,26 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
             string[] items = GetCurrentItems(out int activeIdx);
             _paint.Color = Color.White;
-            _paint.TextSize = 44f;
+            _paint.TextSize = 48f;
             _paint.SetTypeface(Typeface.DefaultBold);
 
             string title = GetScreenTitle();
-            canvas.DrawText(title, 50, 70, _paint);
+            canvas.DrawText(title, 40, 90, _paint);
 
-            int startY = 110;
-            int itemHeight = 70;
+            int startY = 140;
+            int availableHeight = Height - startY - 40;
+            int itemHeight = Math.Min(90, Math.Max(65, items.Length > 0 ? availableHeight / items.Length : 75));
 
             for (int i = 0; i < items.Length; i++)
             {
                 int top = startY + (i * itemHeight);
-                RectF itemRect = new RectF(50, top, Width - 50, top + itemHeight - 10);
+                RectF itemRect = new RectF(30, top, Width - 30, top + itemHeight - 12);
 
                 if (i == activeIdx)
                 {
                     _paint.Color = Color.Rgb(255, 200, 0);
                     _paint.SetStyle(Paint.Style.Fill);
-                    canvas.DrawRoundRect(itemRect, 12, 12, _paint);
+                    canvas.DrawRoundRect(itemRect, 16, 16, _paint);
 
                     _paint.Color = Color.Black;
                 }
@@ -515,14 +564,14 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 {
                     _paint.Color = Color.Argb(50, 255, 255, 255);
                     _paint.SetStyle(Paint.Style.Fill);
-                    canvas.DrawRoundRect(itemRect, 12, 12, _paint);
+                    canvas.DrawRoundRect(itemRect, 16, 16, _paint);
 
                     _paint.Color = Color.White;
                 }
 
-                _paint.TextSize = 34f;
+                _paint.TextSize = 36f;
                 _paint.SetTypeface(Typeface.Default);
-                canvas.DrawText(items[i], 70, top + 42, _paint);
+                canvas.DrawText(items[i], 50, top + (itemHeight / 2f) + 12, _paint);
             }
         }
 
@@ -1090,6 +1139,11 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             {
                 if (idx == 0) // Reanudar
                 {
+                    if (_context is MainActivity mainAct)
+                    {
+                        mainAct.SetDesiredOrientation(true); // Horizontal para el tablero
+                    }
+
                     _currentScreen = AndroidGameScreen.Playing;
                     _sound?.PlaySound(AudioMap.ButtonPress);
                     _sound?.PlayMusic(_currentModeKey == "ModeZen" ? "11 - Zen - Part 1" : "03 - Classic Mode - Part 1");
@@ -1204,6 +1258,11 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         private void StartGame(string modeKey)
         {
+            if (_context is MainActivity mainAct)
+            {
+                mainAct.SetDesiredOrientation(true); // Horizontal para el tablero
+            }
+
             _currentModeKey = modeKey;
             _board = new Board(new Random().Next());
             _currentScreen = AndroidGameScreen.Playing;
@@ -1783,6 +1842,10 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     int panelWidth = _view.Width - panelLeft - 30;
                     Rect rect = new Rect(panelLeft, 60, panelLeft + panelWidth, 160);
                     node.SetBoundsInParent(rect);
+                    int[] loc = new int[2];
+                    _view.GetLocationOnScreen(loc);
+                    Rect screenRect = new Rect(rect.Left + loc[0], rect.Top + loc[1], rect.Right + loc[0], rect.Bottom + loc[1]);
+                    node.SetBoundsInScreen(screenRect);
                     node.Text = "💡 " + Localization.Get("HintTitle");
                     node.ContentDescription = "Botón de Pista. Toca dos veces para encontrar un movimiento sugerido.";
                     return node;
@@ -1794,6 +1857,10 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     int panelWidth = _view.Width - panelLeft - 30;
                     Rect rect = new Rect(panelLeft, 190, panelLeft + panelWidth, 290);
                     node.SetBoundsInParent(rect);
+                    int[] loc = new int[2];
+                    _view.GetLocationOnScreen(loc);
+                    Rect screenRect = new Rect(rect.Left + loc[0], rect.Top + loc[1], rect.Right + loc[0], rect.Bottom + loc[1]);
+                    node.SetBoundsInScreen(screenRect);
                     node.Text = "⏸️ " + Localization.Get("PauseTitle");
                     node.ContentDescription = "Botón de Pausa. Toca dos veces para pausar la partida o volver al menú.";
                     return node;
@@ -1809,6 +1876,10 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     int top = offsetY + (y * tileSize) + 2;
                     Rect rect = new Rect(left, top, left + tileSize - 4, top + tileSize - 4);
                     node.SetBoundsInParent(rect);
+                    int[] loc = new int[2];
+                    _view.GetLocationOnScreen(loc);
+                    Rect screenRect = new Rect(rect.Left + loc[0], rect.Top + loc[1], rect.Right + loc[0], rect.Bottom + loc[1]);
+                    node.SetBoundsInScreen(screenRect);
 
                     Gem g = _view.BoardInstance?.GetGem(x, y);
                     string colLetter = ((char)('A' + x)).ToString();
@@ -1840,13 +1911,31 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 string[] items = _view.GetCurrentItems(out int activeIdx);
                 if (virtualViewId >= 0 && virtualViewId < items.Length)
                 {
-                    int startY = 110;
-                    int itemHeight = 70;
+                    int startY = 140;
+                    int availableHeight = _view.Height - startY - 40;
+                    int itemHeight = Math.Min(90, Math.Max(65, items.Length > 0 ? availableHeight / items.Length : 75));
                     int top = startY + (virtualViewId * itemHeight);
-                    Rect rect = new Rect(50, top, _view.Width - 50, top + itemHeight - 10);
+                    Rect rect = new Rect(30, top, _view.Width - 30, top + itemHeight - 12);
                     node.SetBoundsInParent(rect);
+                    int[] loc = new int[2];
+                    _view.GetLocationOnScreen(loc);
+                    Rect screenRect = new Rect(rect.Left + loc[0], rect.Top + loc[1], rect.Right + loc[0], rect.Bottom + loc[1]);
+                    node.SetBoundsInScreen(screenRect);
                     node.Text = items[virtualViewId];
-                    node.ContentDescription = string.Format("Opción {0} de {1}: {2}", virtualViewId + 1, items.Length, items[virtualViewId]);
+
+                    if (_view.CurrentScreen == AndroidGameScreen.OptionsScreen && (virtualViewId == 0 || virtualViewId == 1 || virtualViewId == 2))
+                    {
+                        node.ClassName = "android.widget.SeekBar";
+                        node.AddAction(AccessibilityNodeInfo.AccessibilityAction.ActionScrollForward);
+                        node.AddAction(AccessibilityNodeInfo.AccessibilityAction.ActionScrollBackward);
+                        int currentVol = virtualViewId == 0 ? _view.SoundVolume : (virtualViewId == 1 ? _view.MusicVolume : _view.VoiceVolume);
+                        node.RangeInfo = AccessibilityNodeInfo.RangeInfo.Obtain(RangeType.Int, 0f, 100f, (float)currentVol);
+                        node.ContentDescription = string.Format("{0}. Deslizador. Usa las teclas de volumen o desliza arriba y abajo para ajustar.", items[virtualViewId]);
+                    }
+                    else
+                    {
+                        node.ContentDescription = string.Format("Opción {0} de {1}: {2}", virtualViewId + 1, items.Length, items[virtualViewId]);
+                    }
                     return node;
                 }
             }
@@ -1925,6 +2014,22 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         _view.ExecuteMenuItem(virtualViewId);
                         return true;
                     }
+                }
+            }
+            if (action == Android.Views.Accessibility.Action.ScrollForward)
+            {
+                if (_view.CurrentScreen == AndroidGameScreen.OptionsScreen && (virtualViewId == 0 || virtualViewId == 1 || virtualViewId == 2))
+                {
+                    _view.AdjustOptionSlider(virtualViewId, 10);
+                    return true;
+                }
+            }
+            if (action == Android.Views.Accessibility.Action.ScrollBackward)
+            {
+                if (_view.CurrentScreen == AndroidGameScreen.OptionsScreen && (virtualViewId == 0 || virtualViewId == 1 || virtualViewId == 2))
+                {
+                    _view.AdjustOptionSlider(virtualViewId, -10);
+                    return true;
                 }
             }
             return false;
