@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.IO;
 using System.Net;
 using System.Text;
@@ -15,7 +15,7 @@ namespace Bejeweled3Accessible.AndroidApp.Update
     public static class AndroidAutoUpdater
     {
         public const string GitHubRepo = "RHcomunications/Bejeweled3Accesible";
-        public const string CurrentVersion = "2026.08.24.12";
+        public const string CurrentVersion = "2026.08.25.0";
 
         public class AndroidReleaseInfo
         {
