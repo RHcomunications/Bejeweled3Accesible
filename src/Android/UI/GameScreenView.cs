@@ -1105,9 +1105,10 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 }
                 else // Menu
                 {
-                    _sound?.PlaySound(AudioMap.Backtomain);
-                    _sound?.StopMusic();
-                    TransitionToMainMenu();
+                    if (_context is MainActivity mainAct)
+                    {
+                        mainAct.ReturnToMainMenu();
+                    }
                     return;
                 }
             }
@@ -1143,9 +1144,10 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 }
                 else if (idx == 3) // Menú Principal
                 {
-                    _sound?.PlaySound(AudioMap.Backtomain);
-                    _sound?.StopMusic();
-                    TransitionToMainMenu();
+                    if (_context is MainActivity mainAct)
+                    {
+                        mainAct.ReturnToMainMenu();
+                    }
                     return;
                 }
             }
