@@ -59,6 +59,12 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private int _level = 1;
         private int _shufflesRemaining = 3;
         private string _currentModeKey = "ModeClassic";
+        private readonly List<GemColor> _pokerCards = new List<GemColor>();
+        private int _pokerSkulls = 0;
+        private int _pokerSkullCharge = 0;
+        private int _pokerHandBonus = 0;
+        private readonly int[] _iceColumns = new int[8];
+        private readonly int[] _iceSkullTicks = new int[8];
         private int _cursorX = 3, _cursorY = 3;
         private int _selectedX = -1, _selectedY = -1;
         private float _startX, _startY;
@@ -1324,9 +1330,112 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     _sound?.PlaySound(AudioMap.Flamebonus);
                 }
 
-                // Lógica de Modos Especiales (Mariposas, Mina de Diamantes)
+                // Lógica de Modos Especiales (Mariposas, Mina de Diamantes, Poker, Tormenta de Hielo)
                 bool isButterfliesMode = _currentModeKey == "ModeButterflies";
                 bool isDiamondMineActive = _currentModeKey == "ModeDiamondMine";
+                bool isPokerActive = _currentModeKey == "ModePoker";
+                bool isIceStormActive = _currentModeKey == "ModeIceStorm";
+
+                if (isPokerActive)
+                {
+                    _sound?.PlaySound(AudioMap.Carddeal);
+                    foreach (var color in res.MatchedColors)
+                    {
+                        _pokerCards.Add(color);
+                        _sound?.PlaySound(AudioMap.Cardflip);
+                    }
+
+                    _pokerHandBonus += res.FlameDestroyed * 100 + res.StarDestroyed * 250;
+
+                    if (_pokerCards.Count >= 5)
+                    {
+                        PokerHandType hand = PokerHandEvaluator.Evaluate(_pokerCards);
+                        int handPts = PokerHandEvaluator.GetHandPoints(hand) + _pokerHandBonus;
+                        bool isBadHand = hand == PokerHandType.HighCard;
+
+                        if (isBadHand)
+                        {
+                            _pokerSkulls++;
+                            _sound?.PlaySound(AudioMap.SkullcoinFlip);
+                            _sound?.PlaySound(AudioMap.Skullcoinlose);
+                            _sound?.PlaySound(AudioMap.SkullAppear);
+                            _sound?.PlaySound(AudioMap.Pokerchips);
+                            _pokerCards.Clear();
+                            _pokerHandBonus = 0;
+
+                            if (_pokerSkulls >= 5)
+                            {
+                                _currentScreen = AndroidGameScreen.GameOver;
+                                _gameOverIdx = 0;
+                                _sound?.PlaySound(AudioMap.SkullBuster);
+                                _sound?.PlaySound(AudioMap.VoiceGameover);
+                                _talkBack?.Speak(Localization.Get("PokerSkullGameOver") + " " + Localization.Get("GameOver", _score), true);
+                                Invalidate();
+                                return;
+                            }
+                            _talkBack?.Speak(Localization.Get("PokerSkullAnnounce", _pokerSkulls), true);
+                        }
+                        else
+                        {
+                            _score += handPts;
+                            if (hand == PokerHandType.Flush)
+                            {
+                                _sound?.PlaySound(AudioMap.PokerFlush);
+                                _sound?.PlaySound(AudioMap.Skullcoinwin);
+                            }
+                            else if (hand == PokerHandType.FullHouse)
+                            {
+                                _sound?.PlaySound(AudioMap.PokerFullhouse);
+                                _sound?.PlaySound(AudioMap.Skullcoinlands);
+                            }
+                            else if (hand == PokerHandType.FourOfAKind)
+                            {
+                                _sound?.PlaySound(AudioMap.Poker4ofakind);
+                                _sound?.PlaySound(AudioMap.Skullcoinwin);
+                            }
+                            else
+                            {
+                                _sound?.PlaySound(AudioMap.Pokerscore);
+                                _sound?.PlaySound(AudioMap.SkullBuster);
+                            }
+
+                            _sound?.PlaySound(AudioMap.Pokerchips);
+                            _talkBack?.Speak(Localization.Get("PokerHandScored", Localization.GetPokerHandName(hand), handPts), true);
+                            _pokerCards.Clear();
+                            _pokerHandBonus = 0;
+
+                            _pokerSkullCharge++;
+                            if (_pokerSkullCharge >= 3 && _pokerSkulls > 0)
+                            {
+                                _pokerSkulls--;
+                                _pokerSkullCharge = 0;
+                                _sound?.PlaySound(AudioMap.SkullBuster);
+                                _talkBack?.Speak(Localization.Get("PokerSkullEliminated", _pokerSkulls), true);
+                            }
+                        }
+                    }
+                }
+
+                if (isIceStormActive)
+                {
+                    foreach (int col in res.MatchedColumns)
+                    {
+                        if (col < 0 || col >= 8 || _iceColumns[col] <= 0) continue;
+                        bool shattered = res.VerticalMatchedColumns.Contains(col) || res.HypercubeTriggered || res.HypercubeCreated > 0;
+                        if (shattered)
+                        {
+                            _iceColumns[col] = 0;
+                            _iceSkullTicks[col] = 0;
+                            _sound?.PlaySound(AudioMap.IceColumnBreak);
+                        }
+                        else
+                        {
+                            _iceColumns[col] = Math.Max(0, _iceColumns[col] - 2);
+                            if (_iceColumns[col] < 8) _iceSkullTicks[col] = 0;
+                            _sound?.PlaySound(AudioMap.IceStormColumnCombo);
+                        }
+                    }
+                }
 
                 if (isButterfliesMode)
                 {
