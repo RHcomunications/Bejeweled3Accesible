@@ -1929,7 +1929,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         node.AddAction(AccessibilityNodeInfo.AccessibilityAction.ActionScrollForward);
                         node.AddAction(AccessibilityNodeInfo.AccessibilityAction.ActionScrollBackward);
                         int currentVol = virtualViewId == 0 ? _view.SoundVolume : (virtualViewId == 1 ? _view.MusicVolume : _view.VoiceVolume);
-                        node.RangeInfo = AccessibilityNodeInfo.RangeInfo.Obtain(RangeType.Int, 0f, 100f, (float)currentVol);
+                        node.RangeInfo = Android.Views.Accessibility.AccessibilityNodeInfo.RangeInfo.Obtain(Android.Views.Accessibility.RangeType.Int, 0f, 100f, (float)currentVol);
                         node.ContentDescription = string.Format("{0}. Deslizador. Usa las teclas de volumen o desliza arriba y abajo para ajustar.", items[virtualViewId]);
                     }
                     else
