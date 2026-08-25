@@ -536,27 +536,31 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
 
             string[] items = GetCurrentItems(out int activeIdx);
+            float density = Resources?.DisplayMetrics?.Density ?? 1.0f;
+            if (density < 1.0f) density = 1.0f;
+
             _paint.Color = Color.White;
-            _paint.TextSize = 48f;
+            _paint.TextSize = 22f * density;
             _paint.SetTypeface(Typeface.DefaultBold);
 
             string title = GetScreenTitle();
-            canvas.DrawText(title, 40, 90, _paint);
+            canvas.DrawText(title, 20f * density, 45f * density, _paint);
 
-            int startY = 140;
-            int availableHeight = Height - startY - 40;
-            int itemHeight = Math.Min(90, Math.Max(65, items.Length > 0 ? availableHeight / items.Length : 75));
+            int startY = (int)(65f * density);
+            int availableHeight = Height - startY - (int)(20f * density);
+            int baseItemHeight = (int)(55f * density);
+            int itemHeight = items.Length > 0 ? Math.Min(baseItemHeight, Math.Max((int)(40f * density), availableHeight / items.Length)) : baseItemHeight;
 
             for (int i = 0; i < items.Length; i++)
             {
                 int top = startY + (i * itemHeight);
-                RectF itemRect = new RectF(30, top, Width - 30, top + itemHeight - 12);
+                RectF itemRect = new RectF(16f * density, top, Width - (16f * density), top + itemHeight - (6f * density));
 
                 if (i == activeIdx)
                 {
                     _paint.Color = Color.Rgb(255, 200, 0);
                     _paint.SetStyle(Paint.Style.Fill);
-                    canvas.DrawRoundRect(itemRect, 16, 16, _paint);
+                    canvas.DrawRoundRect(itemRect, 10f * density, 10f * density, _paint);
 
                     _paint.Color = Color.Black;
                 }
@@ -564,14 +568,14 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 {
                     _paint.Color = Color.Argb(50, 255, 255, 255);
                     _paint.SetStyle(Paint.Style.Fill);
-                    canvas.DrawRoundRect(itemRect, 16, 16, _paint);
+                    canvas.DrawRoundRect(itemRect, 10f * density, 10f * density, _paint);
 
                     _paint.Color = Color.White;
                 }
 
-                _paint.TextSize = 36f;
+                _paint.TextSize = Math.Min(18f * density, (itemHeight * 0.45f));
                 _paint.SetTypeface(Typeface.Default);
-                canvas.DrawText(items[i], 50, top + (itemHeight / 2f) + 12, _paint);
+                canvas.DrawText(items[i], 26f * density, top + (itemHeight / 2f) + (6f * density), _paint);
             }
         }
 
@@ -618,24 +622,28 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         {
             if (_board == null) return;
 
-            int boardHeight = Height - 40;
-            int tileSize = boardHeight / Board.Rows;
-            int offsetX = 30;
-            int offsetY = 20;
+            float density = Resources?.DisplayMetrics?.Density ?? 1.0f;
+            if (density < 1.0f) density = 1.0f;
+
+            int marginY = (int)(15f * density);
+            int boardHeight = Height - (marginY * 2);
+            int tileSize = Math.Max(1, boardHeight / Board.Rows);
+            int offsetX = (int)(20f * density);
+            int offsetY = marginY;
 
             for (int y = 0; y < Board.Rows; y++)
             {
                 for (int x = 0; x < Board.Cols; x++)
                 {
-                    int left = offsetX + (x * tileSize) + 2;
-                    int top = offsetY + (y * tileSize) + 2;
-                    int right = left + tileSize - 4;
-                    int bottom = top + tileSize - 4;
+                    int left = offsetX + (x * tileSize) + (int)(2f * density);
+                    int top = offsetY + (y * tileSize) + (int)(2f * density);
+                    int right = left + tileSize - (int)(4f * density);
+                    int bottom = top + tileSize - (int)(4f * density);
                     RectF rect = new RectF(left, top, right, bottom);
 
                     _paint.Color = Color.Argb(35, 255, 255, 255);
                     _paint.SetStyle(Paint.Style.Fill);
-                    canvas.DrawRoundRect(rect, 8, 8, _paint);
+                    canvas.DrawRoundRect(rect, 6f * density, 6f * density, _paint);
 
                     Gem gem = _board.GetGem(x, y);
                     if (gem != null)
@@ -643,7 +651,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         Color c = _gemColors.ContainsKey(gem.Color) ? _gemColors[gem.Color] : Color.Gray;
                         _paint.Color = c;
                         _paint.SetStyle(Paint.Style.Fill);
-                        canvas.DrawCircle(rect.CenterX(), rect.CenterY(), (tileSize - 10) / 2f, _paint);
+                        canvas.DrawCircle(rect.CenterX(), rect.CenterY(), (tileSize - (6f * density)) / 2f, _paint);
                     }
 
                     var validMoves = HintFinder.GetValidMovesFrom(_board, x, y);
@@ -659,40 +667,41 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     {
                         _paint.Color = Color.Lime;
                         _paint.SetStyle(Paint.Style.Stroke);
-                        _paint.StrokeWidth = 6;
-                        canvas.DrawRoundRect(rect, 8, 8, _paint);
+                        _paint.StrokeWidth = 4f * density;
+                        canvas.DrawRoundRect(rect, 6f * density, 6f * density, _paint);
                     }
                     else if (_cursorX == x && _cursorY == y)
                     {
                         _paint.Color = Color.Yellow;
                         _paint.SetStyle(Paint.Style.Stroke);
-                        _paint.StrokeWidth = 4;
-                        canvas.DrawRoundRect(rect, 8, 8, _paint);
+                        _paint.StrokeWidth = 3f * density;
+                        canvas.DrawRoundRect(rect, 6f * density, 6f * density, _paint);
                     }
                 }
             }
 
-            int panelLeft = offsetX + (Board.Cols * tileSize) + 40;
-            int panelWidth = Width - panelLeft - 30;
+            int panelLeft = offsetX + (Board.Cols * tileSize) + (int)(25f * density);
+            int panelWidth = Width - panelLeft - (int)(20f * density);
+            int btnHeight = (int)(55f * density);
 
-            RectF hintRect = new RectF(panelLeft, 60, panelLeft + panelWidth, 160);
+            RectF hintRect = new RectF(panelLeft, offsetY + (int)(20f * density), panelLeft + panelWidth, offsetY + (int)(20f * density) + btnHeight);
             _paint.Color = Color.Rgb(0, 150, 255);
             _paint.SetStyle(Paint.Style.Fill);
-            canvas.DrawRoundRect(hintRect, 16, 16, _paint);
+            canvas.DrawRoundRect(hintRect, 10f * density, 10f * density, _paint);
 
             _paint.Color = Color.White;
-            _paint.TextSize = 36f;
+            _paint.TextSize = 18f * density;
             _paint.SetTypeface(Typeface.DefaultBold);
-            canvas.DrawText("💡 " + Localization.Get("HintTitle"), panelLeft + 30, 125, _paint);
+            canvas.DrawText("💡 " + Localization.Get("HintTitle"), panelLeft + (15f * density), hintRect.CenterY() + (6f * density), _paint);
 
             // Boton PAUSA / MENU
-            RectF pauseRect = new RectF(panelLeft, 190, panelLeft + panelWidth, 290);
+            RectF pauseRect = new RectF(panelLeft, hintRect.Bottom + (int)(20f * density), panelLeft + panelWidth, hintRect.Bottom + (int)(20f * density) + btnHeight);
             _paint.Color = Color.Rgb(220, 50, 50);
             _paint.SetStyle(Paint.Style.Fill);
-            canvas.DrawRoundRect(pauseRect, 16, 16, _paint);
+            canvas.DrawRoundRect(pauseRect, 10f * density, 10f * density, _paint);
 
             _paint.Color = Color.White;
-            canvas.DrawText("⏸️ " + Localization.Get("PauseTitle"), panelLeft + 30, 255, _paint);
+            canvas.DrawText("⏸️ " + Localization.Get("PauseTitle"), panelLeft + (15f * density), pauseRect.CenterY() + (6f * density), _paint);
         }
 
         private void DrawArrow(Canvas canvas, RectF rect, int dx, int dy)
@@ -746,8 +755,13 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private bool HandleMenuTouch(MotionEvent e)
         {
             string[] items = GetCurrentItems(out int activeIdx);
-            int startY = 110;
-            int itemHeight = 70;
+            float density = Resources?.DisplayMetrics?.Density ?? 1.0f;
+            if (density < 1.0f) density = 1.0f;
+
+            int startY = (int)(65f * density);
+            int availableHeight = Height - startY - (int)(20f * density);
+            int baseItemHeight = (int)(55f * density);
+            int itemHeight = items.Length > 0 ? Math.Min(baseItemHeight, Math.Max((int)(40f * density), availableHeight / items.Length)) : baseItemHeight;
 
             if (e.Action == MotionEventActions.Down)
             {
@@ -1362,16 +1376,23 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         private bool HandleBoardTouch(MotionEvent e)
         {
-            int boardHeight = Height - 40;
-            int tileSize = boardHeight / Board.Rows;
-            int offsetX = 30;
-            int offsetY = 20;
+            float density = Resources?.DisplayMetrics?.Density ?? 1.0f;
+            if (density < 1.0f) density = 1.0f;
+
+            int marginY = (int)(15f * density);
+            int boardHeight = Height - (marginY * 2);
+            int tileSize = Math.Max(1, boardHeight / Board.Rows);
+            int offsetX = (int)(20f * density);
+            int offsetY = marginY;
 
             int cellX = (int)((e.GetX() - offsetX) / tileSize);
             int cellY = (int)((e.GetY() - offsetY) / tileSize);
 
-            int panelLeft = offsetX + (Board.Cols * tileSize) + 40;
-            int panelWidth = Width - panelLeft - 30;
+            int panelLeft = offsetX + (Board.Cols * tileSize) + (int)(25f * density);
+            int panelWidth = Width - panelLeft - (int)(20f * density);
+            int btnHeight = (int)(55f * density);
+            int hintTop = offsetY + (int)(20f * density);
+            int pauseTop = hintTop + btnHeight + (int)(20f * density);
 
             if (e.Action == MotionEventActions.Down)
             {
@@ -1381,18 +1402,14 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 // Verificar si toco el panel lateral de botones
                 if (e.GetX() >= panelLeft && e.GetX() <= panelLeft + panelWidth)
                 {
-                    if (e.GetY() >= 60 && e.GetY() <= 160) // Boton PISTA
+                    if (e.GetY() >= hintTop && e.GetY() <= hintTop + btnHeight) // Boton PISTA
                     {
                         TriggerHint();
                         return true;
                     }
-                    else if (e.GetY() >= 190 && e.GetY() <= 290) // Boton PAUSA
+                    else if (e.GetY() >= pauseTop && e.GetY() <= pauseTop + btnHeight) // Boton PAUSA
                     {
-                        _currentScreen = AndroidGameScreen.PauseMenu;
-                        _pauseIdx = 0;
-                        _sound?.PlaySound(AudioMap.ButtonPress);
-                        AnnounceCurrentMenu();
-                        Invalidate();
+                        TogglePause();
                         return true;
                     }
                 }
@@ -1793,6 +1810,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             {
                 var root = AccessibilityNodeInfo.Obtain(_view);
                 _view.OnInitializeAccessibilityNodeInfo(root);
+                root.Focusable = false;
+                root.Clickable = false;
 
                 if (_view.CurrentScreen == AndroidGameScreen.Playing)
                 {
@@ -1831,16 +1850,24 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
             if (_view.CurrentScreen == AndroidGameScreen.Playing)
             {
-                int boardHeight = _view.Height - 40;
-                int tileSize = boardHeight / Board.Rows;
-                int offsetX = 30;
-                int offsetY = 20;
+                float density = _view.Resources?.DisplayMetrics?.Density ?? 1.0f;
+                if (density < 1.0f) density = 1.0f;
+
+                int marginY = (int)(15f * density);
+                int boardHeight = _view.Height - (marginY * 2);
+                int tileSize = Math.Max(1, boardHeight / Board.Rows);
+                int offsetX = (int)(20f * density);
+                int offsetY = marginY;
+
+                int panelLeft = offsetX + (Board.Cols * tileSize) + (int)(25f * density);
+                int panelWidth = _view.Width - panelLeft - (int)(20f * density);
+                int btnHeight = (int)(55f * density);
+                int hintTop = offsetY + (int)(20f * density);
+                int pauseTop = hintTop + btnHeight + (int)(20f * density);
 
                 if (virtualViewId == VIRTUAL_ID_HINT)
                 {
-                    int panelLeft = offsetX + (Board.Cols * tileSize) + 40;
-                    int panelWidth = _view.Width - panelLeft - 30;
-                    Rect rect = new Rect(panelLeft, 60, panelLeft + panelWidth, 160);
+                    Rect rect = new Rect(panelLeft, hintTop, panelLeft + panelWidth, hintTop + btnHeight);
                     node.SetBoundsInParent(rect);
                     int[] loc = new int[2];
                     _view.GetLocationOnScreen(loc);
@@ -1853,9 +1880,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
                 if (virtualViewId == VIRTUAL_ID_PAUSE)
                 {
-                    int panelLeft = offsetX + (Board.Cols * tileSize) + 40;
-                    int panelWidth = _view.Width - panelLeft - 30;
-                    Rect rect = new Rect(panelLeft, 190, panelLeft + panelWidth, 290);
+                    Rect rect = new Rect(panelLeft, pauseTop, panelLeft + panelWidth, pauseTop + btnHeight);
                     node.SetBoundsInParent(rect);
                     int[] loc = new int[2];
                     _view.GetLocationOnScreen(loc);
@@ -1872,9 +1897,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     int x = idx % Board.Cols;
                     int y = idx / Board.Cols;
 
-                    int left = offsetX + (x * tileSize) + 2;
-                    int top = offsetY + (y * tileSize) + 2;
-                    Rect rect = new Rect(left, top, left + tileSize - 4, top + tileSize - 4);
+                    int left = offsetX + (x * tileSize) + (int)(2f * density);
+                    int top = offsetY + (y * tileSize) + (int)(2f * density);
+                    Rect rect = new Rect(left, top, left + tileSize - (int)(4f * density), top + tileSize - (int)(4f * density));
                     node.SetBoundsInParent(rect);
                     int[] loc = new int[2];
                     _view.GetLocationOnScreen(loc);
@@ -1911,11 +1936,15 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 string[] items = _view.GetCurrentItems(out int activeIdx);
                 if (virtualViewId >= 0 && virtualViewId < items.Length)
                 {
-                    int startY = 140;
-                    int availableHeight = _view.Height - startY - 40;
-                    int itemHeight = Math.Min(90, Math.Max(65, items.Length > 0 ? availableHeight / items.Length : 75));
+                    float density = _view.Resources?.DisplayMetrics?.Density ?? 1.0f;
+                    if (density < 1.0f) density = 1.0f;
+
+                    int startY = (int)(65f * density);
+                    int availableHeight = _view.Height - startY - (int)(20f * density);
+                    int baseItemHeight = (int)(55f * density);
+                    int itemHeight = items.Length > 0 ? Math.Min(baseItemHeight, Math.Max((int)(40f * density), availableHeight / items.Length)) : baseItemHeight;
                     int top = startY + (virtualViewId * itemHeight);
-                    Rect rect = new Rect(30, top, _view.Width - 30, top + itemHeight - 12);
+                    Rect rect = new Rect((int)(16f * density), top, _view.Width - (int)(16f * density), top + itemHeight - (int)(6f * density));
                     node.SetBoundsInParent(rect);
                     int[] loc = new int[2];
                     _view.GetLocationOnScreen(loc);
