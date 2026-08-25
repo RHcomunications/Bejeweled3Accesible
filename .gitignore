@@ -7,3 +7,7 @@ pack_error.txt
 *.tmp.mp3
 *.tmp.ogg
 android_apk*/
+android_release_apk*/
+.system_generated/
+*.user
+*.suo
