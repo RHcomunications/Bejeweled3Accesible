@@ -82,9 +82,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             { GemColor.Orange, Color.Rgb(255, 140, 0) }
         };
 
-        private readonly Action _onPauseRequested;
+        private readonly System.Action _onPauseRequested;
 
-        public GameScreenView(Context context, TalkBackBridge talkBack, AndroidSoundEngine sound, string modeKey, Action onPauseRequested) : base(context)
+        public GameScreenView(Context context, TalkBackBridge talkBack, AndroidSoundEngine sound, string modeKey, System.Action onPauseRequested) : base(context)
         {
             _context = context;
             _talkBack = talkBack;
@@ -454,21 +454,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _selectedY = cellY;
             _sound?.PlaySoundSpatial(AudioMap.Select, cellX, cellY);
             AnnounceCell(cellX, cellY);
-            Invalidate();
-        }
-
-        public void TogglePause()
-        {
-            if (_context is MainActivity mainAct)
-            {
-                mainAct.SetDesiredOrientation(false); // Retrato para menús
-            }
-
-            _sound?.PlaySound(AudioMap.ButtonPress);
-            _currentScreen = AndroidGameScreen.PauseMenu;
-            _pauseIdx = 0;
-            _sound?.StopMusic();
-            AnnounceCurrentMenu();
             Invalidate();
         }
 
