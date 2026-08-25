@@ -8,6 +8,7 @@ using Bejeweled3Accessible.Audio;
 using Bejeweled3Accessible.Engine;
 using Bejeweled3Accessible.AndroidApp.Accessibility;
 using Bejeweled3Accessible.AndroidApp.Audio;
+using Bejeweled3Accessible.AndroidApp.Update;
 
 namespace Bejeweled3Accessible.AndroidApp.UI
 {
@@ -159,6 +160,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 Localization.Get("MenuLanguage"),
                 Localization.Get("MenuOptions"),
                 Localization.Get("MenuAudioSchool"),
+                Localization.Get("MenuUpdateCheck"),
                 Localization.Get("MenuExit")
             };
         }
@@ -813,6 +815,32 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 else if (idx == 6) { _currentScreen = AndroidGameScreen.OptionsScreen; _optionsIdx = 0; }
                 else if (idx == 7) { _currentScreen = AndroidGameScreen.AudioSchool; _audioSchoolIdx = 0; }
                 else if (idx == 8)
+                {
+                    _sound?.PlaySound(AudioMap.Select);
+                    _talkBack?.Speak(Localization.Get("UpdateChecking"), true);
+                    Task.Run(async () =>
+                    {
+                        var info = await AndroidAutoUpdater.CheckForUpdatesAsync();
+                        Post(() =>
+                        {
+                            if (info.IsNewer)
+                            {
+                                string msg = Localization.Get("UpdateFoundNoNotes", AndroidAutoUpdater.CurrentVersion, info.Tag);
+                                _sound?.PlaySound(AudioMap.Rankup);
+                                _talkBack?.Speak(msg + ". Abriendo enlace de descarga...", true);
+                                AndroidAutoUpdater.OpenDownloadOrRelease(_context, info);
+                            }
+                            else
+                            {
+                                string msg = Localization.Get("UpdateNone", AndroidAutoUpdater.CurrentVersion);
+                                _sound?.PlaySound(AudioMap.ButtonPress);
+                                _talkBack?.Speak(msg, true);
+                            }
+                        });
+                    });
+                    return;
+                }
+                else if (idx == 9)
                 {
                     _sound?.PlaySound(AudioMap.VoiceGoodbye);
                     _talkBack?.Speak(Localization.CurrentLanguage == Language.Spanish ? "¡Adiós!" : "Goodbye!", true);
