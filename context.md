@@ -97,18 +97,25 @@ bejeweled3_accessible/
 
 ## 📱 5. Port Oficial para Android
 
-1. **TalkBack 100% Nativo**:
-   - Conexión directa mediante `AnnounceForAccessibility` y eventos del sistema de accesibilidad de Android.
+1. **TalkBack 100% Nativo con Árbol de Accesibilidad Virtual (`AccessibilityNodeProvider`)**:
+   - Cada menú, botón (Pista 💡, Pausa ⏸️) y las 64 celdas del tablero (A1 a H8) son nodos accesibles individuales.
+   - Navegación estándar mediante deslizamiento de 1 dedo a la derecha/izquierda y activación por doble toque.
    - Utiliza de forma transparente la voz, velocidad y sintetizador que el usuario tenga configurado en su dispositivo (Vocalizer, Eloquence, RHVoice, etc.).
-2. **Modo Apaisado (*Landscape*) con Tablero Amplio**:
+2. **Paridad Total de Pantallas y Funcionalidades con Windows**:
+   - **Escuela de Audio (`AudioSchool`)**: Pruebas de paneo de 8 columnas L/R y profundidad frente/fondo.
+   - **Opciones Zen (`ZenOptionsScreen`)**: Configuración completa de pistas ambientales binaurales, mantras y respiración guiada.
+   - **Creación Accesible de Perfiles (`AlertDialog`)**: Cuadro de diálogo nativo con campo de texto accesible para escribir el nombre real del jugador con el teclado del teléfono.
+   - **Pantalla de Fin de Juego (`GameOver`)**: Opciones claras de reintento o regreso al menú principal.
+   - **Gestión Dinámica de Volúmenes**: Modificación en vivo de música, efectos y voces con persistencia en `options.xml`.
+3. **Modo Apaisado (*Landscape*) con Tablero Amplio**:
    - Orientación horizontal obligatoria para visualización y accesibilidad óptima del tablero 8x8.
    - Panel lateral derecho con botones dedicados y accesibles de **Pista (💡 HINT)** y **Pausa (⏸️ PAUSA)**.
-3. **Control Asistido por Gestos y Táctil**:
+4. **Control Asistido por Gestos y Táctil**:
    - Deslizamientos verticales (arriba/abajo) para explorar opciones de menú.
    - Deslizamiento hacia la izquierda para retroceder menús.
    - Exploración táctil de tablero: al tocar cualquier gema, TalkBack anuncia sus coordenadas, color y direcciones posibles de movimiento (ej. *"C4: Gema Roja. Puedes mover hacia la derecha o abajo"*), y al deslizar se ejecuta el intercambio inmediato.
-4. **Gestión Completa de Perfiles**:
-   - Soporte para múltiples perfiles de usuario, creación de nuevos jugadores y guardado persistente de récords y medallas.
+5. **Gestión Completa de Perfiles y Persistencia en `FilesDir`**:
+   - Almacenamiento seguro en el directorio privado de la aplicación para perfiles, configuraciones y medallas.
 
 ---
 
@@ -120,10 +127,13 @@ bejeweled3_accessible/
 2. **El Conflicto de TTS Interno vs TalkBack en Android**:
    - *Desafío:* La implementación inicial usaba `TextToSpeech` directo, lo que forzaba las voces de Google o Samsung e ignoraba las preferencias del usuario.
    - *Solución:* Se migró a la API nativa de eventos de accesibilidad (`AccessibilityManager` y `AnnounceForAccessibility`), permitiendo que TalkBack hable con el sintetizador configurado por el usuario (Eloquence, Vocalizer, etc.).
-3. **Organización del Repositorio y Ramas**:
+3. **Árbol Virtual vs. Activación Accidental al Levantar el Dedo**:
+   - *Desafío:* El canvas monolítico provocaba que TalkBack viera un botón sin etiqueta y la activación se disparaba automáticamente al levantar el dedo en modo exploración.
+   - *Solución:* Se implementó `GameAccessibilityNodeProvider` exponiendo cada celda y botón de forma individual, separando la exploración táctil de la activación por doble toque.
+4. **Organización del Repositorio y Ramas**:
    - *Windows (`main`)*: Código fuente C# .NET 4.5, releases en `.zip` con auto-actualizador y `README.md` de escritorio.
    - *Android (`android`)*: Código fuente C# .NET 9 Android, releases en `.apk` firmados vía GitHub Actions y `README.md` adaptado a la experiencia móvil.
-4. **Soporte Completo de Ratón y Flechas en Windows (v2026.08.24.3)**:
+5. **Soporte Completo de Ratón y Flechas en Windows (v2026.08.24.3)**:
    - *Desafío:* Usuarios con baja visión o educadores querían interactuar con ratón sin perder la verbalización de casillas y opciones de movimiento.
    - *Solución:* Se implementó eco de ratón hablado, cálculo de direcciones válidas en tiempo real y soporte completo de flechas direccionales en el tablero.
 
@@ -132,5 +142,5 @@ bejeweled3_accessible/
 ## 🏆 7. Estado del Proyecto y Releases
 
 - **Windows (`main`)**: Release `v2026.08.24.3` con soporte completo de teclado, ratón hablado, audio binaural y auto-actualizador.
-- **Android (`android`)**: Release `android-v2026.08.24.8` con TalkBack nativo, banda sonora original de 29 pistas con encadenamiento continuo, locuciones de PopCap, panel de pistas/pausa y perfiles persistentes.
+- **Android (`android`)**: Código fuente compilado con paridad 1:1 total con Windows (Escuela de Audio, Opciones Zen, creación de perfiles con diálogo nativo, Game Over y árbol virtual TalkBack).
 - **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); build Debug+Release; suite completa con audio; zip con exe/PDB Release + `bass.dll` + `nvdaControllerClient32.dll` + 5 `libopenmpt*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (196 entradas) + `sounds\images\` completa; `gh release create` + upload; limpiar archivos temporales locales.
