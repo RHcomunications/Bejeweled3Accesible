@@ -56,6 +56,7 @@ namespace Bejeweled3Accessible.Update
         {
             if (string.IsNullOrEmpty(tag)) return null;
             string v = tag.Trim();
+            if (v.StartsWith("android-", StringComparison.OrdinalIgnoreCase)) v = v.Substring(8).Trim();
             if (v.StartsWith("v", StringComparison.OrdinalIgnoreCase)) v = v.Substring(1);
             Version parsed;
             if (Version.TryParse(v, out parsed)) return parsed;

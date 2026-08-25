@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -2031,7 +2031,6 @@ namespace Bejeweled3Accessible.Tests
                 Assert.True(r != null, "GetLatestRelease devuelve objeto");
                 if (r.IsValid)
                 {
-                    Assert.True(r.Tag.StartsWith("v"), "el tag de release empieza por v");
                     Assert.True(Bejeweled3Accessible.Update.AutoUpdater.ParseTagVersion(r.Tag) != null,
                         "el tag de release parsea como version");
                 }
