@@ -184,6 +184,13 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         public void PlaySoundSpatial(string key, int col, int row, float baseVol = 1.0f)
         {
             if (string.IsNullOrWhiteSpace(key)) return;
+            float pan = BinauralEnabled ? SpatialAudio.PanColumn(col) : 0f;
+            PlaySoundSpatialPan(pan, 0.0f, key, baseVol);
+        }
+
+        public void PlaySoundSpatialPan(float pan, float depth, string key, float baseVol = 1.0f)
+        {
+            if (string.IsNullOrWhiteSpace(key)) return;
 
             bool isVoice = key.StartsWith("voice_", StringComparison.OrdinalIgnoreCase);
             float master = isVoice ? (VoiceVol / 100f) : (SfxVol / 100f);
@@ -192,7 +199,6 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
             int soundId = EnsureSoundLoaded(key);
             if (soundId > 0)
             {
-                float pan = BinauralEnabled ? SpatialAudio.PanColumn(col) : 0f;
                 float leftVol = scaledBase * Math.Min(1.0f, 1.0f - pan);
                 float rightVol = scaledBase * Math.Min(1.0f, 1.0f + pan);
                 lock (_soundMap)

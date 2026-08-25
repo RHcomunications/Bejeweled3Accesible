@@ -21,6 +21,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         TutorialScreen,
         ProfileSelectScreen,
         OptionsScreen,
+        AudioSchool,
+        ZenOptionsScreen,
         PauseMenu,
         Playing,
         GameOver
@@ -45,7 +47,10 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private int _tutorialIdx = 0;
         private int _profileIdx = 0;
         private int _optionsIdx = 0;
+        private int _audioSchoolIdx = 0;
+        private int _zenOptionsIdx = 0;
         private int _pauseIdx = 0;
+        private int _gameOverIdx = 0;
         private string _currentModeKey = "ModeClassic";
         private int _cursorX = 3, _cursorY = 3;
         private int _selectedX = -1, _selectedY = -1;
@@ -112,6 +117,14 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         private void TransitionToMainMenu()
         {
+            if (_profileMgr.Profiles.Count == 0)
+            {
+                _sound?.PlayMusic(MusicMap.MainTheme);
+                _sound?.PlaySound(AudioMap.VoiceWelcometobejeweled);
+                PromptCreateProfile();
+                return;
+            }
+
             _currentScreen = AndroidGameScreen.MainMenu;
             _menuIdx = 0;
             _sound?.PlayMusic(MusicMap.MainTheme);
@@ -134,6 +147,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 Localization.Get("MenuChangeUser", profName),
                 Localization.Get("MenuLanguage"),
                 Localization.Get("MenuOptions"),
+                Localization.Get("MenuAudioSchool"),
                 Localization.Get("MenuExit")
             };
         }
@@ -236,6 +250,47 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             return list.ToArray();
         }
 
+        private string[] GetAudioSchoolItems()
+        {
+            bool en = Localization.CurrentLanguage == Language.English;
+            Func<string, string, string> L = (es, e) => en ? e : es;
+            var items = new List<string>();
+            string[] cols = { "A", "B", "C", "D", "E", "F", "G", "H" };
+            for (int i = 0; i < 8; i++)
+                items.Add(L(string.Format("Columna {0} (izquierda a derecha)", cols[i]),
+                            string.Format("Column {0} (left to right)", cols[i])));
+            items.Add(L("Profundidad frente (cerca)", "Front depth (near)"));
+            items.Add(L("Profundidad fondo (lejos)", "Back depth (far)"));
+            items.Add(L("Barrido izquierda -> derecha", "Sweep left -> right"));
+            items.Add(L("Barrido frente -> fondo", "Sweep front -> back"));
+            items.Add(Localization.Get("OptBack"));
+            return items.ToArray();
+        }
+
+        private string[] GetZenOptionsMenuItems()
+        {
+            string ambStr = _options.ZenAmbient != (int)AmbientType.None ? ZenManager.GetAmbientName((AmbientType)_options.ZenAmbient) : Localization.Get("StateDisabled");
+            string manStr = _options.ZenMantras ? Localization.Get("StateEnabled") : Localization.Get("StateDisabled");
+            string breathStr = _options.ZenBreath ? Localization.Get("StateEnabled") : Localization.Get("StateDisabled");
+
+            return new string[]
+            {
+                Localization.Get("ZenOptAmbient", ambStr),
+                Localization.Get("ZenOptMantras", manStr),
+                Localization.Get("ZenOptBreath", breathStr),
+                Localization.Get("OptBack")
+            };
+        }
+
+        private string[] GetGameOverItems()
+        {
+            return new string[]
+            {
+                Localization.Get("GameOverReplay"),
+                Localization.Get("GameOverMenu")
+            };
+        }
+
         public string[] GetCurrentItems(out int activeIdx)
         {
             switch (_currentScreen)
@@ -264,9 +319,18 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 case AndroidGameScreen.OptionsScreen:
                     activeIdx = _optionsIdx;
                     return GetOptionsMenuItems();
+                case AndroidGameScreen.AudioSchool:
+                    activeIdx = _audioSchoolIdx;
+                    return GetAudioSchoolItems();
+                case AndroidGameScreen.ZenOptionsScreen:
+                    activeIdx = _zenOptionsIdx;
+                    return GetZenOptionsMenuItems();
                 case AndroidGameScreen.PauseMenu:
                     activeIdx = _pauseIdx;
                     return GetPauseMenuItems();
+                case AndroidGameScreen.GameOver:
+                    activeIdx = _gameOverIdx;
+                    return GetGameOverItems();
                 default:
                     activeIdx = 0;
                     return Array.Empty<string>();
@@ -284,7 +348,10 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 case AndroidGameScreen.TutorialScreen: _tutorialIdx = idx; break;
                 case AndroidGameScreen.ProfileSelectScreen: _profileIdx = idx; break;
                 case AndroidGameScreen.OptionsScreen: _optionsIdx = idx; break;
+                case AndroidGameScreen.AudioSchool: _audioSchoolIdx = idx; break;
+                case AndroidGameScreen.ZenOptionsScreen: _zenOptionsIdx = idx; break;
                 case AndroidGameScreen.PauseMenu: _pauseIdx = idx; break;
+                case AndroidGameScreen.GameOver: _gameOverIdx = idx; break;
             }
         }
 
@@ -439,7 +506,10 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 case AndroidGameScreen.TutorialScreen: return Localization.Get("TutorialTitle");
                 case AndroidGameScreen.ProfileSelectScreen: return Localization.Get("ProfileSelectTitle");
                 case AndroidGameScreen.OptionsScreen: return Localization.Get("OptionsTitle");
+                case AndroidGameScreen.AudioSchool: return Localization.Get("AudioSchoolTitle");
+                case AndroidGameScreen.ZenOptionsScreen: return Localization.Get("ZenOptionsTitle");
                 case AndroidGameScreen.PauseMenu: return Localization.Get("PauseTitle");
+                case AndroidGameScreen.GameOver: return Localization.Get("GameOverTitle");
                 default: return "Bejeweled 3";
             }
         }
@@ -682,9 +752,24 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 else if (idx == 2) { _currentScreen = AndroidGameScreen.RecordsScreen; _recordsIdx = 0; }
                 else if (idx == 3) { _currentScreen = AndroidGameScreen.TutorialScreen; _tutorialIdx = 0; }
                 else if (idx == 4) { _currentScreen = AndroidGameScreen.ProfileSelectScreen; _profileIdx = 0; }
-                else if (idx == 5) { Localization.ToggleLanguage(); }
+                else if (idx == 5)
+                {
+                    Localization.ToggleLanguage();
+                    _options.SelectedLanguage = Localization.CurrentLanguage;
+                    _options.Save();
+                    _talkBack?.Speak(GetMainMenuItems()[5], true);
+                    Invalidate();
+                    return;
+                }
                 else if (idx == 6) { _currentScreen = AndroidGameScreen.OptionsScreen; _optionsIdx = 0; }
-                else if (idx == 7) { System.Environment.Exit(0); }
+                else if (idx == 7) { _currentScreen = AndroidGameScreen.AudioSchool; _audioSchoolIdx = 0; }
+                else if (idx == 8)
+                {
+                    _sound?.PlaySound(AudioMap.VoiceGoodbye);
+                    _talkBack?.Speak(Localization.CurrentLanguage == Language.Spanish ? "¡Adiós!" : "Goodbye!", true);
+                    PostDelayed(() => { System.Environment.Exit(0); }, 1000);
+                    return;
+                }
             }
             else if (_currentScreen == AndroidGameScreen.GameSelect)
             {
@@ -711,20 +796,19 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     _talkBack?.Speak(string.Format("Perfil seleccionado: {0}", name), true);
                     _currentScreen = AndroidGameScreen.MainMenu;
                 }
-                else if (idx == _profileMgr.Profiles.Count) // Crear nuevo perfil
+                else if (idx == _profileMgr.Profiles.Count) // Crear nuevo
                 {
-                    string newName = "Jugador " + (_profileMgr.Profiles.Count + 1);
-                    _profileMgr.Profiles.Add(new PlayerProfile(newName));
-                    _profileMgr.CurrentProfileIndex = _profileMgr.Profiles.Count - 1;
-                    _profileMgr.Save();
-                    _badgeMgr = BadgeManager.Load(newName);
-                    _sound?.PlaySound(AudioMap.Rankup);
-                    _talkBack?.Speak(string.Format("Nuevo perfil creado: {0}", newName), true);
-                    _currentScreen = AndroidGameScreen.MainMenu;
+                    PromptCreateProfile();
+                    return;
                 }
-                else
+                else // Volver
                 {
+                    _sound?.PlaySound(AudioMap.Backtomain);
                     _currentScreen = AndroidGameScreen.MainMenu;
+                    _menuIdx = 0;
+                    AnnounceCurrentMenu();
+                    Invalidate();
+                    return;
                 }
             }
             else if (_currentScreen == AndroidGameScreen.OptionsScreen)
@@ -799,6 +883,81 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     return;
                 }
             }
+            else if (_currentScreen == AndroidGameScreen.AudioSchool)
+            {
+                string[] schoolItems = GetAudioSchoolItems();
+                if (idx == schoolItems.Length - 1) // Volver
+                {
+                    _sound?.PlaySound(AudioMap.Backtomain);
+                    _currentScreen = AndroidGameScreen.MainMenu;
+                    _menuIdx = 0;
+                    AnnounceCurrentMenu();
+                    Invalidate();
+                    return;
+                }
+                else
+                {
+                    _talkBack?.Speak(schoolItems[idx], true);
+                    PlayAudioSchoolTest(idx);
+                    return;
+                }
+            }
+            else if (_currentScreen == AndroidGameScreen.ZenOptionsScreen)
+            {
+                string[] zenItems = GetZenOptionsMenuItems();
+                if (idx == zenItems.Length - 1) // Volver
+                {
+                    _sound?.PlaySound(AudioMap.Backtomain);
+                    _options.Save();
+                    _currentScreen = AndroidGameScreen.MainMenu;
+                    _menuIdx = 0;
+                    AnnounceCurrentMenu();
+                    Invalidate();
+                    return;
+                }
+                else if (idx == 0) // Ambient
+                {
+                    int maxAmb = Enum.GetValues(typeof(AmbientType)).Length;
+                    _options.ZenAmbient = (_options.ZenAmbient + 1) % maxAmb;
+                    _sound?.PlaySound(AudioMap.ZenDropdownbutton);
+                    _sound?.PlaySound(AudioMap.ZenNecklacePrefix + ((_options.ZenAmbient % 4) + 1));
+                    _options.Save();
+                    string ambStr = _options.ZenAmbient != (int)AmbientType.None ? ZenManager.GetAmbientName((AmbientType)_options.ZenAmbient) : Localization.Get("StateDisabled");
+                    _talkBack?.Speak(Localization.Get("ZenOptAmbient", ambStr), true);
+                }
+                else if (idx == 1) // Mantras
+                {
+                    _options.ZenMantras = !_options.ZenMantras;
+                    _sound?.PlaySound(_options.ZenMantras ? AudioMap.ZenCheckon : AudioMap.ZenCheckoff);
+                    _options.Save();
+                    _talkBack?.Speak(Localization.Get("ZenOptMantras", _options.ZenMantras ? Localization.Get("StateEnabled") : Localization.Get("StateDisabled")), true);
+                }
+                else if (idx == 2) // Breath
+                {
+                    _options.ZenBreath = !_options.ZenBreath;
+                    _sound?.PlaySound(_options.ZenBreath ? AudioMap.ZenCheckon : AudioMap.ZenCheckoff);
+                    _options.Save();
+                    _talkBack?.Speak(Localization.Get("ZenOptBreath", _options.ZenBreath ? Localization.Get("StateEnabled") : Localization.Get("StateDisabled")), true);
+                }
+                Invalidate();
+                return;
+            }
+            else if (_currentScreen == AndroidGameScreen.GameOver)
+            {
+                if (idx == 0) // Replay
+                {
+                    _sound?.PlaySound(AudioMap.ButtonPress);
+                    StartGame(_currentModeKey);
+                    return;
+                }
+                else // Menu
+                {
+                    _sound?.PlaySound(AudioMap.Backtomain);
+                    _sound?.StopMusic();
+                    TransitionToMainMenu();
+                    return;
+                }
+            }
             else if (_currentScreen == AndroidGameScreen.PauseMenu)
             {
                 if (idx == 0) // Reanudar
@@ -840,6 +999,71 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             AnnounceCurrentMenu();
         }
 
+        private void PromptCreateProfile()
+        {
+            if (!(_context is Android.App.Activity act)) return;
+
+            act.RunOnUiThread(() =>
+            {
+                var builder = new Android.App.AlertDialog.Builder(act);
+                builder.SetTitle(Localization.Get("ProfileCreateNew"));
+                builder.SetMessage(Localization.Get("EnterNamePrompt"));
+
+                var input = new Android.Widget.EditText(act)
+                {
+                    Text = "Jugador " + (_profileMgr.Profiles.Count + 1),
+                    ImportantForAccessibility = ImportantForAccessibility.Yes
+                };
+                input.SetSelection(input.Text.Length);
+                builder.SetView(input);
+
+                builder.SetPositiveButton(Localization.Get("EnterNameConfirm"), (sender, args) =>
+                {
+                    string name = input.Text?.Trim();
+                    if (string.IsNullOrEmpty(name)) name = "Jugador " + (_profileMgr.Profiles.Count + 1);
+
+                    _profileMgr.Profiles.Add(new PlayerProfile(name));
+                    _profileMgr.CurrentProfileIndex = _profileMgr.Profiles.Count - 1;
+                    _profileMgr.Save();
+                    _badgeMgr = BadgeManager.Load(name);
+                    _sound?.PlaySound(AudioMap.Rankup);
+                    _talkBack?.Speak(string.Format("Nuevo perfil creado: {0}", name), true);
+                    _currentScreen = AndroidGameScreen.MainMenu;
+                    _menuIdx = 0;
+                    AnnounceCurrentMenu();
+                    Invalidate();
+                });
+
+                builder.SetNegativeButton(Localization.Get("OptBack"), (sender, args) =>
+                {
+                    _sound?.PlaySound(AudioMap.ButtonPress);
+                    _currentScreen = AndroidGameScreen.ProfileSelectScreen;
+                    AnnounceCurrentMenu();
+                    Invalidate();
+                });
+
+                builder.Show();
+            });
+        }
+
+        private void PlayAudioSchoolTest(int idx)
+        {
+            string s = AudioMap.Select;
+            if (idx >= 0 && idx <= 7)
+            {
+                float pan = SpatialAudio.PanColumn(idx);
+                _sound?.PlaySoundSpatialPan(pan, 0.0f, s);
+            }
+            else if (idx == 8)
+                _sound?.PlaySoundSpatialPan(0.0f, 0.0f, s);
+            else if (idx == 9)
+                _sound?.PlaySoundSpatialPan(0.0f, 1.0f, s);
+            else if (idx == 10)
+                _sound?.PlaySoundSpatialPan(-0.9f, 0.0f, s);
+            else if (idx == 11)
+                _sound?.PlaySoundSpatialPan(0.0f, 0.9f, s);
+        }
+
         private void StartGame(string modeKey)
         {
             _currentModeKey = modeKey;
@@ -850,7 +1074,14 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             if (modeKey == "ModeLightning") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Lightning));
             else if (modeKey == "ModePoker") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Poker));
             else if (modeKey == "ModeButterflies") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Butterflies));
-            else if (modeKey == "ModeZen") _sound?.PlayMusic(MusicMap.FileName(MusicMap.ZenPart1));
+            else if (modeKey == "ModeZen")
+            {
+                _sound?.PlayMusic(MusicMap.FileName(MusicMap.ZenPart1));
+                if (_options.ZenAmbient != (int)AmbientType.None)
+                {
+                    _sound?.PlaySound(ZenManager.GetAmbientTrack((AmbientType)_options.ZenAmbient), 0.5f);
+                }
+            }
             else _sound?.PlayMusic(MusicMap.FileName(MusicMap.ClassicPart1));
 
             _talkBack?.Speak(Localization.Get(modeKey) + ". " + Localization.Get("GameReady") + ". Toca una gema para ver hacia dónde moverla o toca los botones de pista y pausa a la derecha.", true);
