@@ -1237,7 +1237,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             else if (modeKey == "ModeDiamondMine")
             {
                 _board.InitializeDiamondMineBoard();
-                _sound?.PlayMusic(MusicMap.FileName(MusicMap.DiamondMine));
+                _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestBuriedTreasure));
             }
             else if (modeKey == "ModeIceStorm")
             {
