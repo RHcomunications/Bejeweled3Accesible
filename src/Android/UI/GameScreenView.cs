@@ -906,6 +906,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 }
                 else
                 {
+                    _questChallengeIdx = idx;
                     _sound?.PlaySound(AudioMap.QuestMenuButton1);
                     StartGame("ModeQuest");
                     return;
@@ -1245,7 +1246,44 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
             else if (modeKey == "ModeQuest")
             {
-                _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestTheme));
+                QuestMission[] missions = QuestManager.GetRelicMissions(_relicIdx);
+                if (_questChallengeIdx >= 0 && _questChallengeIdx < missions.Length)
+                {
+                    QuestMission m = missions[_questChallengeIdx];
+                    switch (m.Type)
+                    {
+                        case QuestType.Butterflies:
+                            _board.InitializeButterfliesBoard();
+                            _sound?.PlayMusic(MusicMap.FileName(MusicMap.Butterflies));
+                            break;
+                        case QuestType.DiamondMine:
+                        case QuestType.GoldRush:
+                            _board.InitializeDiamondMineBoard();
+                            _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestBuriedTreasure));
+                            break;
+                        case QuestType.TimeBomb:
+                            _board.InitializeBoard(true);
+                            _sound?.PlaySound(AudioMap.BombAppears);
+                            _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestTimeBombs));
+                            break;
+                        case QuestType.IceStorm:
+                            _sound?.PlayMusic(MusicMap.FileName(MusicMap.IceStorm));
+                            break;
+                        case QuestType.Poker:
+                            _sound?.PlayMusic(MusicMap.FileName(MusicMap.Poker));
+                            break;
+                        case QuestType.Avalanche:
+                            _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestTurnByTurn));
+                            break;
+                        default:
+                            _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestTakeYourTime));
+                            break;
+                    }
+                }
+                else
+                {
+                    _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestTheme));
+                }
             }
             else if (modeKey == "ModeZen")
             {
