@@ -78,9 +78,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             if (_sound != null && _options != null)
             {
                 _sound.MusicVol = _options.MusicVolume;
-                _sound.SfxVol = _options.SfxVolume;
+                _sound.SfxVol = _options.SoundVolume;
                 _sound.VoiceVol = _options.VoiceVolume;
-                _sound.BinauralEnabled = _options.BinauralAudio;
+                _sound.BinauralEnabled = _options.BinauralEnabled;
             }
 
             string profName = _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.ProfileName : "Jugador 1";
@@ -742,9 +742,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 }
                 else if (idx == 0) // Volumen de Efectos
                 {
-                    _options.SfxVolume = (_options.SfxVolume + 10) % 110;
-                    if (_options.SfxVolume == 0 && _sound.SfxVol == 100) _options.SfxVolume = 10;
-                    _sound.SfxVol = _options.SfxVolume;
+                    _options.SoundVolume = (_options.SoundVolume + 10) % 110;
+                    if (_options.SoundVolume == 0 && _sound.SfxVol == 100) _options.SoundVolume = 10;
+                    _sound.SfxVol = _options.SoundVolume;
                     _sound.PlaySound(AudioMap.Select);
                     _options.Save();
                     _talkBack?.Speak(Localization.Get("OptSoundVol", _sound.SfxVol), true);
@@ -770,8 +770,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 }
                 else if (idx == 3) // Audio Binaural
                 {
-                    _options.BinauralAudio = !_options.BinauralAudio;
-                    _sound.BinauralEnabled = _options.BinauralAudio;
+                    _options.BinauralEnabled = !_options.BinauralEnabled;
+                    _sound.BinauralEnabled = _options.BinauralEnabled;
                     _sound.PlaySound(AudioMap.Select);
                     _options.Save();
                     _talkBack?.Speak(Localization.Get("OptBinaural", _sound.BinauralEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")), true);
