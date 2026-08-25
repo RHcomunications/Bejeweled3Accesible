@@ -1633,9 +1633,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         private int _focusedVirtualViewId = View.NoId;
 
-        public override AccessibilityNodeInfo FindFocus(int focus)
+        public override AccessibilityNodeInfo FindFocus(NodeFocus focus)
         {
-            if (focus == AccessibilityNodeInfo.FocusAccessibility)
+            if (focus == NodeFocus.Accessibility)
             {
                 if (_focusedVirtualViewId != View.NoId)
                 {
