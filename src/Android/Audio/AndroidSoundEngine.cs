@@ -175,7 +175,20 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
                     }
                     else
                     {
-                        _pendingSounds.Add(new PendingSound { SoundId = soundId, LeftVol = finalVol, RightVol = finalVol });
+                        // Evitar registrar duplicados en la cola si ya está encolado
+                        bool alreadyPending = false;
+                        for (int i = 0; i < _pendingSounds.Count; i++)
+                        {
+                            if (_pendingSounds[i].SoundId == soundId)
+                            {
+                                alreadyPending = true;
+                                break;
+                            }
+                        }
+                        if (!alreadyPending)
+                        {
+                            _pendingSounds.Add(new PendingSound { SoundId = soundId, LeftVol = finalVol, RightVol = finalVol });
+                        }
                     }
                 }
             }

@@ -126,8 +126,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         {
             if (_profileMgr.Profiles.Count == 0)
             {
-                _sound?.PlayMusic(MusicMap.MainTheme);
-                _sound?.PlaySound(AudioMap.VoiceWelcometobejeweled);
                 PromptCreateProfile();
                 return;
             }
@@ -1451,6 +1449,12 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             Invalidate();
         }
 
+        public void ExecuteMenuItemFocus(int idx)
+        {
+            SetActiveIndex(idx);
+            _sound?.PlaySound(AudioMap.ButtonMouseover);
+        }
+
         private void AnnounceCurrentMenu()
         {
             string[] items = GetCurrentItems(out int activeIdx);
@@ -1627,8 +1631,46 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             return node;
         }
 
+        private int _focusedVirtualViewId = View.NoId;
+
+        public override AccessibilityNodeInfo FindFocus(int focus)
+        {
+            if (focus == AccessibilityNodeInfo.FocusAccessibility)
+            {
+                if (_focusedVirtualViewId != View.NoId)
+                {
+                    return CreateAccessibilityNodeInfo(_focusedVirtualViewId);
+                }
+            }
+            return null;
+        }
+
         public override bool PerformAction(int virtualViewId, Android.Views.Accessibility.Action action, Android.OS.Bundle arguments)
         {
+            if (action == Android.Views.Accessibility.Action.AccessibilityFocus)
+            {
+                if (_focusedVirtualViewId != virtualViewId)
+                {
+                    _focusedVirtualViewId = virtualViewId;
+                    if (_view.CurrentScreen != AndroidGameScreen.Playing)
+                    {
+                        _view.ExecuteMenuItemFocus(virtualViewId);
+                    }
+                    _view.Invalidate();
+                    return true;
+                }
+                return false;
+            }
+            if (action == Android.Views.Accessibility.Action.ClearAccessibilityFocus)
+            {
+                if (_focusedVirtualViewId == virtualViewId)
+                {
+                    _focusedVirtualViewId = View.NoId;
+                    _view.Invalidate();
+                    return true;
+                }
+                return false;
+            }
             if (action == Android.Views.Accessibility.Action.Click)
             {
                 if (_view.CurrentScreen == AndroidGameScreen.Playing)
