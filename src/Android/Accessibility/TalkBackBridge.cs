@@ -1,33 +1,23 @@
 using System;
 using Android.Content;
-using Android.Speech.Tts;
 using Android.Views;
 using Android.Views.Accessibility;
-using Java.Util;
 
 namespace Bejeweled3Accessible.AndroidApp.Accessibility
 {
-    public class TalkBackBridge : Java.Lang.Object, TextToSpeech.IOnInitListener
+    // TalkBackBridge: canaliza el 100% de la accesibilidad directamente a través
+    // del framework nativo de accesibilidad de Android (AccessibilityManager / AccessibilityEvent).
+    // No utiliza TextToSpeech interno para evitar solapamientos, voces duplicadas o bloqueos.
+    public class TalkBackBridge : Java.Lang.Object
     {
         private readonly Context _context;
         private readonly AccessibilityManager _accessibilityManager;
         private View _attachedView;
-        private TextToSpeech _tts;
-        private bool _isTtsReady = false;
-        private string _pendingInitialSpeech = null;
 
         public TalkBackBridge(Context context)
         {
             _context = context;
             _accessibilityManager = (AccessibilityManager)context.GetSystemService(Context.AccessibilityService);
-            try
-            {
-                _tts = new TextToSpeech(context, this);
-            }
-            catch (Exception)
-            {
-                _tts = null;
-            }
         }
 
         public void AttachView(View view)
@@ -40,22 +30,7 @@ namespace Bejeweled3Accessible.AndroidApp.Accessibility
             get
             {
                 return _accessibilityManager != null && 
-                       _accessibilityManager.IsEnabled && 
-                       _accessibilityManager.IsTouchExplorationEnabled;
-            }
-        }
-
-        public void OnInit(OperationResult status)
-        {
-            if (status == OperationResult.Success && _tts != null)
-            {
-                _tts.SetLanguage(Locale.Default);
-                _isTtsReady = true;
-                if (!string.IsNullOrWhiteSpace(_pendingInitialSpeech))
-                {
-                    Speak(_pendingInitialSpeech, true);
-                    _pendingInitialSpeech = null;
-                }
+                       _accessibilityManager.IsEnabled;
             }
         }
 
@@ -63,53 +38,54 @@ namespace Bejeweled3Accessible.AndroidApp.Accessibility
         {
             if (string.IsNullOrWhiteSpace(text)) return;
 
-            // 1. Si TalkBack / Lector de pantalla está activo, enviar evento nativo de accesibilidad
-            // Esto garantiza que se use el sintetizador propio del usuario (Vocalizer, Eloquence, etc.)
-            if (_attachedView != null && _accessibilityManager != null && _accessibilityManager.IsEnabled)
+            if (_attachedView != null)
             {
                 try
                 {
-                    _attachedView.AnnounceForAccessibility(text);
-                    return;
+                    _attachedView.Post(() =>
+                    {
+                        try
+                        {
+                            if (_attachedView.IsShown)
+                            {
+                                _attachedView.AnnounceForAccessibility(text);
+                            }
+                            else
+                            {
+                                AccessibilityEvent evt = AccessibilityEvent.Obtain(EventTypes.Announcement);
+                                evt.Text.Add(new Java.Lang.String(text));
+                                evt.ClassName = _attachedView.Class.Name;
+                                evt.PackageName = _context.PackageName;
+                                evt.Enabled = true;
+                                _accessibilityManager?.SendAccessibilityEvent(evt);
+                            }
+                        }
+                        catch (Exception) { }
+                    });
                 }
                 catch (Exception) { }
             }
-
-            // 2. Fallback con TTS interno si el usuario no tiene TalkBack encendido
-            if (_tts != null)
+            else if (_accessibilityManager != null && _accessibilityManager.IsEnabled)
             {
-                if (!_isTtsReady)
+                try
                 {
-                    _pendingInitialSpeech = text;
-                    return;
+                    AccessibilityEvent evt = AccessibilityEvent.Obtain(EventTypes.Announcement);
+                    evt.Text.Add(new Java.Lang.String(text));
+                    evt.PackageName = _context.PackageName;
+                    evt.Enabled = true;
+                    _accessibilityManager.SendAccessibilityEvent(evt);
                 }
-                var queueMode = interrupt ? QueueMode.Flush : QueueMode.Add;
-                _tts.Speak(text, queueMode, null, null);
+                catch (Exception) { }
             }
         }
 
         public void Stop()
         {
-            if (_isTtsReady && _tts != null)
-            {
-                try { _tts.Stop(); } catch { }
-            }
+            // Las interrupciones son gestionadas por el gestor de accesibilidad del sistema
         }
 
         protected override void Dispose(bool disposing)
         {
-            if (disposing)
-            {
-                if (_tts != null)
-                {
-                    try
-                    {
-                        _tts.Stop();
-                        _tts.Shutdown();
-                    }
-                    catch { }
-                }
-            }
             base.Dispose(disposing);
         }
     }

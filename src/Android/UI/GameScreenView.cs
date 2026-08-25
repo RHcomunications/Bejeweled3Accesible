@@ -1154,6 +1154,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     _profileMgr.Save();
                     _badgeMgr = BadgeManager.Load(name);
                     _sound?.PlaySound(AudioMap.Rankup);
+                    _sound?.PlayMusic(MusicMap.MainTheme);
+                    _sound?.PlaySound(AudioMap.VoiceWelcomeback);
                     _talkBack?.Speak(string.Format("Nuevo perfil creado: {0}", name), true);
                     _currentScreen = AndroidGameScreen.MainMenu;
                     _menuIdx = 0;
@@ -1164,7 +1166,15 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 builder.SetNegativeButton(Localization.Get("OptBack"), (sender, args) =>
                 {
                     _sound?.PlaySound(AudioMap.ButtonPress);
-                    _currentScreen = AndroidGameScreen.ProfileSelectScreen;
+                    if (_profileMgr.Profiles.Count > 0)
+                    {
+                        _sound?.PlayMusic(MusicMap.MainTheme);
+                        _currentScreen = AndroidGameScreen.MainMenu;
+                    }
+                    else
+                    {
+                        _currentScreen = AndroidGameScreen.MainMenu;
+                    }
                     AnnounceCurrentMenu();
                     Invalidate();
                 });
