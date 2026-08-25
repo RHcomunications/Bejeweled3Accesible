@@ -1326,6 +1326,66 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     _sound?.PlaySound(AudioMap.Flamebonus);
                 }
 
+                // Lógica de Modos Especiales (Mariposas, Mina de Diamantes)
+                bool isButterfliesMode = _currentModeKey == "ModeButterflies";
+                bool isDiamondMineActive = _currentModeKey == "ModeDiamondMine";
+
+                if (isButterfliesMode)
+                {
+                    if (res.ButterfliesFreed > 0)
+                    {
+                        _sound?.PlaySoundSpatial(AudioMap.Butterflyescape, toX, toY);
+                        _talkBack?.Speak(Localization.Get("ButterflyFreed", res.ButterfliesFreed), true);
+                    }
+
+                    _board.MoveButterfliesUp();
+                    while (_board.GetButterflyCount() < 6)
+                    {
+                        _board.SpawnButterflyAtBottom();
+                    }
+
+                    if (_board.IsButterflyAtTop())
+                    {
+                        _currentScreen = AndroidGameScreen.GameOver;
+                        _gameOverIdx = 0;
+                        _sound?.PlaySound(AudioMap.ButterflyDeath1);
+                        _sound?.PlaySound(AudioMap.VoiceGameover);
+                        _talkBack?.Speak(Localization.Get("ButterflyCaught") + " " + Localization.Get("GameOver", _score), true);
+                        Invalidate();
+                        return;
+                    }
+                    else if (_board.IsButterflyInDanger())
+                    {
+                        _sound?.PlaySound(AudioMap.ButterflyAppear);
+                    }
+                }
+
+                if (isDiamondMineActive)
+                {
+                    if (res.NuggetsMined > 0)
+                    {
+                        _sound?.PlaySound(AudioMap.DiamondMineTreasurefind);
+                        _talkBack?.Speak(Localization.Get("NuggetFound"), true);
+                    }
+                    else if (res.RockCleared > 0)
+                    {
+                        _sound?.PlaySound(AudioMap.DiamondMineStoneCracked);
+                    }
+                    else if (res.DirtCleared > 0)
+                    {
+                        _sound?.PlaySound(AudioMap.DiamondMineDirtCracked);
+                    }
+
+                    if (!_board.HasDirtRemaining())
+                    {
+                        _sound?.PlaySound(AudioMap.DiamondMineTreasurefind);
+                        _sound?.PlaySound(AudioMap.DiamondMineTreasurefindDiamonds);
+                        _sound?.PlaySound(AudioMap.DiamondMineArtifactShowcase);
+                        _talkBack?.Speak("¡Tesoro desenterrado! Avanzando en la mina.", true);
+                        _board.ShiftDiamondMineDown();
+                    }
+                }
+
                 // Cálculo y acumulación de puntuación
                 int matchScore = res.TotalGemsDestroyed * 50 * Math.Max(1, res.CascadeDepth);
                 _score += matchScore;
