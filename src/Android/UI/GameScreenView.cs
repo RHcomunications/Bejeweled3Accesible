@@ -19,6 +19,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         BadgesScreen,
         RecordsScreen,
         TutorialScreen,
+        QuestRelicScreen,
+        QuestChallengeScreen,
         ProfileSelectScreen,
         OptionsScreen,
         AudioSchool,
@@ -45,6 +47,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private int _badgeIdx = 0;
         private int _recordsIdx = 0;
         private int _tutorialIdx = 0;
+        private int _relicIdx = 0;
+        private int _questChallengeIdx = 0;
         private int _profileIdx = 0;
         private int _optionsIdx = 0;
         private int _audioSchoolIdx = 0;
@@ -215,6 +219,34 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             };
         }
 
+        private string[] GetQuestRelicItems()
+        {
+            var items = new List<string>();
+            for (int i = 1; i <= 5; i++)
+            {
+                int relicIdx = i - 1;
+                int done = Progress.CountCompletedInRelic(relicIdx);
+                items.Add(Localization.Get("Relic" + i) + (done >= 8 ? Localization.Get("QuestCompletedMark") : " (" + done + " de 8)"));
+            }
+            items.Add(Localization.Get("OptBack"));
+            return items.ToArray();
+        }
+
+        private string[] GetQuestChallengeItems()
+        {
+            var items = new List<string>();
+            QuestMission[] missions = QuestManager.GetRelicMissions(_relicIdx);
+            foreach (var m in missions)
+            {
+                string item = m.GetName();
+                if (Progress.IsQuestMissionComplete(m.MissionIndex))
+                    item += Localization.Get("QuestCompletedMark");
+                items.Add(item);
+            }
+            items.Add(Localization.Get("OptBack"));
+            return items.ToArray();
+        }
+
         private string[] GetProfileSelectItems()
         {
             List<string> list = new List<string>();
@@ -313,6 +345,12 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 case AndroidGameScreen.TutorialScreen:
                     activeIdx = _tutorialIdx;
                     return GetTutorialItems();
+                case AndroidGameScreen.QuestRelicScreen:
+                    activeIdx = _relicIdx;
+                    return GetQuestRelicItems();
+                case AndroidGameScreen.QuestChallengeScreen:
+                    activeIdx = _questChallengeIdx;
+                    return GetQuestChallengeItems();
                 case AndroidGameScreen.ProfileSelectScreen:
                     activeIdx = _profileIdx;
                     return GetProfileSelectItems();
@@ -346,6 +384,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 case AndroidGameScreen.BadgesScreen: _badgeIdx = idx; break;
                 case AndroidGameScreen.RecordsScreen: _recordsIdx = idx; break;
                 case AndroidGameScreen.TutorialScreen: _tutorialIdx = idx; break;
+                case AndroidGameScreen.QuestRelicScreen: _relicIdx = idx; break;
+                case AndroidGameScreen.QuestChallengeScreen: _questChallengeIdx = idx; break;
                 case AndroidGameScreen.ProfileSelectScreen: _profileIdx = idx; break;
                 case AndroidGameScreen.OptionsScreen: _optionsIdx = idx; break;
                 case AndroidGameScreen.AudioSchool: _audioSchoolIdx = idx; break;
@@ -504,6 +544,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 case AndroidGameScreen.BadgesScreen: return Localization.Get("MenuBadges");
                 case AndroidGameScreen.RecordsScreen: return Localization.Get("MenuRecords");
                 case AndroidGameScreen.TutorialScreen: return Localization.Get("TutorialTitle");
+                case AndroidGameScreen.QuestRelicScreen: return Localization.Get("ModeQuest");
+                case AndroidGameScreen.QuestChallengeScreen: return Localization.Get("Relic" + (_relicIdx + 1));
                 case AndroidGameScreen.ProfileSelectScreen: return Localization.Get("ProfileSelectTitle");
                 case AndroidGameScreen.OptionsScreen: return Localization.Get("OptionsTitle");
                 case AndroidGameScreen.AudioSchool: return Localization.Get("AudioSchoolTitle");
@@ -779,9 +821,59 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 {
                     _currentScreen = AndroidGameScreen.MainMenu;
                 }
+                else if (selectedKey == "ModeQuest")
+                {
+                    _sound?.PlaySound(AudioMap.QuestMenuButton1);
+                    _currentScreen = AndroidGameScreen.QuestRelicScreen;
+                    _relicIdx = 0;
+                    AnnounceCurrentMenu();
+                    Invalidate();
+                    return;
+                }
                 else
                 {
                     StartGame(selectedKey);
+                }
+            }
+            else if (_currentScreen == AndroidGameScreen.QuestRelicScreen)
+            {
+                string[] items = GetQuestRelicItems();
+                if (idx == items.Length - 1) // Volver
+                {
+                    _sound?.PlaySound(AudioMap.Backtomain);
+                    _currentScreen = AndroidGameScreen.GameSelect;
+                    AnnounceCurrentMenu();
+                    Invalidate();
+                    return;
+                }
+                else
+                {
+                    _relicIdx = idx;
+                    _sound?.PlaySound(AudioMap.QuestMenuButton1);
+                    _sound?.PlaySound(AudioMap.QuestMenuRelicRevealedObject);
+                    _currentScreen = AndroidGameScreen.QuestChallengeScreen;
+                    _questChallengeIdx = 0;
+                    AnnounceCurrentMenu();
+                    Invalidate();
+                    return;
+                }
+            }
+            else if (_currentScreen == AndroidGameScreen.QuestChallengeScreen)
+            {
+                string[] items = GetQuestChallengeItems();
+                if (idx == items.Length - 1) // Volver
+                {
+                    _sound?.PlaySound(AudioMap.Backtomain);
+                    _currentScreen = AndroidGameScreen.QuestRelicScreen;
+                    AnnounceCurrentMenu();
+                    Invalidate();
+                    return;
+                }
+                else
+                {
+                    _sound?.PlaySound(AudioMap.QuestMenuStartChallenge);
+                    StartGame("ModeQuest");
+                    return;
                 }
             }
             else if (_currentScreen == AndroidGameScreen.ProfileSelectScreen)
@@ -1074,6 +1166,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             if (modeKey == "ModeLightning") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Lightning));
             else if (modeKey == "ModePoker") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Poker));
             else if (modeKey == "ModeButterflies") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Butterflies));
+            else if (modeKey == "ModeQuest") _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestTheme));
             else if (modeKey == "ModeZen")
             {
                 _sound?.PlayMusic(MusicMap.FileName(MusicMap.ZenPart1));
