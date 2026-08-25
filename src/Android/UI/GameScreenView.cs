@@ -450,11 +450,17 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             Invalidate();
         }
 
+        private GameAccessibilityNodeProvider _nodeProvider;
+
         public override AccessibilityNodeProvider AccessibilityNodeProvider
         {
             get
             {
-                return new GameAccessibilityNodeProvider(this);
+                if (_nodeProvider == null)
+                {
+                    _nodeProvider = new GameAccessibilityNodeProvider(this);
+                }
+                return _nodeProvider;
             }
         }
 
@@ -1761,6 +1767,11 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             if (items.Length > 0 && activeIdx < items.Length)
             {
                 _talkBack?.Speak(title + ". Opción: " + items[activeIdx] + ". Desliza arriba o abajo para navegar, toca para confirmar.", true);
+            }
+            _talkBack?.NotifyStructureChanged();
+            if (items.Length > 0 && activeIdx < items.Length)
+            {
+                _talkBack?.NotifyVirtualViewFocused(activeIdx);
             }
         }
 

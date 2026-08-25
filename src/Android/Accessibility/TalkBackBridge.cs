@@ -79,6 +79,51 @@ namespace Bejeweled3Accessible.AndroidApp.Accessibility
             }
         }
 
+        public void NotifyStructureChanged()
+        {
+            if (_attachedView == null || _accessibilityManager == null || !_accessibilityManager.IsEnabled) return;
+
+            try
+            {
+                _attachedView.Post(() =>
+                {
+                    try
+                    {
+                        AccessibilityEvent evt = AccessibilityEvent.Obtain(EventTypes.WindowStateChanged);
+                        evt.PackageName = _context.PackageName;
+                        evt.ClassName = _attachedView.Class.Name;
+                        evt.Enabled = true;
+                        _attachedView.Parent?.RequestSendAccessibilityEvent(_attachedView, evt);
+                    }
+                    catch (Exception) { }
+                });
+            }
+            catch (Exception) { }
+        }
+
+        public void NotifyVirtualViewFocused(int virtualViewId)
+        {
+            if (_attachedView == null || _accessibilityManager == null || !_accessibilityManager.IsEnabled) return;
+
+            try
+            {
+                _attachedView.Post(() =>
+                {
+                    try
+                    {
+                        AccessibilityEvent evt = AccessibilityEvent.Obtain(EventTypes.ViewAccessibilityFocused);
+                        evt.PackageName = _context.PackageName;
+                        evt.ClassName = _attachedView.Class.Name;
+                        evt.Enabled = true;
+                        evt.SetSource(_attachedView, virtualViewId);
+                        _attachedView.Parent?.RequestSendAccessibilityEvent(_attachedView, evt);
+                    }
+                    catch (Exception) { }
+                });
+            }
+            catch (Exception) { }
+        }
+
         public void Stop()
         {
             // Las interrupciones son gestionadas por el gestor de accesibilidad del sistema
