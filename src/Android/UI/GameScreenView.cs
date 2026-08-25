@@ -269,7 +269,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         private string[] GetZenOptionsMenuItems()
         {
-            string ambStr = _options.ZenAmbient != (int)AmbientType.None ? ZenManager.GetAmbientName((AmbientType)_options.ZenAmbient) : Localization.Get("StateDisabled");
+            string ambStr = _options.ZenAmbient != (int)AmbientType.None ? AmbientHelper.GetAmbientName((AmbientType)_options.ZenAmbient) : Localization.Get("StateDisabled");
             string manStr = _options.ZenMantras ? Localization.Get("StateEnabled") : Localization.Get("StateDisabled");
             string breathStr = _options.ZenBreath ? Localization.Get("StateEnabled") : Localization.Get("StateDisabled");
 
@@ -922,7 +922,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     _sound?.PlaySound(AudioMap.ZenDropdownbutton);
                     _sound?.PlaySound(AudioMap.ZenNecklacePrefix + ((_options.ZenAmbient % 4) + 1));
                     _options.Save();
-                    string ambStr = _options.ZenAmbient != (int)AmbientType.None ? ZenManager.GetAmbientName((AmbientType)_options.ZenAmbient) : Localization.Get("StateDisabled");
+                    string ambStr = _options.ZenAmbient != (int)AmbientType.None ? AmbientHelper.GetAmbientName((AmbientType)_options.ZenAmbient) : Localization.Get("StateDisabled");
                     _talkBack?.Speak(Localization.Get("ZenOptAmbient", ambStr), true);
                 }
                 else if (idx == 1) // Mantras
@@ -1079,7 +1079,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 _sound?.PlayMusic(MusicMap.FileName(MusicMap.ZenPart1));
                 if (_options.ZenAmbient != (int)AmbientType.None)
                 {
-                    _sound?.PlaySound(ZenManager.GetAmbientTrack((AmbientType)_options.ZenAmbient), 0.5f);
+                    _sound?.PlaySound(AmbientHelper.GetAmbientTrack((AmbientType)_options.ZenAmbient), 0.5f);
                 }
             }
             else _sound?.PlayMusic(MusicMap.FileName(MusicMap.ClassicPart1));
