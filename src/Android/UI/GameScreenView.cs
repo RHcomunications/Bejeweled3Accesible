@@ -871,7 +871,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 }
                 else
                 {
-                    _sound?.PlaySound(AudioMap.QuestMenuStartChallenge);
+                    _sound?.PlaySound(AudioMap.QuestMenuButton1);
                     StartGame("ModeQuest");
                     return;
                 }
