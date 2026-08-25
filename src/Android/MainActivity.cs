@@ -20,7 +20,8 @@ namespace Bejeweled3Accessible.AndroidApp
     {
         private TalkBackBridge _talkBack;
         private AndroidSoundEngine _sound;
-        private GameScreenView _screenView;
+        private NativeMenuManager _menuManager;
+        private GameScreenView _gameView;
 
         public void SetDesiredOrientation(bool landscape)
         {
@@ -41,8 +42,54 @@ namespace Bejeweled3Accessible.AndroidApp
             _sound = new AndroidSoundEngine(this);
             _talkBack = new TalkBackBridge(this);
 
-            _screenView = new GameScreenView(this, _talkBack, _sound);
-            SetContentView(_screenView);
+            _menuManager = new NativeMenuManager(this, _talkBack, _sound, (modeKey) =>
+            {
+                StartGameBoard(modeKey);
+            });
+
+            _menuManager.ShowLoadingScreen();
+        }
+
+        public void StartGameBoard(string modeKey)
+        {
+            SetDesiredOrientation(true);
+            _gameView = new GameScreenView(this, _talkBack, _sound, modeKey, () =>
+            {
+                _menuManager.ShowPauseMenu();
+            });
+            SetContentView(_gameView);
+        }
+
+        public void ResumeGame()
+        {
+            if (_gameView != null)
+            {
+                SetDesiredOrientation(true);
+                SetContentView(_gameView);
+                _gameView.Resume();
+            }
+            else
+            {
+                _menuManager.ShowMainMenu();
+            }
+        }
+
+        public void RestartGame()
+        {
+            if (_gameView != null)
+            {
+                StartGameBoard(_gameView.CurrentModeKey);
+            }
+            else
+            {
+                _menuManager.ShowMainMenu();
+            }
+        }
+
+        public void ReturnToMainMenu()
+        {
+            _sound?.StopMusic();
+            _menuManager.ShowMainMenu();
         }
 
         protected override void OnResume()

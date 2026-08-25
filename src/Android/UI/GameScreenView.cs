@@ -82,25 +82,19 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             { GemColor.Orange, Color.Rgb(255, 140, 0) }
         };
 
-        public GameScreenView(Context context, TalkBackBridge talkBack, AndroidSoundEngine sound) : base(context)
+        private readonly Action _onPauseRequested;
+
+        public GameScreenView(Context context, TalkBackBridge talkBack, AndroidSoundEngine sound, string modeKey, Action onPauseRequested) : base(context)
         {
             _context = context;
             _talkBack = talkBack;
             _sound = sound;
+            _onPauseRequested = onPauseRequested;
 
             _talkBack?.AttachView(this);
 
             _profileMgr = ProfileManager.Load();
             _options = GameOptions.Load();
-
-            // Sincronizar volumen inicial con las opciones guardadas
-            if (_sound != null && _options != null)
-            {
-                _sound.MusicVol = _options.MusicVolume;
-                _sound.SfxVol = _options.SoundVolume;
-                _sound.VoiceVol = _options.VoiceVolume;
-                _sound.BinauralEnabled = _options.BinauralEnabled;
-            }
 
             string profName = _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.ProfileName : "Jugador 1";
             _badgeMgr = BadgeManager.Load(profName);
@@ -109,45 +103,22 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             Clickable = true;
             ImportantForAccessibility = ImportantForAccessibility.Yes;
 
-            StartLoadingSequence();
+            StartGame(modeKey);
         }
 
-        private void StartLoadingSequence()
+        public string CurrentModeKey => _currentModeKey;
+
+        public void Resume()
         {
-            _currentScreen = AndroidGameScreen.Loading;
-            _loadingProgress = 0;
-            _sound?.PlayMusic(MusicMap.Intro);
-            _sound?.PlaySound(AudioMap.VoiceWelcometobejeweled);
-            _talkBack?.Speak("Cargando Bejeweled 3 Accesible. Toca la pantalla para continuar al menú principal.", true);
-
-            PostDelayed(() =>
-            {
-                if (_currentScreen == AndroidGameScreen.Loading)
-                {
-                    TransitionToMainMenu();
-                }
-            }, 3500);
-        }
-
-        private void TransitionToMainMenu()
-        {
-            if (_context is MainActivity mainAct)
-            {
-                mainAct.SetDesiredOrientation(false); // Retrato para menús
-            }
-
-            if (_profileMgr.Profiles.Count == 0)
-            {
-                PromptCreateProfile();
-                return;
-            }
-
-            _currentScreen = AndroidGameScreen.MainMenu;
-            _menuIdx = 0;
-            _sound?.PlayMusic(MusicMap.MainTheme);
-            _sound?.PlaySound(AudioMap.VoiceWelcomeback);
-            AnnounceCurrentMenu();
+            _sound?.PlayMusic(_currentModeKey == "ModeZen" ? MusicMap.FileName(MusicMap.ZenPart1) : MusicMap.FileName(MusicMap.ClassicPart1));
+            _talkBack?.Speak("Juego reanudado.", true);
             Invalidate();
+        }
+
+        public void TogglePause()
+        {
+            _sound?.PlaySound(AudioMap.ButtonPress);
+            _onPauseRequested?.Invoke();
         }
 
         private GameProgress Progress => _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.Progress : new GameProgress();
