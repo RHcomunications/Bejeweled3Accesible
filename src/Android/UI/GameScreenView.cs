@@ -1206,12 +1206,47 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _currentModeKey = modeKey;
             _board = new Board(new Random().Next());
             _currentScreen = AndroidGameScreen.Playing;
+            _score = 0;
+            _level = 1;
+            _shufflesRemaining = 3;
+            _pokerCards.Clear();
+            _pokerSkulls = 0;
+            _pokerSkullCharge = 0;
+            _pokerHandBonus = 0;
+            for (int i = 0; i < 8; i++)
+            {
+                _iceColumns[i] = 0;
+                _iceSkullTicks[i] = 0;
+            }
+
             _sound?.PlaySound(AudioMap.VoiceGetready);
 
-            if (modeKey == "ModeLightning") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Lightning));
-            else if (modeKey == "ModePoker") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Poker));
-            else if (modeKey == "ModeButterflies") _sound?.PlayMusic(MusicMap.FileName(MusicMap.Butterflies));
-            else if (modeKey == "ModeQuest") _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestTheme));
+            if (modeKey == "ModeLightning")
+            {
+                _sound?.PlayMusic(MusicMap.FileName(MusicMap.Lightning));
+            }
+            else if (modeKey == "ModePoker")
+            {
+                _sound?.PlayMusic(MusicMap.FileName(MusicMap.Poker));
+            }
+            else if (modeKey == "ModeButterflies")
+            {
+                _board.InitializeButterfliesBoard();
+                _sound?.PlayMusic(MusicMap.FileName(MusicMap.Butterflies));
+            }
+            else if (modeKey == "ModeDiamondMine")
+            {
+                _board.InitializeDiamondMineBoard();
+                _sound?.PlayMusic(MusicMap.FileName(MusicMap.DiamondMine));
+            }
+            else if (modeKey == "ModeIceStorm")
+            {
+                _sound?.PlayMusic(MusicMap.FileName(MusicMap.IceStorm));
+            }
+            else if (modeKey == "ModeQuest")
+            {
+                _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestTheme));
+            }
             else if (modeKey == "ModeZen")
             {
                 _sound?.PlayMusic(MusicMap.FileName(MusicMap.ZenPart1));
@@ -1220,7 +1255,10 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     _sound?.PlaySound(AmbientHelper.GetAmbientTrack((AmbientType)_options.ZenAmbient), 0.5f);
                 }
             }
-            else _sound?.PlayMusic(MusicMap.FileName(MusicMap.ClassicPart1));
+            else
+            {
+                _sound?.PlayMusic(MusicMap.FileName(MusicMap.ClassicPart1));
+            }
 
             _talkBack?.Speak(Localization.Get(modeKey) + ". " + Localization.Get("GameReady") + ". Toca una gema para ver hacia dónde moverla o toca los botones de pista y pausa a la derecha.", true);
         }
