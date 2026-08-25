@@ -32,6 +32,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private readonly TalkBackBridge _talkBack;
         private readonly AndroidSoundEngine _sound;
         private readonly ProfileManager _profileMgr;
+        private readonly GameOptions _options;
         private BadgeManager _badgeMgr;
         private Board _board;
 
@@ -71,6 +72,17 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _talkBack?.AttachView(this);
 
             _profileMgr = ProfileManager.Load();
+            _options = GameOptions.Load();
+
+            // Sincronizar volumen inicial con las opciones guardadas
+            if (_sound != null && _options != null)
+            {
+                _sound.MusicVol = _options.MusicVolume;
+                _sound.SfxVol = _options.SfxVolume;
+                _sound.VoiceVol = _options.VoiceVolume;
+                _sound.BinauralEnabled = _options.BinauralAudio;
+            }
+
             string profName = _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.ProfileName : "Jugador 1";
             _badgeMgr = BadgeManager.Load(profName);
 
@@ -146,10 +158,10 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         {
             return new string[]
             {
-                Localization.Get("OptSoundVol", 100),
-                Localization.Get("OptMusicVol", 80),
-                Localization.Get("OptVoiceVol", 100),
-                Localization.Get("OptBinaural", Localization.Get("StateOn")),
+                Localization.Get("OptSoundVol", _sound != null ? _sound.SfxVol : 100),
+                Localization.Get("OptMusicVol", _sound != null ? _sound.MusicVol : 80),
+                Localization.Get("OptVoiceVol", _sound != null ? _sound.VoiceVol : 100),
+                Localization.Get("OptBinaural", (_sound != null && _sound.BinauralEnabled) ? Localization.Get("StateOn") : Localization.Get("StateOff")),
                 Localization.Get("OptBack")
             };
         }
@@ -718,15 +730,53 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             else if (_currentScreen == AndroidGameScreen.OptionsScreen)
             {
                 string[] opts = GetOptionsMenuItems();
-                if (idx == opts.Length - 1)
+                if (idx == opts.Length - 1) // Opción Volver
                 {
+                    _sound?.PlaySound(AudioMap.Backtomain);
+                    _options.Save();
                     _currentScreen = AndroidGameScreen.MainMenu;
+                    _menuIdx = 0;
+                    AnnounceCurrentMenu();
+                    Invalidate();
+                    return;
                 }
-                else
+                else if (idx == 0) // Volumen de Efectos
                 {
-                    _sound?.PlaySound(AudioMap.ButtonPress);
-                    _talkBack?.Speak(opts[idx] + " ajustado.", true);
+                    _options.SfxVolume = (_options.SfxVolume + 10) % 110;
+                    if (_options.SfxVolume == 0 && _sound.SfxVol == 100) _options.SfxVolume = 10;
+                    _sound.SfxVol = _options.SfxVolume;
+                    _sound.PlaySound(AudioMap.Select);
+                    _options.Save();
+                    _talkBack?.Speak(Localization.Get("OptSoundVol", _sound.SfxVol), true);
                 }
+                else if (idx == 1) // Volumen de Música
+                {
+                    _options.MusicVolume = (_options.MusicVolume + 10) % 110;
+                    if (_options.MusicVolume == 0 && _sound.MusicVol == 100) _options.MusicVolume = 10;
+                    _sound.MusicVol = _options.MusicVolume;
+                    _sound.UpdateMusicVolume();
+                    _sound.PlaySound(AudioMap.Select);
+                    _options.Save();
+                    _talkBack?.Speak(Localization.Get("OptMusicVol", _sound.MusicVol), true);
+                }
+                else if (idx == 2) // Volumen de Voz
+                {
+                    _options.VoiceVolume = (_options.VoiceVolume + 10) % 110;
+                    if (_options.VoiceVolume == 0 && _sound.VoiceVol == 100) _options.VoiceVolume = 10;
+                    _sound.VoiceVol = _options.VoiceVolume;
+                    _sound.PlaySound(AudioMap.VoiceAwesome);
+                    _options.Save();
+                    _talkBack?.Speak(Localization.Get("OptVoiceVol", _sound.VoiceVol), true);
+                }
+                else if (idx == 3) // Audio Binaural
+                {
+                    _options.BinauralAudio = !_options.BinauralAudio;
+                    _sound.BinauralEnabled = _options.BinauralAudio;
+                    _sound.PlaySound(AudioMap.Select);
+                    _options.Save();
+                    _talkBack?.Speak(Localization.Get("OptBinaural", _sound.BinauralEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")), true);
+                }
+                Invalidate();
             }
             else if (_currentScreen == AndroidGameScreen.BadgesScreen ||
                      _currentScreen == AndroidGameScreen.RecordsScreen ||
@@ -735,7 +785,12 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 string[] curItems = GetCurrentItems(out int dummy);
                 if (idx == curItems.Length - 1) // Volver
                 {
+                    _sound?.PlaySound(AudioMap.Backtomain);
                     _currentScreen = AndroidGameScreen.MainMenu;
+                    _menuIdx = 0;
+                    AnnounceCurrentMenu();
+                    Invalidate();
+                    return;
                 }
                 else
                 {
@@ -746,26 +801,35 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
             else if (_currentScreen == AndroidGameScreen.PauseMenu)
             {
-                if (idx == 0) // Resume
+                if (idx == 0) // Reanudar
                 {
                     _currentScreen = AndroidGameScreen.Playing;
                     _sound?.PlaySound(AudioMap.ButtonPress);
-                    _talkBack?.Speak(Localization.Get("GameResumed"), true);
+                    _sound?.PlayMusic(_currentModeKey == "ModeZen" ? "11 - Zen - Part 1" : "03 - Classic Mode - Part 1");
+                    _talkBack?.Speak("Juego reanudado.", true);
+                    Invalidate();
+                    return;
                 }
-                else if (idx == 1) // Restart
+                else if (idx == 1) // Reiniciar
                 {
                     StartGame(_currentModeKey);
+                    return;
                 }
-                else if (idx == 2) // Options
+                else if (idx == 2) // Opciones
                 {
                     _currentScreen = AndroidGameScreen.OptionsScreen;
                     _optionsIdx = 0;
+                    _sound?.PlaySound(AudioMap.ButtonPress);
+                    AnnounceCurrentMenu();
+                    Invalidate();
+                    return;
                 }
-                else if (idx == 3) // Main Menu
+                else if (idx == 3) // Menú Principal
                 {
-                    _currentScreen = AndroidGameScreen.MainMenu;
+                    _sound?.PlaySound(AudioMap.Backtomain);
                     _sound?.StopMusic();
-                    _sound?.PlayMusic(MusicMap.MainTheme);
+                    TransitionToMainMenu();
+                    return;
                 }
             }
             else

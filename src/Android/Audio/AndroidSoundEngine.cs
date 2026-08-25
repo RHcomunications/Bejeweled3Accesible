@@ -18,6 +18,24 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         private MediaPlayer _musicPlayer;
         private string _currentMusicTrack;
 
+        public int MusicVol { get; set; } = 80;
+        public int SfxVol { get; set; } = 100;
+        public int VoiceVol { get; set; } = 100;
+        public bool BinauralEnabled { get; set; } = true;
+
+        public void UpdateMusicVolume()
+        {
+            if (_musicPlayer != null)
+            {
+                try
+                {
+                    float vol = (MusicVol / 100f) * 0.85f;
+                    _musicPlayer.SetVolume(vol, vol);
+                }
+                catch { }
+            }
+        }
+
         public AndroidSoundEngine(Context context)
         {
             _context = context;
@@ -142,6 +160,10 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         {
             if (string.IsNullOrWhiteSpace(key)) return;
 
+            bool isVoice = key.StartsWith("voice_", StringComparison.OrdinalIgnoreCase);
+            float master = isVoice ? (VoiceVol / 100f) : (SfxVol / 100f);
+            float finalVol = volume * master;
+
             int soundId = EnsureSoundLoaded(key);
             if (soundId > 0)
             {
@@ -149,11 +171,11 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
                 {
                     if (_loadedSoundIds.Contains(soundId))
                     {
-                        _soundPool.Play(soundId, volume, volume, 1, 0, 1.0f);
+                        _soundPool.Play(soundId, finalVol, finalVol, 1, 0, 1.0f);
                     }
                     else
                     {
-                        _pendingSounds.Add(new PendingSound { SoundId = soundId, LeftVol = volume, RightVol = volume });
+                        _pendingSounds.Add(new PendingSound { SoundId = soundId, LeftVol = finalVol, RightVol = finalVol });
                     }
                 }
             }
@@ -163,12 +185,16 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         {
             if (string.IsNullOrWhiteSpace(key)) return;
 
+            bool isVoice = key.StartsWith("voice_", StringComparison.OrdinalIgnoreCase);
+            float master = isVoice ? (VoiceVol / 100f) : (SfxVol / 100f);
+            float scaledBase = baseVol * master;
+
             int soundId = EnsureSoundLoaded(key);
             if (soundId > 0)
             {
-                float pan = SpatialAudio.PanColumn(col);
-                float leftVol = baseVol * Math.Min(1.0f, 1.0f - pan);
-                float rightVol = baseVol * Math.Min(1.0f, 1.0f + pan);
+                float pan = BinauralEnabled ? SpatialAudio.PanColumn(col) : 0f;
+                float leftVol = scaledBase * Math.Min(1.0f, 1.0f - pan);
+                float rightVol = scaledBase * Math.Min(1.0f, 1.0f + pan);
                 lock (_soundMap)
                 {
                     if (_loadedSoundIds.Contains(soundId))
