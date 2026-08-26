@@ -2,7 +2,7 @@
 
 **Proyecto:** Bejeweled 3 Accesible (Clon Fiel y Accesible de Bejeweled 3 para Jugadores Ciegos y con Baja Visión)  
 **Repositorio:** `RHcomunications/Bejeweled3Accesible`  
-**Versión Actual:** Windows: `v2026.08.25.1` | Android: `android-v2026.08.26.2`  
+**Versión Actual:** Windows: `v2026.08.25.1` | Android: `android-v2026.08.26.3`  
 **Tecnología Base:** 
 - **Windows (`main`):** C# (.NET Framework 4.5), Windows Forms, BASS Audio Engine (P/Invoke nativo), libopenmpt (decodificador de módulos .mo3), SAPI 5 / NVDA Controller Client.
    - **Android (`android`):** C# (.NET 9 Android / MAUI), Android Accessibility Framework (`AccessibilityManager`, `AnnounceForAccessibility`), `SoundPool` para efectos de ultra baja latencia y un reproductor de módulo `libopenmpt` → `AudioTrack` (igual que Windows) con `MediaPlayer` (MP3) como fallback para la banda sonora.
@@ -169,11 +169,14 @@ bejeweled3_accessible/
     - *Desafío:* `Localization.cs` es un diccionario compartido (ES/EN) entre Windows y Android, con verbos de teclado/ratón ("Presiona Enter", "Haz clic", "Usa las Flechas", "W/A/S/D", "Pulsa Enter") que en móvil son incorrectos y confunden a TalkBack. No existía detección de plataforma.
     - *Solución:* Se añadió la propiedad estática `UseAndroidStrings` (default `false`) y un segundo diccionario `_androidDict` con overrides ES/EN táctiles para las claves de acción (LoadingPrompt, EnterNamePrompt, MenuChangeUser, MenuLanguage, AudioSchoolTitle, TutorialTitle/Step1/2/3/4/5/7, Welcome, BadgeMenuHelp, UpdateFound/UpdateFoundNoNotes). `Get(key,args)` consulta primero el override cuando `UseAndroidStrings` está activo. `MainActivity.OnCreate` fija `Localization.UseAndroidStrings = true`, de modo que Windows queda idéntico y Android habla de doble toque, deslizar, tocar los botones de Pista/Pausa, etc. También se añadieron al diccionario principal las claves faltantes `GameReady` y `EnterNameConfirm` (usadas por el diálogo de perfil de Android y que antes se mostraban como texto crudo "GameReady"/"EnterNameConfirm").
 
+12. **Release `android-v2026.08.26.3`: textos de interfaz coherentes con táctil**:
+    - *Cambio:* Se publica el override bilingüe de `Localization` (anécdota 11) como release firmada `android-v2026.08.26.3` (hotfix del mismo día: incrementa el último componente y `ApplicationVersion` 10→11). Bumps de versión en `csproj` (`ApplicationDisplayVersion`), `AndroidAutoUpdater.CurrentVersion`, `Localization` (LoadingTitle/AppTitle) y `README.html`. Windows queda sin tocar.
+
 ---
 
 ## 🏆 7. Estado del Proyecto y Releases
 
 - **Windows (`main`)**: Release `v2026.08.25.1` (hotfix: guarda de instancia única) con soporte completo de teclado, ratón hablado, audio binaural 3D, suite de 145 tests en verde y auto-actualizador multiplataforma (filtra tags `android-*`). Marcado como **Latest**.
-   - **Android (`android`)**: Release `android-v2026.08.26.2` (hotfix: módulo MO3 real en el dispositivo y APK mucho más ligero) con TalkBack 100% nativo (el tacto siempre activo), árbol de accesibilidad virtual de 64 nodos, reproductor de módulo `libopenmpt`→`AudioTrack` con el `.so` compilado en CI vía NDK (minimp3+stb_vorbis internos, sin dependencias externas) y los 29 MP3 eliminados del APK (baja de ~184 MB a pocos MB), auto-actualizador de APK que busca su propio tag `android-v…`, y APK firmado con keystore estable (actualización en sitio).
+   - **Android (`android`)**: Release `android-v2026.08.26.3` (hotfix: módulo MO3 real en el dispositivo, APK mucho más ligero y textos de interfaz coherentes con táctil) con TalkBack 100% nativo (el tacto siempre activo), árbol de accesibilidad virtual de 64 nodos, reproductor de módulo `libopenmpt`→`AudioTrack` con el `.so` compilado en CI vía NDK (minimp3+stb_vorbis internos, sin dependencias externas) y los 29 MP3 eliminados del APK (baja de ~184 MB a pocos MB), auto-actualizador de APK que busca su propio tag `android-v…`, y APK firmado con keystore estable (actualización en sitio).
 - **Cómo distinguir al distribuir**: tag `v…` + asset `.zip` = Windows; tag `android-v…` + asset `.apk` = Android. El auto-actualizador de cada plataforma entrega el correcto sin que el usuario elija.
 - **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); en Windows build Debug+Release + suite completa (145/145) y zip con exe/PDB Release + `bass.dll` + `nvdaControllerClient32.dll` + 5 `libopenmpt*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (generado por `--pack-audio`) + `sounds\images\` completa; en Android el APK se compila en GitHub Actions (ver anecdotario 7); `gh release create` + `gh release upload`; limpiar `Temp\opencode`.
