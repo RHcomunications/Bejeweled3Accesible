@@ -33,6 +33,7 @@ namespace Bejeweled3Accessible.AndroidApp
         protected override void OnCreate(Bundle savedInstanceState)
         {
             base.OnCreate(savedInstanceState);
+            EnableFullScreen();
 
             Localization.UseAndroidStrings = true;
 
@@ -99,6 +100,7 @@ namespace Bejeweled3Accessible.AndroidApp
         protected override void OnResume()
         {
             base.OnResume();
+            EnableFullScreen();
             if (_resumeMusicOnReturn && _gameView != null && _gameView.CurrentScreen == AndroidGameScreen.Playing)
             {
                 _gameView.ResumePlayback();
@@ -113,6 +115,7 @@ namespace Bejeweled3Accessible.AndroidApp
             // rotar: solo avisamos a la vista para que se redibuje con las
             // nuevas dimensiones y seguimos en la partida en curso.
             base.OnConfigurationChanged(newConfig);
+            EnableFullScreen();
             _gameView?.Invalidate();
             _gameView?.RefreshAccessibilityStructure();
             _gameView?.AnnounceCurrentMenu();
@@ -136,6 +139,23 @@ namespace Bejeweled3Accessible.AndroidApp
             _sound?.Dispose();
             _talkBack?.Dispose();
             base.OnDestroy();
+        }
+
+        private void EnableFullScreen()
+        {
+            // Modo inmersivo (sticky): oculta barra de estado y de navegacion y
+            // reaparecen solo con un deslizamiento desde el borde. Funciona en
+            // todas las versiones soportadas (API 21+), incluida R+, donde los
+            // flags legacy siguen vigentes.
+#pragma warning disable CS0618
+            var flags = SystemUiFlags.LayoutStable
+                      | SystemUiFlags.LayoutHideNavigation
+                      | SystemUiFlags.LayoutFullscreen
+                      | SystemUiFlags.HideNavigation
+                      | SystemUiFlags.Fullscreen
+                      | SystemUiFlags.ImmersiveSticky;
+            Window.DecorView.SystemUiVisibility = (StatusBarVisibility)flags;
+#pragma warning restore CS0618
         }
     }
 }

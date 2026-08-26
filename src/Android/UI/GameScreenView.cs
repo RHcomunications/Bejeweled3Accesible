@@ -1399,6 +1399,41 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _talkBack?.Speak(Localization.Get(modeKey) + ". " + Localization.Get("GameReady") + ". Toca una gema para ver hacia dónde moverla o toca los botones de pista y pausa a la derecha.", true);
         }
 
+        public override bool DispatchHoverEvent(MotionEvent e)
+        {
+            // TalkBack usa HoverMove/HoverEnter para la exploracion tactil con 1 dedo.
+            // Si la vista no los intercepta, TalkBack cree que la pantalla esta vacia
+            // y obliga a usar 2 dedos (saltandose la accesibilidad). Al consumirlos
+            // aqui y anunciar la celda bajo el dedo, la exploracion de 1 dedo funciona.
+            if (e.Action == MotionEventActions.HoverMove || e.Action == MotionEventActions.HoverEnter)
+            {
+                float density = Resources?.DisplayMetrics?.Density ?? 1.0f;
+                if (density < 1.0f) density = 1.0f;
+                int marginY = (int)(15f * density);
+                int boardHeight = Height - (marginY * 2);
+                int tileSize = Math.Max(1, boardHeight / Board.Rows);
+                int offsetX = (int)(20f * density);
+                int offsetY = marginY;
+
+                int cellX = (int)((e.GetX() - offsetX) / tileSize);
+                int cellY = (int)((e.GetY() - offsetY) / tileSize);
+
+                if (cellX >= 0 && cellX < Board.Cols && cellY >= 0 && cellY < Board.Rows)
+                {
+                    // Solo anunciar si el dedo cambio de casilla
+                    if (_cursorX != cellX || _cursorY != cellY)
+                    {
+                        _cursorX = cellX;
+                        _cursorY = cellY;
+                        AnnounceCell(cellX, cellY);
+                        Invalidate();
+                    }
+                }
+                return true;
+            }
+            return base.DispatchHoverEvent(e);
+        }
+
         private bool HandleBoardTouch(MotionEvent e)
         {
             float density = Resources?.DisplayMetrics?.Density ?? 1.0f;

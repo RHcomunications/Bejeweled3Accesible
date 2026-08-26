@@ -144,6 +144,7 @@ namespace Bejeweled3Accessible.Engine
             { "PauseQuit", new Tuple<string, string>("Salir al Menú Principal", "Quit to Main Menu") },
             { "HintFound", new Tuple<string, string>("Pista: Mueve {0} de {1} hacia {2}", "Hint: Move {0} from {1} {2}") },
             { "NoHintFound", new Tuple<string, string>("No se encontraron pistas disponibles.", "No hints available.") },
+            { "HintTitle", new Tuple<string, string>("Pista", "Hint") },
             { "DirUp", new Tuple<string, string>("Arriba", "Up") },
             { "DirDown", new Tuple<string, string>("Abajo", "Down") },
             { "DirLeft", new Tuple<string, string>("Izquierda", "Left") },
