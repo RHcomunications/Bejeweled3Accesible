@@ -435,6 +435,18 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
         }
 
+        // Hit-test para exploracion tactil (TalkBack). El framework llama a
+        // View.getVirtualViewAt para saber que nodo virtual esta bajo el dedo;
+        // delegamos en el provider que conoce la geometria del tablero/menu.
+        public override int GetVirtualViewAt(float x, float y)
+        {
+            if (_nodeProvider == null)
+            {
+                _nodeProvider = new GameAccessibilityNodeProvider(this);
+            }
+            return _nodeProvider.GetVirtualViewAt(x, y);
+        }
+
         public void SelectOrSwapCell(int cellX, int cellY)
         {
             if (_board == null) return;
@@ -1956,7 +1968,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         // opciones del menu. Sin este metodo el framework no sabe que hay
         // nodos bajo el dedo y la pantalla parecia congelada (el doble toque
         // no tenia destino).
-        public override int GetVirtualViewAt(float x, float y)
+        public int GetVirtualViewAt(float x, float y)
         {
             if (_view == null || _view.CurrentScreen == AndroidGameScreen.Loading) return View.NoId;
             if (_view.Width <= 0 || _view.Height <= 0) return View.NoId;
