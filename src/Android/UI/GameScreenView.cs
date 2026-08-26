@@ -435,18 +435,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
         }
 
-        // Hit-test para exploracion tactil (TalkBack). El framework llama a
-        // View.getVirtualViewAt para saber que nodo virtual esta bajo el dedo;
-        // delegamos en el provider que conoce la geometria del tablero/menu.
-        public override int GetVirtualViewAt(float x, float y)
-        {
-            if (_nodeProvider == null)
-            {
-                _nodeProvider = new GameAccessibilityNodeProvider(this);
-            }
-            return _nodeProvider.GetVirtualViewAt(x, y);
-        }
-
         public void SelectOrSwapCell(int cellX, int cellY)
         {
             if (_board == null) return;
@@ -718,14 +706,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         public override bool OnTouchEvent(MotionEvent e)
         {
-            if (_talkBack != null && _talkBack.IsTouchExplorationEnabled)
-            {
-                // Con un lector de pantalla activo (exploración táctil) la
-                // interacción la gestiona el AccessibilityNodeProvider para
-                // evitar doble selección y anuncios duplicados.
-                return true;
-            }
-
+            // El juego es jugable por tactil tambien con un lector de pantalla
+            // activo: bajo TalkBack el dedo selecciona/intercambia celdas igual
+            // que sin el. No bloqueamos el touch (provocaba pantalla congelada).
             if (_currentScreen == AndroidGameScreen.Playing)
             {
                 return HandleBoardTouch(e);
@@ -739,6 +722,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             string[] items = GetCurrentItems(out int activeIdx);
             float density = Resources?.DisplayMetrics?.Density ?? 1.0f;
             if (density < 1.0f) density = 1.0f;
+            bool explore = _talkBack != null && _talkBack.IsTouchExplorationEnabled;
 
             int startY = (int)(65f * density);
             int availableHeight = Height - startY - (int)(20f * density);
@@ -779,7 +763,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 float deltaY = e.GetY() - _startY;
 
                 // Deslizamiento vertical deliberado (navegacion anterior/siguiente)
-                if (Math.Abs(deltaY) > 80 && Math.Abs(deltaY) > Math.Abs(deltaX) * 1.5f)
+                if (!explore && Math.Abs(deltaY) > 80 && Math.Abs(deltaY) > Math.Abs(deltaX) * 1.5f)
                 {
                     if (deltaY > 0)
                     {
@@ -801,7 +785,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     }
                 }
                 // Deslizamiento horizontal izquierdo (volver)
-                else if (deltaX < -120 && Math.Abs(deltaX) > Math.Abs(deltaY) * 1.5f)
+                else if (!explore && deltaX < -120 && Math.Abs(deltaX) > Math.Abs(deltaY) * 1.5f)
                 {
                     if (_currentScreen != AndroidGameScreen.MainMenu)
                     {
@@ -1362,6 +1346,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         {
             float density = Resources?.DisplayMetrics?.Density ?? 1.0f;
             if (density < 1.0f) density = 1.0f;
+            bool explore = _talkBack != null && _talkBack.IsTouchExplorationEnabled;
 
             int marginY = (int)(15f * density);
             int boardHeight = Height - (marginY * 2);
@@ -1426,8 +1411,11 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 float deltaX = e.GetX() - _startX;
                 float deltaY = e.GetY() - _startY;
 
-                // Soporte para gesto TalkBack: Doble toque, mantener y deslizar
-                if (Math.Abs(deltaX) > 30 || Math.Abs(deltaY) > 30)
+                // Con exploracion tactil (TalkBack) se desactiva el gesto de
+                // deslizamiento para intercambiar, ya que arrastrar para explorar
+                // dispararia swaps no deseados. El intercambio se hace tocando
+                // dos celdas contiguas.
+                if (!explore && (Math.Abs(deltaX) > 30 || Math.Abs(deltaY) > 30))
                 {
                     int swapDx = Math.Abs(deltaX) > Math.Abs(deltaY) ? (deltaX > 0 ? 1 : -1) : 0;
                     int swapDy = Math.Abs(deltaX) > Math.Abs(deltaY) ? 0 : (deltaY > 0 ? 1 : -1);
@@ -1961,64 +1949,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
 
             return node;
-        }
-
-        // Mapea las coordenadas tactiles a un nodo virtual para que TalkBack
-        // pueda enfocar (explorar) y activar (doble toque) celdas, botones y
-        // opciones del menu. Sin este metodo el framework no sabe que hay
-        // nodos bajo el dedo y la pantalla parecia congelada (el doble toque
-        // no tenia destino).
-        public int GetVirtualViewAt(float x, float y)
-        {
-            if (_view == null || _view.CurrentScreen == AndroidGameScreen.Loading) return View.NoId;
-            if (_view.Width <= 0 || _view.Height <= 0) return View.NoId;
-
-            float density = _view.Resources?.DisplayMetrics?.Density ?? 1.0f;
-            if (density < 1.0f) density = 1.0f;
-
-            if (_view.CurrentScreen == AndroidGameScreen.Playing)
-            {
-                int marginY = (int)(15f * density);
-                int boardHeight = _view.Height - (marginY * 2);
-                int tileSize = Math.Max(1, boardHeight / Board.Rows);
-                int offsetX = (int)(20f * density);
-                int offsetY = marginY;
-
-                int panelLeft = offsetX + (Board.Cols * tileSize) + (int)(25f * density);
-                int panelWidth = _view.Width - panelLeft - (int)(20f * density);
-                int btnHeight = (int)(55f * density);
-                int hintTop = offsetY + (int)(20f * density);
-                int pauseTop = hintTop + btnHeight + (int)(20f * density);
-
-                if (x >= panelLeft && x <= panelLeft + panelWidth)
-                {
-                    if (y >= hintTop && y <= hintTop + btnHeight) return VIRTUAL_ID_HINT;
-                    if (y >= pauseTop && y <= pauseTop + btnHeight) return VIRTUAL_ID_PAUSE;
-                }
-
-                int cellX = (int)((x - offsetX) / tileSize);
-                int cellY = (int)((y - offsetY) / tileSize);
-                if (cellX >= 0 && cellX < Board.Cols && cellY >= 0 && cellY < Board.Rows)
-                {
-                    return VIRTUAL_BOARD_BASE + (cellY * Board.Cols + cellX);
-                }
-                return View.NoId;
-            }
-
-            string[] items = _view.GetCurrentItems(out int activeIdx);
-            if (items != null && items.Length > 0)
-            {
-                int startY = (int)(65f * density);
-                int availableHeight = _view.Height - startY - (int)(20f * density);
-                int baseItemHeight = (int)(55f * density);
-                int itemHeight = Math.Min(baseItemHeight, Math.Max((int)(40f * density), availableHeight / items.Length));
-                int clickedIdx = (int)((y - startY) / itemHeight);
-                if (clickedIdx >= 0 && clickedIdx < items.Length)
-                {
-                    return clickedIdx;
-                }
-            }
-            return View.NoId;
         }
 
         private int _focusedVirtualViewId = View.NoId;
