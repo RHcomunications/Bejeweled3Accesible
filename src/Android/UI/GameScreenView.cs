@@ -69,6 +69,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private int _cursorX = 3, _cursorY = 3;
         private int _selectedX = -1, _selectedY = -1;
         private float _startX, _startY;
+        private bool _swapExecutedInCurrentTouch = false;
 
         private readonly Paint _paint = new Paint(PaintFlags.AntiAlias);
         private readonly Dictionary<GemColor, Color> _gemColors = new Dictionary<GemColor, Color>
@@ -1269,9 +1270,29 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             else if (idx == 9)
                 _sound?.PlaySoundSpatialPan(0.0f, 1.0f, s);
             else if (idx == 10)
-                _sound?.PlaySoundSpatialPan(-0.9f, 0.0f, s);
+            {
+                // Barrido izquierda -> derecha: varia el pan gradualmente.
+                System.Threading.Tasks.Task.Run(async () =>
+                {
+                    for (float p = -1.0f; p <= 1.0f; p += 0.25f)
+                    {
+                        _sound?.PlaySoundSpatialPan(p, 0.0f, s);
+                        await System.Threading.Tasks.Task.Delay(120);
+                    }
+                });
+            }
             else if (idx == 11)
-                _sound?.PlaySoundSpatialPan(0.0f, 0.9f, s);
+            {
+                // Barrido frente -> fondo: varia la profundidad gradualmente.
+                System.Threading.Tasks.Task.Run(async () =>
+                {
+                    for (float d = 0.0f; d <= 1.0f; d += 0.2f)
+                    {
+                        _sound?.PlaySoundSpatialPan(0.0f, d, s);
+                        await System.Threading.Tasks.Task.Delay(120);
+                    }
+                });
+            }
         }
 
         private void StartGame(string modeKey)
@@ -1403,6 +1424,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             {
                 _startX = e.GetX();
                 _startY = e.GetY();
+                _swapExecutedInCurrentTouch = false;
 
                 // Verificar si toco el panel lateral de botones
                 if (e.GetX() >= panelLeft && e.GetX() <= panelLeft + panelWidth)
@@ -1430,6 +1452,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         int dy = cellY - _selectedY;
                         if (Math.Abs(dx) + Math.Abs(dy) == 1)
                         {
+                            _swapExecutedInCurrentTouch = true;
                             ExecuteSwap(_selectedX, _selectedY, cellX, cellY);
                             return true;
                         }
@@ -1446,6 +1469,15 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             {
                 float deltaX = e.GetX() - _startX;
                 float deltaY = e.GetY() - _startY;
+
+                // Si ya ejecutamos el intercambio en el Down (toque de dos celdas
+                // contiguas), ignorar el gesto de deslizamiento en el Up para no
+                // disparar un segundo swap accidental.
+                if (_swapExecutedInCurrentTouch)
+                {
+                    _swapExecutedInCurrentTouch = false;
+                    return true;
+                }
 
                 // Con exploracion tactil (TalkBack) se desactiva el gesto de
                 // deslizamiento para intercambiar, ya que arrastrar para explorar
