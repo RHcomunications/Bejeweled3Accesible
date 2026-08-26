@@ -559,9 +559,16 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             // Al rotar a apaisado (la Activity no se recrea por ConfigurationChanges)
             // el tablero se redibuja en las nuevas dimensiones, pero TalkBack cachea
             // los limites (Rects setBoundsInParent/setBoundsInScreen) de los 64 nodos
-            // virtuales del modo vertical. Avisar para que reconsulte las coordenadas
-            // en horizontal; si no, el toque no encuentra ningun nodo bajo el dedo.
-            try { this.InvalidateVirtualStructure(); } catch { }
+            // virtuales del modo vertical. Avisar con WindowContentChanged para que
+            // reconsulte las coordenadas en horizontal; si no, el toque no encuentra
+            // ningun nodo bajo el dedo.
+            RefreshAccessibilityStructure();
+        }
+
+        // Notifica a TalkBack que el arbol virtual cambio de tamano/posicion.
+        private void RefreshAccessibilityStructure()
+        {
+            try { this.SendAccessibilityEvent(Android.Views.Accessibility.AccessibilityEventTypes.WindowContentChanged); } catch { }
         }
 
         private void DrawLoadingScreen(Canvas canvas)
