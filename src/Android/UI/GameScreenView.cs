@@ -1562,7 +1562,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
         }
 
-        private void ExecuteSwap(int fromX, int fromY, int toX, int toY)
+        internal void ExecuteSwap(int fromX, int fromY, int toX, int toY)
         {
             _sound?.PlaySoundSpatial(AudioMap.GemHit, toX, toY);
             _board.SwapGems(fromX, fromY, toX, toY);
