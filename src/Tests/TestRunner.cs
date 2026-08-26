@@ -1344,7 +1344,8 @@ namespace Bejeweled3Accessible.Tests
 
                 string[] onDisk = Directory.GetFiles(musicDir, "*.mp3")
                     .Select(f => Path.GetFileNameWithoutExtension(f)).ToArray();
-                Assert.Equal(6, onDisk.Length, "6 ambientales (fichero) en music");
+                var ambientKeys = MusicMap.AllTrackKeys.Where(k => MusicMap.OrderForTrack(k) < 0).ToArray();
+                Assert.Equal(ambientKeys.Length, onDisk.Count(n => ambientKeys.Contains(n)), "ambientales (fichero) en music");
 
                 var missingOnDisk = new List<string>();
                 foreach (string key in MusicMap.AllTrackKeys)

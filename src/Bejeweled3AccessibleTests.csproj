@@ -43,6 +43,7 @@
     <Compile Include="Audio\SpatialAudio.cs" />
     <Compile Include="Update\AutoUpdater.cs" />
     <Compile Include="Engine\BadgeManager.cs" />
+    <Compile Include="Engine\AmbientType.cs" />
     <Compile Include="Engine\Affirmations.cs" />
     <Compile Include="Engine\Board.cs" />
     <Compile Include="Engine\GameOptions.cs" />
