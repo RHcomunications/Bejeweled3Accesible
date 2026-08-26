@@ -114,6 +114,7 @@ namespace Bejeweled3Accessible.AndroidApp
             // nuevas dimensiones y seguimos en la partida en curso.
             base.OnConfigurationChanged(newConfig);
             _gameView?.Invalidate();
+            _gameView?.InvalidateVirtualStructure();
             _gameView?.AnnounceCurrentMenu();
         }
 
