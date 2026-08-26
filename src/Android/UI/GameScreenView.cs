@@ -566,9 +566,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         }
 
         // Notifica a TalkBack que el arbol virtual cambio de tamano/posicion.
-        private void RefreshAccessibilityStructure()
+        internal void RefreshAccessibilityStructure()
         {
-            try { this.SendAccessibilityEvent(Android.Views.Accessibility.AccessibilityEventTypes.WindowContentChanged); } catch { }
+            try { this.SendAccessibilityEvent(Android.Views.Accessibility.AccessibilityEvent.WindowContentChanged); } catch { }
         }
 
         private void DrawLoadingScreen(Canvas canvas)
