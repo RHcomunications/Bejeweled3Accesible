@@ -2,7 +2,7 @@
 
 **Proyecto:** Bejeweled 3 Accesible (Clon Fiel y Accesible de Bejeweled 3 para Jugadores Ciegos y con Baja Visión)  
 **Repositorio:** `RHcomunications/Bejeweled3Accesible`  
-**Versión Actual:** Windows: `v2026.08.25.1` | Android: `android-v2026.08.26.1`  
+**Versión Actual:** Windows: `v2026.08.25.1` | Android: `android-v2026.08.26.2`  
 **Tecnología Base:** 
 - **Windows (`main`):** C# (.NET Framework 4.5), Windows Forms, BASS Audio Engine (P/Invoke nativo), libopenmpt (decodificador de módulos .mo3), SAPI 5 / NVDA Controller Client.
    - **Android (`android`):** C# (.NET 9 Android / MAUI), Android Accessibility Framework (`AccessibilityManager`, `AnnounceForAccessibility`), `SoundPool` para efectos de ultra baja latencia y un reproductor de módulo `libopenmpt` → `AudioTrack` (igual que Windows) con `MediaPlayer` (MP3) como fallback para la banda sonora.
@@ -159,13 +159,17 @@ bejeweled3_accessible/
 
 9. **Pantalla congelada con TalkBack (hotfix android-v2026.08.26.1)**:
    - *Causa:* En `android-v2026.08.26.0` se añadió a `GameScreenView.OnTouchEvent` un `return true` cuando había exploración táctil, para delegar al `AccessibilityNodeProvider`. Pero este binding de .NET para Android no expone `View.getVirtualViewAt` (ni en `View` ni en el provider), así que el framework no podía mapear el dedo a ningún nodo virtual y el doble toque no tenía destino → la pantalla parecía congelada (nada respondía al toque).
-   - *Solución:* El tacto ya no se bloquea (el juego es jugable por toque también con TalkBack: tocar dos celdas contiguas intercambia; el menú se navega por tap). Durante la exploración táctil se desactivan los gestos de deslizamiento (swap/navegación) para que arrastrar para "leer" no provoque intercambios o saltos de menú no deseados. El `AccessibilityNodeProvider` se mantiene para describir nodos a TalkBack.
+    - *Solución:* El tacto ya no se bloquea (el juego es jugable por toque también con TalkBack: tocar dos celdas contiguas intercambia; el menú se navega por tap). Durante la exploración táctil se desactivan los gestos de deslizamiento (swap/navegación) para que arrastrar para "leer" no provoque intercambios o saltos de menú no deseados. El `AccessibilityNodeProvider` se mantiene para describir nodos a TalkBack.
+
+10. **Módulo MO3 real en el APK / APK mucho más ligero (hotfix android-v2026.08.26.2)**:
+    - *Objetivo:* reproducir el `.mo3` de verdad en el dispositivo (sin depender del fallback de MP3) y reducir el tamaño del APK, que con 29 MP3 pesaba ~184 MB.
+    - *Solución:* No hay `libopenmpt.so` precompilado para Android, así que se compila en CI con el NDK: el workflow descarga el tarball `libopenmpt-0.8.9+release.makefile.tar.gz`, copia `build/android_ndk/Android.mk` a `jni/Android.mk` y corre `ndk-build` con `MPT_WITH_MINIMP3=1` y `MPT_WITH_STBVORBIS=1` (decodifican MO3 sin librerías externas) y `APP_STL=c++_static` (para no arrastrar `libc++_shared.so`). El `.so` resultante se copia a `src/Android/libs/<abi>/libopenmpt.so` y se declara en el csproj como `AndroidNativeLibrary` (abi `arm64-v8a` y `x86_64`). Los 29 MP3 se eliminaron del asset (la música completa vive en `Bejeweled3_suite.mo3`, 62 min). El APK baja de ~184 MB a unos pocos MB y suena 1:1 con Windows. `AndroidModulePlayer.IsAvailable` sigue detectando si el `.so` falta en algún ABI y cae a los MP3 (ya no presentes), pero en la práctica el módulo suena en todos los dispositivos.
 
 ---
 
 ## 🏆 7. Estado del Proyecto y Releases
 
 - **Windows (`main`)**: Release `v2026.08.25.1` (hotfix: guarda de instancia única) con soporte completo de teclado, ratón hablado, audio binaural 3D, suite de 145 tests en verde y auto-actualizador multiplataforma (filtra tags `android-*`). Marcado como **Latest**.
-   - **Android (`android`)**: Release `android-v2026.08.26.1` (hotfix: se descongela el juego con TalkBack y la música usa el módulo MO3 igual que Windows) con TalkBack 100% nativo (el tacto siempre activo), árbol de accesibilidad virtual de 64 nodos, reproductor de módulo `libopenmpt`→`AudioTrack` con fallback a MP3, auto-actualizador de APK que busca su propio tag `android-v…`, y APK firmado con keystore estable (actualización en sitio).
+   - **Android (`android`)**: Release `android-v2026.08.26.2` (hotfix: módulo MO3 real en el dispositivo y APK mucho más ligero) con TalkBack 100% nativo (el tacto siempre activo), árbol de accesibilidad virtual de 64 nodos, reproductor de módulo `libopenmpt`→`AudioTrack` con el `.so` compilado en CI vía NDK (minimp3+stb_vorbis internos, sin dependencias externas) y los 29 MP3 eliminados del APK (baja de ~184 MB a pocos MB), auto-actualizador de APK que busca su propio tag `android-v…`, y APK firmado con keystore estable (actualización en sitio).
 - **Cómo distinguir al distribuir**: tag `v…` + asset `.zip` = Windows; tag `android-v…` + asset `.apk` = Android. El auto-actualizador de cada plataforma entrega el correcto sin que el usuario elija.
 - **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); en Windows build Debug+Release + suite completa (145/145) y zip con exe/PDB Release + `bass.dll` + `nvdaControllerClient32.dll` + 5 `libopenmpt*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (generado por `--pack-audio`) + `sounds\images\` completa; en Android el APK se compila en GitHub Actions (ver anecdotario 7); `gh release create` + `gh release upload`; limpiar `Temp\opencode`.

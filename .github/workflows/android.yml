@@ -25,6 +25,22 @@ jobs:
       with:
         dotnet-version: '9.0.x'
 
+    - name: Setup Android NDK
+      uses: android-actions/setup-ndk@v1
+      with:
+        ndk-version: r27c
+
+    - name: Build libopenmpt for Android (NDK)
+      run: |
+        curl -L -o libopenmpt.tar.gz https://lib.openmpt.org/files/libopenmpt/src/libopenmpt-0.8.9+release.makefile.tar.gz
+        mkdir -p jni
+        tar -xzf libopenmpt.tar.gz -C jni --strip-components=1
+        cp jni/build/android_ndk/Android.mk jni/Android.mk
+        ndk-build NDK_PROJECT_PATH=. APP_BUILD_SCRIPT=jni/Android.mk APP_ABI="arm64-v8a x86_64" APP_STL=c++_static APP_PLATFORM=android-21 MPT_WITH_MINIMP3=1 MPT_WITH_STBVORBIS=1
+        mkdir -p src/Android/libs/arm64-v8a src/Android/libs/x86_64
+        cp libs/arm64-v8a/libopenmpt.so src/Android/libs/arm64-v8a/
+        cp libs/x86_64/libopenmpt.so src/Android/libs/x86_64/
+
     - name: Restore Workloads
       run: dotnet workload restore src/Android/Bejeweled3.Android.csproj
 
