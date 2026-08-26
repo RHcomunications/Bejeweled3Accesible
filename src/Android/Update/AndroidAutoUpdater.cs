@@ -29,29 +29,24 @@ namespace Bejeweled3Accessible.AndroidApp.Update
         {
             return await Task.Run(() =>
             {
-                AndroidReleaseInfo info = new AndroidReleaseInfo();
                 try
                 {
                     ServicePointManager.SecurityProtocol |= SecurityProtocolType.Tls12;
 
-                    // Buscamos especificamente la release de Android de mayor
-                    // version, sin depender del marcador "Latest" del repositorio
-                    // (que puede ser la release de Windows). Asi cada actualizador
-                    // vive en su propia "rama" de plataforma.
+                    // Una sola llamada a la API: enumeramos las releases y extraemos
+                    // directamente de la lista el tag Android de mayor version y su
+                    // .apk. Evita una segunda peticion (que podia ser bloqueada por
+                    // limite de tasa) y no depende del marcador "Latest" (que suele
+                    // ser la release de Windows, mas antigua que la instalada).
                     AndroidReleaseInfo android = FetchLatestAndroidViaList();
                     if (android != null) return android;
-
-                    // Fallback: lo que devuelva /releases/latest (aunque no sea Android).
-                    AndroidReleaseInfo latest = FetchReleaseFromUrl(
-                        "https://api.github.com/repos/" + GitHubRepo + "/releases/latest");
-                    if (latest != null) return latest;
                 }
                 catch (Exception ex)
                 {
                     Android.Util.Log.Error("BejeweledUpdater", "Error al verificar actualizaciones: " + ex.Message);
                 }
 
-                return info;
+                return new AndroidReleaseInfo();
             });
         }
 
@@ -113,16 +108,17 @@ namespace Bejeweled3Accessible.AndroidApp.Update
             catch { return null; }
         }
 
-        // Enumera las releases y devuelve la de Android (tag android-...) de mayor
-        // version, consultando sus notas y el .apk con un segundo request puntual.
+        // Enumera las releases en UNA sola llamada y devuelve la de Android
+        // (tag android-...) de mayor version, extrayendo el .apk directamente
+        // del bloque de esa release (sin una segunda peticion a la API).
         private static AndroidReleaseInfo FetchLatestAndroidViaList()
         {
-            string bestTag = null;
+            AndroidReleaseInfo best = null;
             Version bestVer = null;
             try
             {
                 HttpWebRequest req = (HttpWebRequest)WebRequest.Create(
-                    "https://api.github.com/repos/" + GitHubRepo + "/releases?per_page=50");
+                    "https://api.github.com/repos/" + GitHubRepo + "/releases?per_page=100");
                 req.Method = "GET";
                 req.Accept = "application/vnd.github+json";
                 req.Timeout = 10000;
@@ -141,24 +137,56 @@ namespace Bejeweled3Accessible.AndroidApp.Update
                         int q2 = json.IndexOf('"', q1 + 1);
                         if (q2 < 0) break;
                         string tag = json.Substring(q1 + 1, q2 - q1 - 1);
-                        i = q2 + 1;
+                        int blockStart = q2 + 1;
+                        int nextTag = json.IndexOf("\"tag_name\"", blockStart, StringComparison.Ordinal);
+                        int blockEnd = nextTag >= 0 ? nextTag : json.Length;
 
                         string clean = tag.TrimStart('v', 'V');
-                        if (!clean.StartsWith("android-", StringComparison.OrdinalIgnoreCase)) continue;
+                        if (!clean.StartsWith("android-", StringComparison.OrdinalIgnoreCase))
+                        {
+                            i = blockStart;
+                            continue;
+                        }
                         string verStr = clean.Substring(8).TrimStart('v', 'V');
-                        if (!Version.TryParse(verStr, out Version v)) continue;
+                        if (!Version.TryParse(verStr, out Version v))
+                        {
+                            i = blockStart;
+                            continue;
+                        }
+
+                        string apkUrl = null;
+                        int b = blockStart;
+                        while (b >= 0 && b < blockEnd)
+                        {
+                            int bIdx = json.IndexOf("\"browser_download_url\":\"", b, StringComparison.Ordinal);
+                            if (bIdx < 0 || bIdx >= blockEnd) break;
+                            int uStart = bIdx + 24;
+                            int uEnd = json.IndexOf("\"", uStart, StringComparison.Ordinal);
+                            if (uEnd < 0) break;
+                            string url = json.Substring(uStart, uEnd - uStart);
+                            if (url.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
+                            {
+                                apkUrl = url;
+                                break;
+                            }
+                            b = uEnd + 1;
+                        }
+
                         if (bestVer == null || v > bestVer)
                         {
                             bestVer = v;
-                            bestTag = tag;
+                            best = new AndroidReleaseInfo();
+                            best.Tag = tag;
+                            best.DownloadUrl = apkUrl;
+                            if (Version.TryParse(CurrentVersion, out Version currentVer))
+                                best.IsNewer = v > currentVer;
                         }
+                        i = blockStart;
                     }
                 }
             }
             catch { return null; }
-
-            return bestTag == null ? null : FetchReleaseFromUrl(
-                "https://api.github.com/repos/" + GitHubRepo + "/releases/tags/" + bestTag);
+            return best;
         }
 
         public static void OpenDownloadOrRelease(Context context, AndroidReleaseInfo info)
