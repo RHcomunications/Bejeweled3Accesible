@@ -1951,6 +1951,64 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             return node;
         }
 
+        // Mapea las coordenadas tactiles a un nodo virtual para que TalkBack
+        // pueda enfocar (explorar) y activar (doble toque) celdas, botones y
+        // opciones del menu. Sin este metodo el framework no sabe que hay
+        // nodos bajo el dedo y la pantalla parecia congelada (el doble toque
+        // no tenia destino).
+        public override int GetVirtualViewAt(float x, float y)
+        {
+            if (_view == null || _view.CurrentScreen == AndroidGameScreen.Loading) return View.NoId;
+            if (_view.Width <= 0 || _view.Height <= 0) return View.NoId;
+
+            float density = _view.Resources?.DisplayMetrics?.Density ?? 1.0f;
+            if (density < 1.0f) density = 1.0f;
+
+            if (_view.CurrentScreen == AndroidGameScreen.Playing)
+            {
+                int marginY = (int)(15f * density);
+                int boardHeight = _view.Height - (marginY * 2);
+                int tileSize = Math.Max(1, boardHeight / Board.Rows);
+                int offsetX = (int)(20f * density);
+                int offsetY = marginY;
+
+                int panelLeft = offsetX + (Board.Cols * tileSize) + (int)(25f * density);
+                int panelWidth = _view.Width - panelLeft - (int)(20f * density);
+                int btnHeight = (int)(55f * density);
+                int hintTop = offsetY + (int)(20f * density);
+                int pauseTop = hintTop + btnHeight + (int)(20f * density);
+
+                if (x >= panelLeft && x <= panelLeft + panelWidth)
+                {
+                    if (y >= hintTop && y <= hintTop + btnHeight) return VIRTUAL_ID_HINT;
+                    if (y >= pauseTop && y <= pauseTop + btnHeight) return VIRTUAL_ID_PAUSE;
+                }
+
+                int cellX = (int)((x - offsetX) / tileSize);
+                int cellY = (int)((y - offsetY) / tileSize);
+                if (cellX >= 0 && cellX < Board.Cols && cellY >= 0 && cellY < Board.Rows)
+                {
+                    return VIRTUAL_BOARD_BASE + (cellY * Board.Cols + cellX);
+                }
+                return View.NoId;
+            }
+
+            string[] items = _view.GetCurrentItems(out int activeIdx);
+            if (items != null && items.Length > 0)
+            {
+                int startY = (int)(65f * density);
+                int availableHeight = _view.Height - startY - (int)(20f * density);
+                int baseItemHeight = (int)(55f * density);
+                int itemHeight = Math.Min(baseItemHeight, Math.Max((int)(40f * density), availableHeight / items.Length));
+                int clickedIdx = (int)((y - startY) / itemHeight);
+                if (clickedIdx >= 0 && clickedIdx < items.Length)
+                {
+                    return clickedIdx;
+                }
+            }
+            return View.NoId;
+        }
+
         private int _focusedVirtualViewId = View.NoId;
 
         public override AccessibilityNodeInfo FindFocus(NodeFocus focus)
