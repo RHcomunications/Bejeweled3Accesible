@@ -15,7 +15,7 @@ Instrucciones para asistentes de código que trabajen en este repositorio.
 ## Build y tests
 
 - Compilar: `C:\Windows\Microsoft.NET\Framework64\v4.0.30319\MSBuild.exe src\Bejeweled3Accessible.csproj /t:Build /p:Configuration=Debug` (y `Release`).
-- Tests: compilar `src\Bejeweled3AccessibleTests.csproj` y ejecutar `bin\Debug\Bejeweled3AccessibleTests.exe` → deben pasar **137/137**.
+- Tests: compilar `src\Bejeweled3AccessibleTests.csproj` y ejecutar `bin\Debug\Bejeweled3AccessibleTests.exe` → deben pasar **145/145** (con `--no-audio`: 130 ejecutados + 15 tests de sonido real omitidos, 0 fallos).
 - Los tests tardan ~20 s; no se necesitan para cambios triviales pero sí para los que tocan `Board`, motor de audio o lógica de juego.
 - Para no interferir con el usuario: `Bejeweled3AccessibleTests.exe --no-audio` omite las pruebas que reproducen sonido (las de prefijo `Sound:`) y termina en segundos; se usa en comprobaciones intermedias y deja la suite completa (con audio) para la versión que se publica.
 
