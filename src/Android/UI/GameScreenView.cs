@@ -1399,7 +1399,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _talkBack?.Speak(Localization.Get(modeKey) + ". " + Localization.Get("GameReady") + ". Toca una gema para ver hacia dónde moverla o toca los botones de pista y pausa a la derecha.", true);
         }
 
-        public override bool DispatchHoverEvent(MotionEvent e)
+        protected override bool DispatchHoverEvent(MotionEvent e)
         {
             // TalkBack usa HoverMove/HoverEnter para la exploracion tactil con 1 dedo.
             // Si la vista no los intercepta, TalkBack cree que la pantalla esta vacia
