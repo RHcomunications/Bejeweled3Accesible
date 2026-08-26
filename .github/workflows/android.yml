@@ -55,9 +55,3 @@ jobs:
       with:
         name: Bejeweled3Accessible-Android-APK
         path: src/Android/bin/Release/net9.0-android/*-Signed.apk
-
-    - name: Upload Keystore Artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: release-keystore
-        path: .github/release.keystore
