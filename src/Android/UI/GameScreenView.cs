@@ -1720,7 +1720,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _sound?.PlaySound(AudioMap.ButtonMouseover);
         }
 
-        private void AnnounceCurrentMenu()
+        public void AnnounceCurrentMenu()
         {
             string[] items = GetCurrentItems(out int activeIdx);
             string title = GetScreenTitle();

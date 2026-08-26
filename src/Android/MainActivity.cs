@@ -15,6 +15,7 @@ namespace Bejeweled3Accessible.AndroidApp
     [Activity(Label = "@string/app_name",
               MainLauncher = true,
               ScreenOrientation = ScreenOrientation.Portrait,
+              ConfigurationChanges = ConfigChanges.Orientation | ConfigChanges.ScreenSize | ConfigChanges.KeyboardHidden,
               Theme = "@android:style/Theme.NoTitleBar.Fullscreen")]
     public class MainActivity : Activity
     {
@@ -95,6 +96,16 @@ namespace Bejeweled3Accessible.AndroidApp
         protected override void OnResume()
         {
             base.OnResume();
+        }
+
+        public override void OnConfigurationChanged(Android.Content.Res.Configuration newConfig)
+        {
+            // Con ConfigurationChanges declarado, la Activity NO se recrea al
+            // rotar: solo avisamos a la vista para que se redibuje con las
+            // nuevas dimensiones y seguimos en la partida en curso.
+            base.OnConfigurationChanged(newConfig);
+            _gameView?.Invalidate();
+            _gameView?.AnnounceCurrentMenu();
         }
 
         protected override void OnPause()
