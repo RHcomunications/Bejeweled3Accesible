@@ -2,10 +2,10 @@
 
 **Proyecto:** Bejeweled 3 Accesible (Clon Fiel y Accesible de Bejeweled 3 para Jugadores Ciegos y con Baja Visión)  
 **Repositorio:** `RHcomunications/Bejeweled3Accesible`  
-**Versión Actual:** Windows: `v2026.08.25.1` | Android: `android-v2026.08.25.5`  
+**Versión Actual:** Windows: `v2026.08.25.1` | Android: `android-v2026.08.26.1`  
 **Tecnología Base:** 
 - **Windows (`main`):** C# (.NET Framework 4.5), Windows Forms, BASS Audio Engine (P/Invoke nativo), libopenmpt (decodificador de módulos .mo3), SAPI 5 / NVDA Controller Client.
-- **Android (`android`):** C# (.NET 9 Android / MAUI), Android Accessibility Framework (`AccessibilityManager`, `AnnounceForAccessibility`), `SoundPool` para efectos de ultra baja latencia y `MediaPlayer` para la banda sonora original completa en MP3.
+   - **Android (`android`):** C# (.NET 9 Android / MAUI), Android Accessibility Framework (`AccessibilityManager`, `AnnounceForAccessibility`), `SoundPool` para efectos de ultra baja latencia y un reproductor de módulo `libopenmpt` → `AudioTrack` (igual que Windows) con `MediaPlayer` (MP3) como fallback para la banda sonora.
 
 ---
 
@@ -26,7 +26,8 @@ bejeweled3_accessible/
 │   │   ├── Accessibility/
 │   │   │   └── TalkBackBridge.cs  # Puente de accesibilidad nativo con TalkBack y sintetizador del usuario
 │   │   ├── Audio/
-│   │   │   └── AndroidSoundEngine.cs # Motor dual SoundPool (baja latencia) + MediaPlayer (OST continua)
+│   │   │   ├── AndroidSoundEngine.cs # Motor dual SoundPool (baja latencia) + módulo libopenmpt/AudioTrack (fallback MediaPlayer)
+│   │   │   └── AndroidModulePlayer.cs # Decodificador MO3 vía libopenmpt (P/Invoke) → AudioTrack PCM16
 │   │   ├── UI/
 │   │   │   └── GameScreenView.cs  # Vista gráfica interactiva, gestos, modo apaisado, pista y pausa
 │   │   ├── MainActivity.cs        # Actividad principal; ConfigurationChanges para no recrear la Activity al rotar a Landscape (bug crítico de jugabilidad corregido en android-v2026.08.25.5)
@@ -126,9 +127,9 @@ bejeweled3_accessible/
 
 ## 📝 6. Anecdotario Técnico y Soluciones Clave
 
-1. **Separación de Pistas vs. Archivo `.MO3` en Android**:
-   - *Desafío:* Android carece de soporte nativo para reproducir trackers `.MO3` dinámicos con `libopenmpt` sin incurrir en fallos de compatibilidad NDK multiplataforma.
-   - *Solución:* Se extrajeron las pistas oficiales masterizadas de estudio y se programó un sistema de encadenamiento dinámico (*Seamless Playlist Listener*) que enlaza las 4 partes de Clásico y Zen de forma continua.
+1. **Reproductor de módulo `.MO3` en Android (paridad con Windows)**:
+   - *Desafío:* Android carece de soporte nativo para trackers `.MO3`; sin `libopenmpt` no hay decodificación del módulo.
+   - *Solución:* Se implementó `AndroidModulePlayer` (P/Invoke `libopenmpt` + `AudioTrack` PCM16 @44100, *seek* por offsets de `MusicMap` y continuidad de la suite de 62 min), espejando `ModuleMusicPlayer` de Windows. Si la librería nativa (`libopenmpt.so`) no está empaquetada en el APK, `IsAvailable` lo detecta y el motor cae con elegancia a los MP3 por separado (misma música, sin regresión). El `Bejeweled3_suite.mo3` se incluye como `AndroidAsset`.
 2. **El Conflicto de TTS Interno vs TalkBack en Android**:
    - *Desafío:* La implementación inicial usaba `TextToSpeech` directo, lo que forzaba las voces de Google o Samsung e ignoraba las preferencias del usuario.
    - *Solución:* Se migró a la API nativa de eventos de accesibilidad (`AccessibilityManager` y `AnnounceForAccessibility`), permitiendo que TalkBack hable con el sintetizador configurado por el usuario (Eloquence, Vocalizer, etc.).
@@ -156,11 +157,15 @@ bejeweled3_accessible/
     - *Desafío:* El workflow regeneraba el keystore en cada run, así que cada APK tenía una firma distinta y no se podía actualizar en sitio sobre una instalación previa.
     - *Solución:* Se generó y commiteó `.github/release.keystore` (alias `bejeweled3key`, storepass `bejeweled3secret`). El workflow ahora lo reutiliza, de modo que todas las releases Android futuras comparten la misma firma y permiten actualización en sitio. El APK de `android-v2026.08.25.5` ya se re-publicó firmado con esta clave estable.
 
+9. **Pantalla congelada con TalkBack (hotfix android-v2026.08.26.1)**:
+   - *Causa:* En `android-v2026.08.26.0` se añadió a `GameScreenView.OnTouchEvent` un `return true` cuando había exploración táctil, para delegar al `AccessibilityNodeProvider`. Pero este binding de .NET para Android no expone `View.getVirtualViewAt` (ni en `View` ni en el provider), así que el framework no podía mapear el dedo a ningún nodo virtual y el doble toque no tenía destino → la pantalla parecía congelada (nada respondía al toque).
+   - *Solución:* El tacto ya no se bloquea (el juego es jugable por toque también con TalkBack: tocar dos celdas contiguas intercambia; el menú se navega por tap). Durante la exploración táctil se desactivan los gestos de deslizamiento (swap/navegación) para que arrastrar para "leer" no provoque intercambios o saltos de menú no deseados. El `AccessibilityNodeProvider` se mantiene para describir nodos a TalkBack.
+
 ---
 
 ## 🏆 7. Estado del Proyecto y Releases
 
 - **Windows (`main`)**: Release `v2026.08.25.1` (hotfix: guarda de instancia única) con soporte completo de teclado, ratón hablado, audio binaural 3D, suite de 145 tests en verde y auto-actualizador multiplataforma (filtra tags `android-*`). Marcado como **Latest**.
-- **Android (`android`)**: Release `android-v2026.08.25.5` (hotfix de jugabilidad: la Activity ya no se recrea al rotar a Landscape) con TalkBack 100% nativo, árbol de accesibilidad virtual de 64 nodos, auto-actualizador de APK que busca su propio tag `android-v…`, y APK firmado con keystore estable (actualización en sitio).
+   - **Android (`android`)**: Release `android-v2026.08.26.1` (hotfix: se descongela el juego con TalkBack y la música usa el módulo MO3 igual que Windows) con TalkBack 100% nativo (el tacto siempre activo), árbol de accesibilidad virtual de 64 nodos, reproductor de módulo `libopenmpt`→`AudioTrack` con fallback a MP3, auto-actualizador de APK que busca su propio tag `android-v…`, y APK firmado con keystore estable (actualización en sitio).
 - **Cómo distinguir al distribuir**: tag `v…` + asset `.zip` = Windows; tag `android-v…` + asset `.apk` = Android. El auto-actualizador de cada plataforma entrega el correcto sin que el usuario elija.
 - **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); en Windows build Debug+Release + suite completa (145/145) y zip con exe/PDB Release + `bass.dll` + `nvdaControllerClient32.dll` + 5 `libopenmpt*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (generado por `--pack-audio`) + `sounds\images\` completa; en Android el APK se compila en GitHub Actions (ver anecdotario 7); `gh release create` + `gh release upload`; limpiar `Temp\opencode`.

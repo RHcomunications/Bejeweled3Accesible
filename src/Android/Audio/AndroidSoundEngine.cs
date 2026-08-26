@@ -18,6 +18,11 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         private MediaPlayer _musicPlayer;
         private string _currentMusicTrack;
 
+        // Reproductor del modulo real (Bejeweled3_suite.mo3) via libopenmpt/AudioTrack.
+        private AndroidModulePlayer _modulePlayer;
+        private string _currentModuleTrack;
+        private byte[] _mo3Bytes;
+
         public int MusicVol { get; set; } = 80;
         public int SfxVol { get; set; } = 100;
         public int VoiceVol { get; set; } = 100;
@@ -25,14 +30,14 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
 
         public void UpdateMusicVolume()
         {
+            float vol = (MusicVol / 100f) * 0.85f;
             if (_musicPlayer != null)
             {
-                try
-                {
-                    float vol = (MusicVol / 100f) * 0.85f;
-                    _musicPlayer.SetVolume(vol, vol);
-                }
-                catch { }
+                try { _musicPlayer.SetVolume(vol, vol); } catch { }
+            }
+            if (_modulePlayer != null && _modulePlayer.IsValid)
+            {
+                try { _modulePlayer.SetVolume(vol); } catch { }
             }
         }
 
@@ -230,9 +235,78 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
 
         public void PlayMusic(string trackName, bool loop = true)
         {
-            if (string.IsNullOrWhiteSpace(trackName) || _currentMusicTrack == trackName) return;
+            if (string.IsNullOrWhiteSpace(trackName)) return;
 
-            StopMusic();
+            // Pista del modulo real (01-23): reproducir con libopenmpt/AudioTrack
+            // igual que Windows. Si la libreria nativa no esta disponible en el
+            // dispositivo, se usa el fallback de mp3 por separado (misma musica,
+            // sin regresion).
+            int order = MusicMap.OrderForFile(trackName);
+            if (order >= 0 && AndroidModulePlayer.IsAvailable)
+            {
+                StopMediaPlayerMusic();
+
+                if (_modulePlayer == null)
+                {
+                    byte[] mo3 = LoadMo3Bytes();
+                    if (mo3 != null && mo3.Length > 0) _modulePlayer = AndroidModulePlayer.TryCreate(mo3);
+                }
+
+                if (_modulePlayer != null && _modulePlayer.IsValid)
+                {
+                    if (_currentModuleTrack != trackName)
+                    {
+                        _modulePlayer.SeekTo(order, MusicMap.NextOffsetAfter(order));
+                        if (!_modulePlayer.IsPlaying) _modulePlayer.Start();
+                        else _modulePlayer.SetVolume((MusicVol / 100f) * 0.85f);
+                        _currentModuleTrack = trackName;
+                    }
+                    return;
+                }
+                // Si el modulo fallo al crear, cae al mp3 por separado.
+            }
+
+            // Fallback: archivos mp3 sueltos (ambientales 24-29 o modulo no disponible).
+            PlayMusicFile(trackName, loop);
+        }
+
+        private byte[] LoadMo3Bytes()
+        {
+            if (_mo3Bytes != null) return _mo3Bytes;
+            try
+            {
+                using (var s = _context.Assets.Open("music/" + MusicMap.ModuleFile))
+                using (var ms = new System.IO.MemoryStream())
+                {
+                    s.CopyTo(ms);
+                    _mo3Bytes = ms.ToArray();
+                }
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Error("BejeweledAudio", "No se cargo el modulo MO3: " + ex.Message);
+            }
+            return _mo3Bytes;
+        }
+
+        private void StopMediaPlayerMusic()
+        {
+            if (_musicPlayer != null)
+            {
+                try
+                {
+                    if (_musicPlayer.IsPlaying) _musicPlayer.Stop();
+                    _musicPlayer.Release();
+                }
+                catch { }
+                _musicPlayer = null;
+                _currentMusicTrack = null;
+            }
+        }
+
+        private void PlayMusicFile(string trackName, bool loop)
+        {
+            if (string.IsNullOrWhiteSpace(trackName) || _currentMusicTrack == trackName) return;
 
             try
             {
@@ -266,7 +340,7 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
                         _musicPlayer.SetDataSource(afd.FileDescriptor, afd.StartOffset, afd.Length);
                         _musicPlayer.Prepare();
 
-                        // Enlace automático y continuo para las 4 partes de Clásico y Zen
+                        // Enlace automatico y continuo para las 4 partes de Clasico y Zen
                         if (IsClassicTrack(targetFile) || IsZenTrack(targetFile))
                         {
                             _musicPlayer.Looping = false;
@@ -343,16 +417,13 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
 
         public void StopMusic()
         {
-            if (_musicPlayer != null)
+            StopMediaPlayerMusic();
+            if (_modulePlayer != null)
             {
-                try
-                {
-                    if (_musicPlayer.IsPlaying) _musicPlayer.Stop();
-                    _musicPlayer.Release();
-                }
-                catch { }
-                _musicPlayer = null;
-                _currentMusicTrack = null;
+                try { _modulePlayer.Stop(); } catch { }
+                try { _modulePlayer.Dispose(); } catch { }
+                _modulePlayer = null;
+                _currentModuleTrack = null;
             }
         }
 
