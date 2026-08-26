@@ -9,7 +9,7 @@
     <ApplicationTitle>Bejeweled 3 Accesible</ApplicationTitle>
     <ApplicationId>com.narayan.bejeweled3accessible</ApplicationId>
     <ApplicationVersion>8</ApplicationVersion>
-    <ApplicationDisplayVersion>2026.08.25.5</ApplicationDisplayVersion>
+    <ApplicationDisplayVersion>2026.08.25.6</ApplicationDisplayVersion>
     <RootNamespace>Bejeweled3Accessible.AndroidApp</RootNamespace>
     <AssemblyName>Bejeweled3Accessible.Android</AssemblyName>
     <AndroidPackageFormat>apk</AndroidPackageFormat>

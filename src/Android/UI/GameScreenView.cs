@@ -706,6 +706,14 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         public override bool OnTouchEvent(MotionEvent e)
         {
+            if (_talkBack != null && _talkBack.IsTouchExplorationEnabled)
+            {
+                // Con un lector de pantalla activo (exploración táctil) la
+                // interacción la gestiona el AccessibilityNodeProvider para
+                // evitar doble selección y anuncios duplicados.
+                return true;
+            }
+
             if (_currentScreen == AndroidGameScreen.Playing)
             {
                 return HandleBoardTouch(e);
@@ -1527,6 +1535,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                                 _sound?.PlaySound(AudioMap.VoiceGameover);
                                 _talkBack?.Speak(Localization.Get("PokerSkullGameOver") + " " + Localization.Get("GameOver", _score), true);
                                 Invalidate();
+                                _talkBack?.NotifyStructureChanged();
                                 return;
                             }
                             _talkBack?.Speak(Localization.Get("PokerSkullAnnounce", _pokerSkulls), true);
@@ -1688,6 +1697,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                             _sound?.PlaySound(AudioMap.VoiceGameover);
                             _talkBack?.Speak(Localization.Get("NoShufflesLeft") + " " + Localization.Get("GameOver", _score), true);
                             Invalidate();
+                            _talkBack?.NotifyStructureChanged();
                             return;
                         }
                     }
@@ -1712,6 +1722,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _cursorY = toY;
             AnnounceCell(_cursorX, _cursorY);
             Invalidate();
+            _talkBack?.NotifyStructureChanged();
         }
 
         public void ExecuteMenuItemFocus(int idx)
@@ -1897,8 +1908,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         movesDesc = ". Movimientos válidos hacia " + string.Join(" o ", dirs);
                     }
 
-                    node.Text = string.Format("{0}{1}: {2}", colLetter, rowNum, gemName);
-                    node.ContentDescription = node.Text + movesDesc;
+                    node.ContentDescription = string.Format("{0}{1}: {2}{3}", colLetter, rowNum, gemName, movesDesc);
                     return node;
                 }
             }

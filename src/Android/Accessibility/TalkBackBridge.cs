@@ -34,6 +34,15 @@ namespace Bejeweled3Accessible.AndroidApp.Accessibility
             }
         }
 
+        public bool IsTouchExplorationEnabled
+        {
+            get
+            {
+                return _accessibilityManager != null &&
+                       _accessibilityManager.IsTouchExplorationEnabled;
+            }
+        }
+
         public void Speak(string text, bool interrupt = true)
         {
             if (string.IsNullOrWhiteSpace(text)) return;
