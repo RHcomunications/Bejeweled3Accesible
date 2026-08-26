@@ -2,7 +2,7 @@
 
 **Proyecto:** Bejeweled 3 Accesible (Clon Fiel y Accesible de Bejeweled 3 para Jugadores Ciegos y con Baja Visión)  
 **Repositorio:** `RHcomunications/Bejeweled3Accesible`  
-**Versión Actual:** Windows: `v2026.08.24.3` | Android: `android-v2026.08.24.8`  
+**Versión Actual:** Windows: `v2026.08.25.1` | Android: `android-v2026.08.25.5`  
 **Tecnología Base:** 
 - **Windows (`main`):** C# (.NET Framework 4.5), Windows Forms, BASS Audio Engine (P/Invoke nativo), libopenmpt (decodificador de módulos .mo3), SAPI 5 / NVDA Controller Client.
 - **Android (`android`):** C# (.NET 9 Android / MAUI), Android Accessibility Framework (`AccessibilityManager`, `AnnounceForAccessibility`), `SoundPool` para efectos de ultra baja latencia y `MediaPlayer` para la banda sonora original completa en MP3.
@@ -29,7 +29,7 @@ bejeweled3_accessible/
 │   │   │   └── AndroidSoundEngine.cs # Motor dual SoundPool (baja latencia) + MediaPlayer (OST continua)
 │   │   ├── UI/
 │   │   │   └── GameScreenView.cs  # Vista gráfica interactiva, gestos, modo apaisado, pista y pausa
-│   │   ├── MainActivity.cs        # Actividad principal, bloqueo de orientación SensorLandscape
+│   │   ├── MainActivity.cs        # Actividad principal; ConfigurationChanges para no recrear la Activity al rotar a Landscape (bug crítico de jugabilidad corregido en android-v2026.08.25.5)
 │   │   └── Bejeweled3.Android.csproj # Proyecto .NET 9 Android
 │   ├── Audio/
 │   │   ├── SoundEngine.cs         # Motor BASS, colas atómicas, ducking, rutas espaciales de grid
@@ -92,6 +92,11 @@ bejeweled3_accessible/
 3. **Audio Espacial Grid**:
    - Paneo equal-power por columna (A-H) y profundidad/aire por fila (1-8).
    - Locuciones del narrador y síntesis de voz centradas con *ducking* automático de la música.
+4. **Motor de Audio Binaural (BASS_FX) y Ducking**:
+    - Paneo logarítmico por columna (extremos A/H abiertos al máximo) y profundidad frente→fondo por volumen + aire (one-pole LP).
+    - Interruptor **Binaural** en Opciones (por defecto activo): al desactivarlo todo suena centrado y seco (passthrough).
+    - BASS_FX: EQ por fila (agudos al frente, corte progresivo al fondo), barrido 360° del hipercubo (pan −1→+1 en bucle con ducking de la música) y **láser del star gem** (sweep L→R con barrido de EQ agudo→grave), cada uno con reverb y compresor por stream.
+    - **Ducking (sidechain)** musical en hipercubo y Supernova (la música baja al 30 % y vuelve).
 
 ---
 
@@ -131,16 +136,31 @@ bejeweled3_accessible/
    - *Desafío:* El canvas monolítico provocaba que TalkBack viera un botón sin etiqueta y la activación se disparaba automáticamente al levantar el dedo en modo exploración.
    - *Solución:* Se implementó `GameAccessibilityNodeProvider` exponiendo cada celda y botón de forma individual, separando la exploración táctil de la activación por doble toque.
 4. **Organización del Repositorio y Ramas**:
-   - *Windows (`main`)*: Código fuente C# .NET 4.5, releases en `.zip` con auto-actualizador y `README.md` de escritorio.
-   - *Android (`android`)*: Código fuente C# .NET 9 Android, releases en `.apk` firmados vía GitHub Actions y `README.md` adaptado a la experiencia móvil.
+    - *Windows (`main`)*: Código fuente C# .NET 4.5, releases en `.zip` con auto-actualizador y `README.md` de escritorio.
+    - *Android (`android`)*: Código fuente C# .NET 9 Android, releases en `.apk` firmados vía GitHub Actions y `README.md` adaptado a la experiencia móvil.
+    - *Unificación (2026-08-26)*: `main` se fusionó con `android`, así que **ambas ramas contienen hoy todo el código** (motor binaural, TalkBack, updaters). La distinción de plataforma ya no está en la rama sino en el **prefijo del tag de release**: `v…` = Windows (`.zip`), `android-v…` = Android (`.apk`).
+    - *Actualizadores aislados por plataforma*: `AutoUpdater` (Windows) ignora tags `android-*` y ofrece siempre la última `v…`; `AndroidAutoUpdater` enumera y elige la `android-v…` mayor. Cada uno busca en su "rama" de tags, independiente del marcador Latest del repo.
 5. **Soporte Completo de Ratón y Flechas en Windows (v2026.08.24.3)**:
    - *Desafío:* Usuarios con baja visión o educadores querían interactuar con ratón sin perder la verbalización de casillas y opciones de movimiento.
    - *Solución:* Se implementó eco de ratón hablado, cálculo de direcciones válidas en tiempo real y soporte completo de flechas direccionales en el tablero.
+
+6. **Guarda de instancia única en Windows (hotfix v2026.08.25.1)**:
+    - *Desafío:* Lanzar el .exe dos veces abría dos ventanas que duplicaban audio e interfaz.
+    - *Solución:* `Program.cs` adquiere un `Mutex` global `Global\Bejeweled3Accessible-SingleInstance`; si ya existe, trae la ventana existente al frente y sale. El empaquetado `--pack-audio` también está protegido. Si el sistema niega el mutex (permisos), arranca igualmente.
+
+7. **Compilación y publicación de releases vía GitHub Actions**:
+    - *Android*: el workflow `.github/workflows/android.yml` se dispara al pushear a `android`, compila el APK en el runner (ubuntu + .NET 9 workload Android), lo firma y sube como artifact. Se descarga con `gh run download` y se publica con `gh release create` + `gh release upload`.
+    - *Windows*: se compila localmente con MSBuild (`Debug`+`Release`), se ejecuta la suite de tests (145/145) y se empaqueta el `.zip` manualmente; luego `gh release create`/`upload`. El agente no puede compilar Android localmente (falta el workload Xamarin/.NET-Android).
+
+8. **Firma estable de Android (keystore commiteado)**:
+    - *Desafío:* El workflow regeneraba el keystore en cada run, así que cada APK tenía una firma distinta y no se podía actualizar en sitio sobre una instalación previa.
+    - *Solución:* Se generó y commiteó `.github/release.keystore` (alias `bejeweled3key`, storepass `bejeweled3secret`). El workflow ahora lo reutiliza, de modo que todas las releases Android futuras comparten la misma firma y permiten actualización en sitio. El APK de `android-v2026.08.25.5` ya se re-publicó firmado con esta clave estable.
 
 ---
 
 ## 🏆 7. Estado del Proyecto y Releases
 
-- **Windows (`main`)**: Release `v2026.08.25.0` con soporte completo de teclado, ratón hablado, audio binaural 3D, suite de 145 tests en verde y auto-actualizador multiplataforma.
-- **Android (`android`)**: Release `android-v2026.08.25.0` (**Release Oficial Definitiva**) con TalkBack 100% puro nativo (sin TTS secundario), árbol de accesibilidad virtual de 64 nodos, auto-actualizador integrado de APK, Escuela de Audio, Opciones Zen, Modo Misión con 40 desafíos y 5 relicarios, y físicas completas de los 8 modos (Póker, Tormenta de Hielo, Mariposas y Mina de Diamantes).
-- **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); build Debug+Release; suite completa con audio; zip con exe/PDB Release + `bass.dll` + `nvdaControllerClient32.dll` + 5 `libopenmpt*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (196 entradas) + `sounds\images\` completa; `gh release create` + upload; limpiar archivos temporales locales.
+- **Windows (`main`)**: Release `v2026.08.25.1` (hotfix: guarda de instancia única) con soporte completo de teclado, ratón hablado, audio binaural 3D, suite de 145 tests en verde y auto-actualizador multiplataforma (filtra tags `android-*`). Marcado como **Latest**.
+- **Android (`android`)**: Release `android-v2026.08.25.5` (hotfix de jugabilidad: la Activity ya no se recrea al rotar a Landscape) con TalkBack 100% nativo, árbol de accesibilidad virtual de 64 nodos, auto-actualizador de APK que busca su propio tag `android-v…`, y APK firmado con keystore estable (actualización en sitio).
+- **Cómo distinguir al distribuir**: tag `v…` + asset `.zip` = Windows; tag `android-v…` + asset `.apk` = Android. El auto-actualizador de cada plataforma entrega el correcto sin que el usuario elija.
+- **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); en Windows build Debug+Release + suite completa (145/145) y zip con exe/PDB Release + `bass.dll` + `nvdaControllerClient32.dll` + 5 `libopenmpt*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (generado por `--pack-audio`) + `sounds\images\` completa; en Android el APK se compila en GitHub Actions (ver anecdotario 7); `gh release create` + `gh release upload`; limpiar `Temp\opencode`.
