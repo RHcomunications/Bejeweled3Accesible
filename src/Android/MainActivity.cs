@@ -33,6 +33,8 @@ namespace Bejeweled3Accessible.AndroidApp
         {
             base.OnCreate(savedInstanceState);
 
+            Localization.UseAndroidStrings = true;
+
             string dataDir = FilesDir.AbsolutePath;
             StoragePaths.ResolveDataDirectory(dataDir);
             ProfileManager.OverrideDataDirectory = dataDir;
