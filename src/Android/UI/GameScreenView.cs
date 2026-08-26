@@ -115,6 +115,15 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             Invalidate();
         }
 
+        // Reanuda la musica tras volver del segundo plano, sin anunciar (lo gestiona el sistema).
+        public void ResumePlayback()
+        {
+            if (_currentScreen == AndroidGameScreen.Playing)
+            {
+                _sound?.PlayMusic(_currentModeKey == "ModeZen" ? MusicMap.FileName(MusicMap.ZenPart1) : MusicMap.FileName(MusicMap.ClassicPart1));
+            }
+        }
+
         public void TogglePause()
         {
             _sound?.PlaySound(AudioMap.ButtonPress);
@@ -483,6 +492,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         protected override void OnDraw(Canvas canvas)
         {
             base.OnDraw(canvas);
+            // Mantener la pantalla encendida solo durante la partida activa: en
+            // menues y al segundo plano el sistema puede apagarla (ahorro de bateria).
+            this.KeepScreenOn = (_currentScreen == AndroidGameScreen.Playing);
             canvas.DrawColor(Color.Rgb(15, 15, 28));
 
             if (_currentScreen == AndroidGameScreen.Loading)

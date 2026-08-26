@@ -175,6 +175,10 @@ bejeweled3_accessible/
  13. **Limpieza de `README.html` de Android (solo táctil e historial propio)**:
      - *Cambio:* Tras el release `.3`, el `README.html` de la rama `android` aún traía la tabla de "Guía de Teclas" (Flechas, W/A/S/D, R, Q, C, H, Escape) y todo el historial de versiones de Windows. Se sustituyó la tabla por "Controles Táctiles" (deslizar para navegar/Intercambiar, tocar gema, botones Pista 💡 y Pausa ⏸️, doble toque = Enter, gesto Atrás = Escape, campo de perfil) en ES/EN, y se recortó el historial a solo las entradas `android-v2026.08.26.1/.2/.3` (las entradas Windows se eliminaron). Es un cambio de documentación en la rama; no requiere nuevo build ni nuevo release.
 
+ 14. **Optimización de batería en Android (comportamiento "como Windows")**:
+     - *Diagnóstico:* El juego ya era eficiente de base — sin `WakeLock`, render por eventos (`OnDraw` solo en `Invalidate`, sin bucle de animación), hilo de audio `AndroidModulePlayer.PlayLoop` que se bloquea en `AudioTrack.Write` (sin busy-spin) y muere al `Stop()` (que libera el `AudioTrack`), y sin polling de red (el update check es bajo demanda).
+     - *Cambios:* (a) `GameScreenView.OnDraw` fija `KeepScreenOn` solo cuando `_currentScreen == Playing`, así la pantalla se apaga sola en menús y al segundo plano (como el escritorio: no deja nada despierto atrás). (b) `MainActivity` pausa la música en `OnPause`/`OnStop` y la reanuda en silencio en `OnResume` **solo si** se estaba jugando (`ResumePlayback()`), evitando hilos de audio huérfanos en background y recuperando la música al volver. (c) El hilo de decodificación de `libopenmpt` baja su prioridad a `ThreadPriority.BelowNormal` para ceder CPU al sistema. No requiere nuevo release (cambio de comportamiento, compila en CI).
+
 ---
 
 ## 🏆 7. Estado del Proyecto y Releases

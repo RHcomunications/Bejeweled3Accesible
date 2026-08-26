@@ -23,6 +23,7 @@ namespace Bejeweled3Accessible.AndroidApp
         private AndroidSoundEngine _sound;
         private NativeMenuManager _menuManager;
         private GameScreenView _gameView;
+        private bool _resumeMusicOnReturn = false;
 
         public void SetDesiredOrientation(bool landscape)
         {
@@ -98,6 +99,12 @@ namespace Bejeweled3Accessible.AndroidApp
         protected override void OnResume()
         {
             base.OnResume();
+            if (_resumeMusicOnReturn && _gameView != null && _gameView.CurrentScreen == AndroidGameScreen.Playing)
+            {
+                _gameView.ResumePlayback();
+                _gameView.Invalidate();
+            }
+            _resumeMusicOnReturn = false;
         }
 
         public override void OnConfigurationChanged(Android.Content.Res.Configuration newConfig)
@@ -112,8 +119,15 @@ namespace Bejeweled3Accessible.AndroidApp
 
         protected override void OnPause()
         {
+            _resumeMusicOnReturn = (_gameView != null && _gameView.CurrentScreen == AndroidGameScreen.Playing);
             _sound?.StopMusic();
             base.OnPause();
+        }
+
+        protected override void OnStop()
+        {
+            _sound?.StopMusic();
+            base.OnStop();
         }
 
         protected override void OnDestroy()

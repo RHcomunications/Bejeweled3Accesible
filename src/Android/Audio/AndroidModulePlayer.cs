@@ -197,6 +197,7 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
             }
             _playing = true;
             _thread = new Thread(PlayLoop) { IsBackground = true };
+            _thread.Priority = ThreadPriority.BelowNormal;
             _thread.Start();
         }
 
