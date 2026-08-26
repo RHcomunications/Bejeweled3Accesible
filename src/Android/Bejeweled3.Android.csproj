@@ -1,0 +1,48 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>21</SupportedOSPlatformVersion>
+    <OutputType>Exe</OutputType>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <CheckEolTargetFramework>false</CheckEolTargetFramework>
+    <ApplicationTitle>Bejeweled 3 Accesible</ApplicationTitle>
+    <ApplicationId>com.narayan.bejeweled3accessible</ApplicationId>
+    <ApplicationVersion>8</ApplicationVersion>
+    <ApplicationDisplayVersion>2026.08.25.5</ApplicationDisplayVersion>
+    <RootNamespace>Bejeweled3Accessible.AndroidApp</RootNamespace>
+    <AssemblyName>Bejeweled3Accessible.Android</AssemblyName>
+    <AndroidPackageFormat>apk</AndroidPackageFormat>
+    <AndroidEnableProfiledAot>false</AndroidEnableProfiledAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\Engine\Board.cs" Link="Engine\Board.cs" />
+    <Compile Include="..\Engine\AmbientType.cs" Link="Engine\AmbientType.cs" />
+    <Compile Include="..\Engine\Gem.cs" Link="Engine\Gem.cs" />
+    <Compile Include="..\Engine\HintFinder.cs" Link="Engine\HintFinder.cs" />
+    <Compile Include="..\Engine\Localization.cs" Link="Engine\Localization.cs" />
+    <Compile Include="..\Engine\Affirmations.cs" Link="Engine\Affirmations.cs" />
+    <Compile Include="..\Engine\BadgeManager.cs" Link="Engine\BadgeManager.cs" />
+    <Compile Include="..\Engine\GameOptions.cs" Link="Engine\GameOptions.cs" />
+    <Compile Include="..\Engine\GameProgress.cs" Link="Engine\GameProgress.cs" />
+    <Compile Include="..\Engine\PokerHandEvaluator.cs" Link="Engine\PokerHandEvaluator.cs" />
+    <Compile Include="..\Engine\ProfileManager.cs" Link="Engine\ProfileManager.cs" />
+    <Compile Include="..\Engine\QuestManager.cs" Link="Engine\QuestManager.cs" />
+    <Compile Include="..\Engine\RankSystem.cs" Link="Engine\RankSystem.cs" />
+    <Compile Include="..\Engine\StoragePaths.cs" Link="Engine\StoragePaths.cs" />
+    <Compile Include="..\Audio\AudioMap.cs" Link="Audio\AudioMap.cs" />
+    <Compile Include="..\Audio\MusicMap.cs" Link="Audio\MusicMap.cs" />
+    <Compile Include="..\Audio\SpatialAudio.cs" Link="Audio\SpatialAudio.cs" />
+    <Compile Include="..\Audio\GridSpatializer.cs" Link="Audio\GridSpatializer.cs" />
+    <Compile Include="..\Audio\PacCipher.cs" Link="Audio\PacCipher.cs" />
+    <Compile Include="..\Audio\PacReader.cs" Link="Audio\PacReader.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <AndroidAsset Include="..\..\sounds\*.ogg" Link="Assets\sounds\%(FileName)%(Extension)" />
+    <AndroidAsset Include="..\..\sounds\*.wav" Link="Assets\sounds\%(FileName)%(Extension)" />
+    <AndroidAsset Include="..\..\music\*.mp3" Link="Assets\music\%(FileName)%(Extension)" />
+    <AndroidAsset Include="..\..\music\*.ogg" Link="Assets\music\%(FileName)%(Extension)" />
+  </ItemGroup>
+</Project>

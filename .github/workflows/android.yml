@@ -1,0 +1,57 @@
+name: Build Android APK
+
+on:
+  push:
+    branches:
+      - android
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v4
+
+    - name: Setup Java JDK
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - name: Setup .NET SDK
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '9.0.x'
+
+    - name: Restore Workloads
+      run: dotnet workload restore src/Android/Bejeweled3.Android.csproj
+
+    - name: Setup Signing Keystore
+      run: |
+        if [ ! -f .github/release.keystore ]; then
+          keytool -genkeypair -v \
+            -keystore .github/release.keystore \
+            -alias bejeweled3key \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass bejeweled3secret \
+            -keypass bejeweled3secret \
+            -dname "CN=RHCommunications, OU=Gaming, O=RHCommunications, L=City, S=State, C=US"
+        fi
+
+    - name: Build and Sign Android APK
+      run: |
+        dotnet build src/Android/Bejeweled3.Android.csproj -c Release -t:PackageForAndroid \
+          -p:AndroidKeyStore=true \
+          -p:AndroidSigningKeyStore=../../.github/release.keystore \
+          -p:AndroidSigningStorePass=bejeweled3secret \
+          -p:AndroidSigningKeyAlias=bejeweled3key \
+          -p:AndroidSigningKeyPass=bejeweled3secret
+
+    - name: Upload APK Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: Bejeweled3Accessible-Android-APK
+        path: src/Android/bin/Release/net9.0-android/*-Signed.apk

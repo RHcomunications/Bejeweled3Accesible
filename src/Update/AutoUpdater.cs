@@ -130,6 +130,15 @@ namespace Bejeweled3Accessible.Update
                     info.Tag = ReadJsonString(json, "tag_name");
                     info.Notes = ReadJsonString(json, "body");
                 }
+
+                // La "ultima" release estable puede ser de Android (android-v...).
+                // Para Windows ignoramos esos tags y buscamos la ultima release
+                // propia enumerando el listado de releases.
+                if (info.IsValid && info.Tag.StartsWith("android", StringComparison.OrdinalIgnoreCase))
+                {
+                    ReleaseInfo win = FetchLatestWindowsViaList(timeoutMs);
+                    if (win.IsValid) info = win;
+                }
             }
             catch (Exception ex) { Log("api.github.com fallo: " + ex.Message); }
 
@@ -154,8 +163,12 @@ namespace Bejeweled3Accessible.Update
                                 int idx = location.LastIndexOf("/tag/", StringComparison.OrdinalIgnoreCase);
                                 if (idx >= 0)
                                 {
-                                    info.Tag = location.Substring(idx + 5).TrimEnd('/');
-                                    info.Notes = null;
+                                    string tag = location.Substring(idx + 5).TrimEnd('/');
+                                    if (!tag.StartsWith("android", StringComparison.OrdinalIgnoreCase))
+                                    {
+                                        info.Tag = tag;
+                                        info.Notes = null;
+                                    }
                                 }
                             }
                         }
@@ -166,6 +179,50 @@ namespace Bejeweled3Accessible.Update
 
             Log("resultado: " + (info.IsValid ? info.Tag : "sin release (modo diagnostico)"));
             return info;
+        }
+
+        // Enumera las ultimas releases y devuelve la de mayor version que NO sea
+        // de Android (tag android-v...), para que el updater de Windows no ofrezca
+        // un paquete de otra plataforma.
+        private static ReleaseInfo FetchLatestWindowsViaList(int timeoutMs)
+        {
+            ReleaseInfo best = new ReleaseInfo();
+            try
+            {
+                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(
+                    "https://api.github.com/repos/" + GitHubRepo + "/releases?per_page=50");
+                req.Method = "GET";
+                req.Accept = "application/vnd.github+json";
+                req.Timeout = timeoutMs;
+                req.UserAgent = "Bejeweled3Accessible-Updater/" + CurrentVersionString;
+                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                using (StreamReader reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+                {
+                    string json = reader.ReadToEnd();
+                    Version bestVer = null;
+                    int i = 0;
+                    while ((i = json.IndexOf("\"tag_name\"", i, StringComparison.Ordinal)) >= 0)
+                    {
+                        int colon = json.IndexOf(':', i);
+                        if (colon < 0) break;
+                        int q1 = json.IndexOf('"', colon + 1);
+                        if (q1 < 0) break;
+                        int q2 = json.IndexOf('"', q1 + 1);
+                        if (q2 < 0) break;
+                        string tag = json.Substring(q1 + 1, q2 - q1 - 1);
+                        i = q2 + 1;
+                        if (tag.StartsWith("android", StringComparison.OrdinalIgnoreCase)) continue;
+                        Version v = ParseTagVersion(tag);
+                        if (v != null && (bestVer == null || v > bestVer))
+                        {
+                            bestVer = v;
+                            best.Tag = tag;
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) { Log("enum releases fallo: " + ex.Message); }
+            return best;
         }
 
         // One-line diagnostic log for support: %TEMP%\B3A_update_check.log
