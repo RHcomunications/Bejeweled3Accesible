@@ -1884,6 +1884,14 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         public const int VIRTUAL_ID_PAUSE = 201;
         public const int VIRTUAL_BOARD_BASE = 100;
 
+        // Acciones de intercambio direccional para TalkBack (Solucion 1): como
+        // TalkBack consume los deslizamientos de 1 dedo, el usuario mueve la gema
+        // con el menu de acciones nativo en vez de arrastrar el dedo.
+        public const int ActionSwapUp = 0x10001;
+        public const int ActionSwapDown = 0x10002;
+        public const int ActionSwapLeft = 0x10003;
+        public const int ActionSwapRight = 0x10004;
+
         public GameAccessibilityNodeProvider(GameScreenView view)
         {
             _view = view;
@@ -2012,6 +2020,13 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     }
 
                     node.ContentDescription = string.Format("{0}{1}: {2}{3}", colLetter, rowNum, gemName, movesDesc);
+
+                    // Acciones de intercambio direccional para TalkBack (Solucion 1).
+                    if (y > 0) node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ActionSwapUp, Localization.Get("SwapUp")));
+                    if (y < Board.Rows - 1) node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ActionSwapDown, Localization.Get("SwapDown")));
+                    if (x > 0) node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ActionSwapLeft, Localization.Get("SwapLeft")));
+                    if (x < Board.Cols - 1) node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ActionSwapRight, Localization.Get("SwapRight")));
+
                     return node;
                 }
             }
@@ -2094,6 +2109,24 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 }
                 return false;
             }
+            int actId = (int)action;
+            if (actId == ActionSwapUp || actId == ActionSwapDown || actId == ActionSwapLeft || actId == ActionSwapRight)
+            {
+                if (_view.CurrentScreen == AndroidGameScreen.Playing
+                    && virtualViewId >= VIRTUAL_BOARD_BASE && virtualViewId < VIRTUAL_BOARD_BASE + 64)
+                {
+                    int idx = virtualViewId - VIRTUAL_BOARD_BASE;
+                    int x = idx % Board.Cols;
+                    int y = idx / Board.Cols;
+                    if (actId == ActionSwapUp) _view.ExecuteSwap(x, y, x, y - 1);
+                    else if (actId == ActionSwapDown) _view.ExecuteSwap(x, y, x, y + 1);
+                    else if (actId == ActionSwapLeft) _view.ExecuteSwap(x, y, x - 1, y);
+                    else if (actId == ActionSwapRight) _view.ExecuteSwap(x, y, x + 1, y);
+                    return true;
+                }
+                return false;
+            }
+
             if (action == Android.Views.Accessibility.Action.Click)
             {
                 if (_view.CurrentScreen == AndroidGameScreen.Playing)
