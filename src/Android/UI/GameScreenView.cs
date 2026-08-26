@@ -565,10 +565,16 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             RefreshAccessibilityStructure();
         }
 
-        // Notifica a TalkBack que el arbol virtual cambio de tamano/posicion.
+        // Notifica a TalkBack que el arbol virtual cambio de tamano/posicion
+        // (rotacion a apaisado) para que reconsulte los limites de los nodos.
         internal void RefreshAccessibilityStructure()
         {
-            try { this.SendAccessibilityEvent(Android.Views.Accessibility.AccessibilityEvent.WindowContentChanged); } catch { }
+            try
+            {
+                var evt = Android.Views.Accessibility.AccessibilityEvent.Obtain(Android.Views.Accessibility.EventTypes.WindowContentChanged);
+                this.Parent?.RequestSendAccessibilityEvent(this, evt);
+            }
+            catch { }
         }
 
         private void DrawLoadingScreen(Canvas canvas)
