@@ -572,23 +572,42 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         public void SelectOrSwapCell(int cellX, int cellY)
         {
-            if (_board == null) return;
+            if (_board == null || cellX < 0 || cellX >= Board.Cols || cellY < 0 || cellY >= Board.Rows) return;
 
-            if (_selectedX >= 0 && _selectedY >= 0)
+            // Re-selección: Si se toca la misma casilla seleccionada, cancela la selección
+            if (_selectedX == cellX && _selectedY == cellY)
             {
-                int dx = cellX - _selectedX;
-                int dy = cellY - _selectedY;
-                if (Math.Abs(dx) + Math.Abs(dy) == 1)
-                {
-                    ExecuteSwap(_selectedX, _selectedY, cellX, cellY);
-                    return;
-                }
+                _selectedX = -1;
+                _selectedY = -1;
+                _sound?.PlaySound(AudioMap.ButtonPress);
+                _talkBack?.Speak("Selección cancelada.", true);
+                Invalidate();
+                return;
             }
 
+            // Segundo doble toque: Si ya hay una casilla seleccionada y es adyacente
+            if (_selectedX >= 0 && _selectedY >= 0 && Math.Abs(cellX - _selectedX) + Math.Abs(cellY - _selectedY) == 1)
+            {
+                int fromX = _selectedX;
+                int fromY = _selectedY;
+                _selectedX = -1;
+                _selectedY = -1;
+                ExecuteSwap(fromX, fromY, cellX, cellY);
+                return;
+            }
+
+            // Primer doble toque (o si se toca una casilla no adyacente)
             _selectedX = cellX;
             _selectedY = cellY;
+            _cursorX = cellX;
+            _cursorY = cellY;
+            Gem g = _board.GetGem(cellX, cellY);
+            string gemColor = g != null ? g.GetNameLocalized() : "Vacío";
+            string colLetter = ((char)('A' + cellX)).ToString();
+            int rowNum = cellY + 1;
+
             _sound?.PlaySoundSpatial(AudioMap.Select, cellX, cellY);
-            AnnounceCell(cellX, cellY);
+            _talkBack?.Speak(string.Format("Gema {0} en {1}{2} seleccionada. Elige celda de destino.", gemColor, colLetter, rowNum), true);
             Invalidate();
         }
 
@@ -1542,7 +1561,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                             {
                                 _cursorX = x;
                                 _cursorY = y;
-                                int virtualId = GameAccessibilityNodeProvider.VIRTUAL_BOARD_BASE + (y * Board.Cols + x);
+                                int virtualId = GameAccessibilityNodeProvider.VIRTUAL_BOARD_BASE + (x * Board.Rows + y);
                                 _nodeProvider?.SetFocusedVirtualView(virtualId);
                                 _talkBack?.NotifyVirtualViewFocused(virtualId);
                                 AnnounceCell(x, y);
@@ -1657,7 +1676,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 _cursorX = h.ToX;
                 _cursorY = h.ToY;
 
-                int virtualId = GameAccessibilityNodeProvider.VIRTUAL_BOARD_BASE + (h.FromY * Board.Cols + h.FromX);
+                int virtualId = GameAccessibilityNodeProvider.VIRTUAL_BOARD_BASE + (h.FromX * Board.Rows + h.FromY);
                 _nodeProvider?.SetFocusedVirtualView(virtualId);
                 _talkBack?.NotifyVirtualViewFocused(virtualId);
 
@@ -2051,11 +2070,12 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 {
                     root.SetCollectionInfo(AndroidCollectionInfo.Obtain(Board.Rows, Board.Cols, false));
 
-                    for (int y = 0; y < Board.Rows; y++)
+                    // Recorrido secuencial estricto por columnas (A1..A8 -> B1..B8 ... -> H1..H8):
+                    for (int x = 0; x < Board.Cols; x++)
                     {
-                        for (int x = 0; x < Board.Cols; x++)
+                        for (int y = 0; y < Board.Rows; y++)
                         {
-                            root.AddChild(_view, VIRTUAL_BOARD_BASE + (y * Board.Cols + x));
+                            root.AddChild(_view, VIRTUAL_BOARD_BASE + (x * Board.Rows + y));
                         }
                     }
                     root.AddChild(_view, VIRTUAL_ID_HINT);
@@ -2109,8 +2129,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 if (virtualViewId >= VIRTUAL_BOARD_BASE && virtualViewId < VIRTUAL_BOARD_BASE + 64)
                 {
                     int idx = virtualViewId - VIRTUAL_BOARD_BASE;
-                    int x = idx % Board.Cols;
-                    int y = idx / Board.Cols;
+                    int x = idx / Board.Rows;
+                    int y = idx % Board.Rows;
 
                     bool isSelected = (_view.SelectedX == x && _view.SelectedY == y);
                     node.SetCollectionItemInfo(AndroidCollectionItemInfo.Obtain(y, 1, x, 1, false, isSelected));
@@ -2120,16 +2140,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     node.SetBoundsInScreen(screenRect);
 
                     bool es = Localization.CurrentLanguage == Language.Spanish;
-                    node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ACTION_SELECT_GEM, new Java.Lang.String(es ? "Seleccionar gema" : "Select gem")));
-                    if (y > 0)
-                        node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ACTION_SWAP_UP, new Java.Lang.String(es ? "Mover arriba" : "Move up")));
-                    if (y < Board.Rows - 1)
-                        node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ACTION_SWAP_DOWN, new Java.Lang.String(es ? "Mover abajo" : "Move down")));
-                    if (x > 0)
-                        node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ACTION_SWAP_LEFT, new Java.Lang.String(es ? "Mover a la izquierda" : "Move left")));
-                    if (x < Board.Cols - 1)
-                        node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ACTION_SWAP_RIGHT, new Java.Lang.String(es ? "Mover a la derecha" : "Move right")));
-
                     Gem g = _view.BoardInstance?.GetGem(x, y);
                     string colLetter = ((char)('A' + x)).ToString();
                     int rowNum = y + 1;
@@ -2150,8 +2160,16 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         movesDesc = (es ? ". Movimientos válidos hacia " : ". Valid moves to ") + string.Join(es ? " o " : " or ", dirs);
                     }
 
-                    node.Text = string.Format("{0}{1}, {2}", colLetter, rowNum, gemName);
-                    node.ContentDescription = string.Format("{0}{1}: {2}{3}", colLetter, rowNum, gemName, movesDesc);
+                    if (isSelected)
+                    {
+                        node.Text = string.Format("{0}{1}, {2} (Seleccionada)", colLetter, rowNum, gemName);
+                        node.ContentDescription = string.Format("Gema {0} en {1}{2} seleccionada. Toca dos veces en una gema adyacente para mover o en la misma para cancelar.", gemName, colLetter, rowNum);
+                    }
+                    else
+                    {
+                        node.Text = string.Format("{0}{1}, {2}", colLetter, rowNum, gemName);
+                        node.ContentDescription = string.Format("{0}{1}: {2}{3}", colLetter, rowNum, gemName, movesDesc);
+                    }
                     return node;
                 }
             }
@@ -2208,8 +2226,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         public override bool PerformAction(int virtualViewId, Android.Views.Accessibility.Action action, Android.OS.Bundle arguments)
         {
-            int actionId = (int)action;
-
             if (action == Android.Views.Accessibility.Action.AccessibilityFocus)
             {
                 if (_focusedVirtualViewId != virtualViewId)
@@ -2235,42 +2251,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 return false;
             }
 
-            if (_view.CurrentScreen == AndroidGameScreen.Playing)
-            {
-                if (virtualViewId >= VIRTUAL_BOARD_BASE && virtualViewId < VIRTUAL_BOARD_BASE + 64)
-                {
-                    int idx = virtualViewId - VIRTUAL_BOARD_BASE;
-                    int x = idx % Board.Cols;
-                    int y = idx / Board.Cols;
-
-                    if (actionId == ACTION_SELECT_GEM)
-                    {
-                        _view.SelectCell(x, y);
-                        return true;
-                    }
-                    if (actionId == ACTION_SWAP_UP && y > 0)
-                    {
-                        _view.PerformDirectSwap(x, y, x, y - 1);
-                        return true;
-                    }
-                    if (actionId == ACTION_SWAP_DOWN && y < Board.Rows - 1)
-                    {
-                        _view.PerformDirectSwap(x, y, x, y + 1);
-                        return true;
-                    }
-                    if (actionId == ACTION_SWAP_LEFT && x > 0)
-                    {
-                        _view.PerformDirectSwap(x, y, x - 1, y);
-                        return true;
-                    }
-                    if (actionId == ACTION_SWAP_RIGHT && x < Board.Cols - 1)
-                    {
-                        _view.PerformDirectSwap(x, y, x + 1, y);
-                        return true;
-                    }
-                }
-            }
-
             if (action == Android.Views.Accessibility.Action.Click)
             {
                 if (_view.CurrentScreen == AndroidGameScreen.Playing)
@@ -2288,8 +2268,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     if (virtualViewId >= VIRTUAL_BOARD_BASE && virtualViewId < VIRTUAL_BOARD_BASE + 64)
                     {
                         int idx = virtualViewId - VIRTUAL_BOARD_BASE;
-                        int x = idx % Board.Cols;
-                        int y = idx / Board.Cols;
+                        int x = idx / Board.Rows;
+                        int y = idx % Board.Rows;
                         _view.SelectOrSwapCell(x, y);
                         return true;
                     }

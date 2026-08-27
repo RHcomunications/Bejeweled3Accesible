@@ -2,7 +2,7 @@
 
 **Proyecto:** Bejeweled 3 Accesible (Clon Fiel y Accesible de Bejeweled 3 para Jugadores Ciegos y con Baja Visión)  
 **Repositorio:** `RHcomunications/Bejeweled3Accesible`  
-**Versión Actual:** Windows: `v2026.08.27.0` | Android: `android-v2026.08.27.1`  
+**Versión Actual:** Windows: `v2026.08.27.0` | Android: `android-v2026.08.27.2`  
 **Tecnología Base:** 
 - **Windows (`main`):** C# (.NET Framework 4.5), Windows Forms, BASS Audio Engine (P/Invoke nativo), libopenmpt (decodificador de módulos .mo3), SAPI 5 / NVDA Controller Client.
    - **Android (`android`):** C# (.NET 9 Android / MAUI), Android Accessibility Framework (`AccessibilityManager`, `AnnounceForAccessibility`), `SoundPool` para efectos de ultra baja latencia y un reproductor de módulo `libopenmpt` → `AudioTrack` (igual que Windows) con `MediaPlayer` (MP3) como fallback para la banda sonora.
@@ -173,16 +173,24 @@ bejeweled3_accessible/
      - *Cambio:* El usuario pidió borrar todas las releases de Android `.1`–`.11` y publicar una sola `.8` con el build binaural (que ya contenía acumulados todos los fixes). Se cambió la versión en código a `2026.08.26.8` (`ApplicationDisplayVersion`, `AndroidAutoUpdater.CurrentVersion`, `Localization`) y se recompiló en CI.
 
  13. **Refactorización de Accesibilidad TalkBack, Grilla Rígida y Persistencia (hotfix `android-v2026.08.27.1`)**:
-     - *Persistencia y Bloqueo Canónico de Modos:* Implementado `GameProgressRepository` respaldado por `ISharedPreferences` y sincronizado con `ProfileManager`. Modos bloqueados por defecto (Póker al nivel 5 de Clásico, Mariposas al nivel 5 de Zen, Tormenta de Hielo a 100k en Relámpago y Mina de Diamantes al Relicario 1 de Quest) con `btn.Enabled = false` y `contentDescription` explícito con el requisito de desbloqueo. Al pulsar emite sonido de error y anuncia el requisito sin iniciar partida.
-     - *Grilla Semántica 8x8 y Traversal:* Asignación de `SetCollectionInfo` en la raíz y `SetCollectionItemInfo` en cada celda, garantizando un recorrido ordenado A1–H8 en portrait y landscape.
+     - *Persistencia y Bloqueo Canónico de Modos:* Implementado `GameProgressRepository` respaldado por `ISharedPreferences` y sincronizado con `ProfileManager`. Modos bloqueados por defecto con `btn.Enabled = false` y `contentDescription` explícito con el requisito de desbloqueo.
+     - *Grilla Semántica 8x8 y Traversal:* Asignación de `SetCollectionInfo` en la raíz y `SetCollectionItemInfo` en cada celda, garantizando un recorrido ordenado en portrait y landscape.
      - *Salto de Foco en Pistas:* Al pulsar "Pista", el foco de accesibilidad salta programáticamente a la casilla origen (`ViewAccessibilityFocused`).
-     - *Acciones Personalizadas de TalkBack:* Menú contextual en cada celda con *"Seleccionar gema"*, *"Mover arriba"*, *"Mover abajo"*, *"Mover a la izquierda"* y *"Mover a la derecha"*, ejecutando el intercambio directo sin requerir arrastres táctiles imprecisos.
+
+ 14. **Estabilización de Foco, Recorrido Vertical por Columnas e Intercambio por Doble Toque Secuencial (hotfix `android-v2026.08.27.2`)**:
+     - *Control Dinámico de Versión:* Se vinculó la cabecera de `NativeMenuManager` con `Assembly.GetExecutingAssembly().GetName().Version` para verbalizar y desplegar la versión exacta en ejecución en cada pantalla de menú.
+     - *Estabilización del Árbol Semántico:* Se aisló por completo el ciclo de renderizado gráfico de `OnDraw` de la invalidación del árbol de accesibilidad. `_nodeProvider` retiene el foco activo y solo notifica cambios ante mutaciones reales del tablero, eliminando reseteos aleatorios mientras el usuario explora gemas.
+     - *Recorrido Secuencial por Columnas (A1..A8 -> B1..B8):* Modificación del orden de indexación en `GameAccessibilityNodeProvider` con la fórmula `index = (columnaX * 8) + filaY`, permitiendo que el swipe horizontal o vertical avance de arriba a abajo por columnas de izquierda a derecha (A1 a A8, luego B1 a B8, hasta H1 a H8) con rectángulos `BoundsInScreen` adaptados sin solapamientos.
+     - *Sistema de Intercambio por Doble Toque Secuencial:* Reemplazo de menús contextuales por interacción de selección en dos pasos con TalkBack:
+       * *Primer doble toque:* Si no hay selección o la casilla no es adyacente, marca el origen y anuncia *"Gema [Color] en [Coordenada] seleccionada. Elige celda de destino"*.
+       * *Segundo doble toque:* Si la casilla enfocada es adyacente, ejecuta de inmediato `ExecuteSwap`, resetea la selección y anuncia el resultado y combinaciones.
+       * *Re-selección:* Si se toca dos veces sobre la misma gema seleccionada, cancela la selección anunciando *"Selección cancelada"*.
 
 ---
 
 ## 🏆 7. Estado del Proyecto y Releases
 
 - **Windows (`main`)**: Release `v2026.08.27.0` con soporte completo de teclado, ratón hablado, audio binaural 3D, suite de 145 tests en verde y auto-actualizador multiplataforma (filtra tags `android-*`). Marcado como **Latest**.
-- **Android (`android`)**: Release `android-v2026.08.27.1` (hotfix: refactorización de accesibilidad TalkBack, grilla semántica 8x8, salto programático de foco en pistas, acciones personalizadas de swap en 4 direcciones y GameProgressRepository con SharedPreferences) con APK firmado con keystore estable para actualización en sitio.
+- **Android (`android`)**: Release `android-v2026.08.27.2` (hotfix: estabilización de foco TalkBack, orden por columnas A1..A8 -> B1..B8, intercambio por doble toque de dos pasos, cabecera de versión dinámica por reflexión y GameProgressRepository con SharedPreferences) con APK firmado con keystore estable para actualización en sitio.
 - **Cómo distinguir al distribuir**: tag `v…` + asset `.zip` = Windows; tag `android-v…` + asset `.apk` = Android. El auto-actualizador de cada plataforma entrega el correcto sin que el usuario elija.
 - **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); en Windows build Debug+Release + suite completa (145/145) y zip con exe/PDB Release + `bass.dll` + `nvdaControllerClient32.dll` + 5 `libopenmpt*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (generado por `--pack-audio`) + `sounds\images\` completa; en Android el APK se compila en GitHub Actions (ver anecdotario 7); `gh release create` + `gh release upload`; limpiar `Temp\opencode`.

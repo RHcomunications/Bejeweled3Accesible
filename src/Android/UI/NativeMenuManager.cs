@@ -53,6 +53,23 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         private GameProgress Progress => _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.Progress : new GameProgress();
 
+        public string GetAppVersionString()
+        {
+            try
+            {
+                var ver = System.Reflection.Assembly.GetExecutingAssembly().GetName().Version;
+                if (ver != null && (ver.Major > 0 || ver.Minor > 0))
+                {
+                    return string.Format("{0}.{1:D2}.{2:D2}.{3}", ver.Major, ver.Minor, ver.Build, ver.Revision);
+                }
+                return _activity.PackageManager?.GetPackageInfo(_activity.PackageName, 0)?.VersionName ?? "2026.08.27.2";
+            }
+            catch
+            {
+                return "2026.08.27.2";
+            }
+        }
+
         private ScrollView CreateBaseLayout(string title, out LinearLayout container)
         {
             float density = _activity.Resources?.DisplayMetrics?.Density ?? 1.0f;
@@ -72,9 +89,11 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             };
             container.SetPadding((int)(20 * density), (int)(30 * density), (int)(20 * density), (int)(30 * density));
 
+            string versionStr = GetAppVersionString();
             TextView titleView = new TextView(_activity)
             {
-                Text = title,
+                Text = title + " - v" + versionStr,
+                ContentDescription = title + ". Versión " + versionStr,
                 TextSize = 24,
                 Typeface = Typeface.DefaultBold,
                 Gravity = GravityFlags.CenterHorizontal,
