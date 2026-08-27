@@ -94,7 +94,7 @@ namespace Bejeweled3Accessible.AndroidApp
         public void ReturnToMainMenu()
         {
             _sound?.StopMusic();
-            _menuManager.ShowMainMenu(true);
+            _menuManager.ShowMainMenu(false);
         }
 
         protected override void OnResume()

@@ -203,7 +203,8 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         {
             if (string.IsNullOrWhiteSpace(key)) return;
             float pan = BinauralEnabled ? SpatialAudio.PanColumn(col) : 0f;
-            PlaySoundSpatialPan(pan, 0.0f, key, baseVol);
+            float depth = BinauralEnabled ? SpatialAudio.DepthForRow(row) : 0f;
+            PlaySoundSpatialPan(pan, depth, key, baseVol);
         }
 
         public void PlaySoundSpatialPan(float pan, float depth, string key, float baseVol = 1.0f)
@@ -217,8 +218,14 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
             int soundId = EnsureSoundLoaded(key);
             if (soundId > 0)
             {
-                float leftVol = scaledBase * Math.Min(1.0f, 1.0f - pan);
-                float rightVol = scaledBase * Math.Min(1.0f, 1.0f + pan);
+                // Mismo modelo espacial que el motor de Windows (GridSpatializer):
+                // paneo equal-power (cos/sin) + atenuacion por profundidad de fila.
+                float t = (pan + 1.0f) * 0.5f;
+                float lg = (float)Math.Cos(t * Math.PI * 0.5f);
+                float rg = (float)Math.Sin(t * Math.PI * 0.5f);
+                float depthVol = scaledBase * SpatialAudio.VolumeForDepth(depth);
+                float leftVol = depthVol * lg;
+                float rightVol = depthVol * rg;
                 lock (_soundMap)
                 {
                     if (_loadedSoundIds.Contains(soundId))

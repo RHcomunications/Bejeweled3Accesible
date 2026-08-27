@@ -137,20 +137,23 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
             scroll.PostDelayed(() =>
             {
-                ShowMainMenu();
+                ShowMainMenu(true);
             }, 3000);
         }
 
-        public void ShowMainMenu(bool returningFromGame = false)
+        public void ShowMainMenu(bool atStartup = false)
         {
             _activity.SetDesiredOrientation(false);
 
             if (_profileMgr.Profiles.Count == 0)
             {
-                // Primera ejecucion: igual que Windows, el "Welcome to Bejeweled 3"
-                // suena solo aqui (con el prompt de creacion de perfil), no en cada carga.
-                _sound?.PlayMusic(MusicMap.MainTheme);
-                _sound?.PlaySound(AudioMap.VoiceWelcometobejeweled);
+                // Primera ejecucion (arranque de la app): el "Welcome to Bejeweled 3"
+                // suena solo al INICIAR el juego, no al volver al menu desde una partida.
+                if (atStartup)
+                {
+                    _sound?.PlayMusic(MusicMap.MainTheme);
+                    _sound?.PlaySound(AudioMap.VoiceWelcometobejeweled);
+                }
                 PromptCreateProfile();
                 return;
             }
@@ -159,9 +162,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             var scroll = CreateBaseLayout(Localization.Get("AppTitle"), out var container);
 
             _sound?.PlayMusic(MusicMap.MainTheme);
-            // "Welcome back" solo al volver de una partida (como Windows,
-            // TransitionToMainMenu(speakWelcomeBack=true)); no en cada carga.
-            if (returningFromGame)
+            // "Welcome back" solo al INICIAR el juego (arranque), igual que Windows
+            // (TransitionToMainMenu(true) en MusicRechained). Nunca al volver al menu.
+            if (atStartup)
                 _sound?.PlaySound(AudioMap.VoiceWelcomeback);
 
             container.AddView(CreateMenuButton(Localization.Get("MenuPlay"), "", () => ShowGameSelect()));
