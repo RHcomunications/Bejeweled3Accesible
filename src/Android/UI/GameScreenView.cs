@@ -4,6 +4,8 @@ using Android.Content;
 using Android.Graphics;
 using Android.Views;
 using Android.Views.Accessibility;
+using AndroidCollectionInfo = Android.Views.Accessibility.AccessibilityNodeInfo.CollectionInfo;
+using AndroidCollectionItemInfo = Android.Views.Accessibility.AccessibilityNodeInfo.CollectionItemInfo;
 using Bejeweled3Accessible.Audio;
 using Bejeweled3Accessible.Engine;
 using Bejeweled3Accessible.AndroidApp.Accessibility;
@@ -1967,7 +1969,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
                 if (_view.CurrentScreen == AndroidGameScreen.Playing)
                 {
-                    root.CollectionInfo = AccessibilityNodeInfo.CollectionInfo.Obtain(Board.Rows, Board.Cols, false);
+                    root.CollectionInfo = AndroidCollectionInfo.Obtain(Board.Rows, Board.Cols, false);
 
                     for (int y = 0; y < Board.Rows; y++)
                     {
@@ -2052,7 +2054,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     int y = idx / Board.Cols;
 
                     bool isSelected = (_view.SelectedX == x && _view.SelectedY == y);
-                    node.CollectionItemInfo = AccessibilityNodeInfo.CollectionItemInfo.Obtain(y, 1, x, 1, false, isSelected);
+                    node.CollectionItemInfo = AndroidCollectionItemInfo.Obtain(y, 1, x, 1, false, isSelected);
 
                     int left = offsetX + (x * tileSize) + (int)(2f * density);
                     int top = offsetY + (y * tileSize) + (int)(2f * density);
