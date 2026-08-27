@@ -15,7 +15,7 @@ namespace Bejeweled3Accessible.AndroidApp.Update
     public static class AndroidAutoUpdater
     {
         public const string GitHubRepo = "RHcomunications/Bejeweled3Accesible";
-        public const string CurrentVersion = "2026.08.26.8";
+        public const string CurrentVersion = "2026.08.27.0";
 
         public class AndroidReleaseInfo
         {
