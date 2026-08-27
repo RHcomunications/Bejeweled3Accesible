@@ -93,6 +93,7 @@ namespace Bejeweled3Accessible.AndroidApp
 
         public void ReturnToMainMenu()
         {
+            SetDesiredOrientation(false);
             _sound?.StopMusic();
             _menuManager.ShowMainMenu(false);
         }

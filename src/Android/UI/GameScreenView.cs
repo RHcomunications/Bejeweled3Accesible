@@ -85,6 +85,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             { GemColor.Orange, Color.Rgb(255, 140, 0) }
         };
 
+        private readonly GameAccessibilityNodeProvider _nodeProvider;
         private readonly System.Action _onPauseRequested;
 
         public GameScreenView(Context context, TalkBackBridge talkBack, AndroidSoundEngine sound, string modeKey, System.Action onPauseRequested) : base(context)
@@ -94,6 +95,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _sound = sound;
             _onPauseRequested = onPauseRequested;
 
+            _nodeProvider = new GameAccessibilityNodeProvider(this);
             _talkBack?.AttachView(this);
 
             _profileMgr = ProfileManager.Load();
@@ -103,10 +105,122 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _badgeMgr = BadgeManager.Load(profName);
 
             Focusable = true;
+            FocusableInTouchMode = true;
             Clickable = true;
             ImportantForAccessibility = ImportantForAccessibility.Yes;
 
             StartGame(modeKey);
+        }
+
+        public override AccessibilityNodeProvider AccessibilityNodeProvider => _nodeProvider;
+
+        protected override void OnAttachedToWindow()
+        {
+            base.OnAttachedToWindow();
+            (_context as MainActivity)?.SetDesiredOrientation(true);
+        }
+
+        public void GetCellBounds(int x, int y, out Rect parentRect, out Rect screenRect)
+        {
+            float density = Resources?.DisplayMetrics?.Density ?? 1.0f;
+            if (density < 1.0f) density = 1.0f;
+
+            bool isLandscape = Width >= Height;
+            int offsetX, offsetY, tileSize;
+
+            if (isLandscape)
+            {
+                int marginY = (int)(15f * density);
+                int availableHeight = Math.Max(1, Height - (marginY * 2));
+                tileSize = Math.Max(1, availableHeight / Board.Rows);
+                offsetX = (int)(20f * density);
+                offsetY = marginY;
+            }
+            else
+            {
+                int marginX = (int)(10f * density);
+                int availableWidth = Math.Max(1, Width - (marginX * 2));
+                tileSize = Math.Max(1, availableWidth / Board.Cols);
+                offsetX = marginX;
+                offsetY = (int)(40f * density);
+            }
+
+            int left = offsetX + (x * tileSize);
+            int top = offsetY + (y * tileSize);
+            int right = left + tileSize;
+            int bottom = top + tileSize;
+
+            parentRect = new Rect(left, top, right, bottom);
+            int[] loc = new int[2];
+            GetLocationOnScreen(loc);
+            screenRect = new Rect(left + loc[0], top + loc[1], right + loc[0], bottom + loc[1]);
+        }
+
+        public void GetButtonBounds(int buttonId, out Rect parentRect, out Rect screenRect)
+        {
+            float density = Resources?.DisplayMetrics?.Density ?? 1.0f;
+            if (density < 1.0f) density = 1.0f;
+
+            bool isLandscape = Width >= Height;
+            int left, top, right, bottom;
+
+            if (isLandscape)
+            {
+                int marginY = (int)(15f * density);
+                int availableHeight = Math.Max(1, Height - (marginY * 2));
+                int tileSize = Math.Max(1, availableHeight / Board.Rows);
+                int offsetX = (int)(20f * density);
+                int offsetY = marginY;
+
+                int panelLeft = offsetX + (Board.Cols * tileSize) + (int)(25f * density);
+                int panelWidth = Math.Max((int)(100f * density), Width - panelLeft - (int)(20f * density));
+                int btnHeight = (int)(55f * density);
+                int hintTop = offsetY + (int)(20f * density);
+                int pauseTop = hintTop + btnHeight + (int)(20f * density);
+
+                left = panelLeft;
+                right = panelLeft + panelWidth;
+                if (buttonId == GameAccessibilityNodeProvider.VIRTUAL_ID_HINT)
+                {
+                    top = hintTop;
+                    bottom = hintTop + btnHeight;
+                }
+                else // VIRTUAL_ID_PAUSE
+                {
+                    top = pauseTop;
+                    bottom = pauseTop + btnHeight;
+                }
+            }
+            else
+            {
+                int marginX = (int)(10f * density);
+                int availableWidth = Math.Max(1, Width - (marginX * 2));
+                int tileSize = Math.Max(1, availableWidth / Board.Cols);
+                int offsetX = marginX;
+                int offsetY = (int)(40f * density);
+
+                int panelTop = offsetY + (Board.Rows * tileSize) + (int)(15f * density);
+                int btnHeight = (int)(50f * density);
+                int btnWidth = Math.Max(1, (Width - (int)(40f * density)) / 2);
+
+                top = panelTop;
+                bottom = panelTop + btnHeight;
+                if (buttonId == GameAccessibilityNodeProvider.VIRTUAL_ID_HINT)
+                {
+                    left = (int)(15f * density);
+                    right = left + btnWidth;
+                }
+                else // VIRTUAL_ID_PAUSE
+                {
+                    left = (int)(25f * density) + btnWidth;
+                    right = left + btnWidth;
+                }
+            }
+
+            parentRect = new Rect(left, top, right, bottom);
+            int[] loc = new int[2];
+            GetLocationOnScreen(loc);
+            screenRect = new Rect(left + loc[0], top + loc[1], right + loc[0], bottom + loc[1]);
         }
 
         public string CurrentModeKey => _currentModeKey;
@@ -1426,61 +1540,41 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         protected override bool DispatchHoverEvent(MotionEvent e)
         {
-            // TalkBack usa HoverMove/HoverEnter para la exploracion tactil con 1 dedo.
-            // Un AccessibilityNodeProvider "crudo" (no ExploreByTouchHelper) depende de
-            // que la vista consuma el hover para dar feedback por celda; si no, el base
-            // View no lo reenvia al provider y la exploracion de 1 dedo deja de funcionar.
-            // Como consumimos el evento, TalkBack no lo recibe y no hay habla duplicada:
-            // aqui anunciamos una sola vez por celda al pasar el dedo por encima.
             if (e.Action == MotionEventActions.HoverMove || e.Action == MotionEventActions.HoverEnter)
             {
-                float density = Resources?.DisplayMetrics?.Density ?? 1.0f;
-                if (density < 1.0f) density = 1.0f;
-                int marginY = (int)(15f * density);
-                int boardHeight = Height - (marginY * 2);
-                int tileSize = Math.Max(1, boardHeight / Board.Rows);
-                int offsetX = (int)(20f * density);
-                int offsetY = marginY;
+                int touchX = (int)e.GetX();
+                int touchY = (int)e.GetY();
 
-                int cellX = (int)((e.GetX() - offsetX) / tileSize);
-                int cellY = (int)((e.GetY() - offsetY) / tileSize);
-
-                if (cellX >= 0 && cellX < Board.Cols && cellY >= 0 && cellY < Board.Rows)
+                for (int y = 0; y < Board.Rows; y++)
                 {
-                    // Solo anunciar si el dedo cambio de casilla
-                    if (_cursorX != cellX || _cursorY != cellY)
+                    for (int x = 0; x < Board.Cols; x++)
                     {
-                        _cursorX = cellX;
-                        _cursorY = cellY;
-                        AnnounceCell(cellX, cellY);
-                        Invalidate();
+                        GetCellBounds(x, y, out Rect cellRect, out _);
+                        if (cellRect.Contains(touchX, touchY))
+                        {
+                            if (_cursorX != x || _cursorY != y)
+                            {
+                                _cursorX = x;
+                                _cursorY = y;
+                                int virtualId = GameAccessibilityNodeProvider.VIRTUAL_BOARD_BASE + (y * Board.Cols + x);
+                                _nodeProvider?.SetFocusedVirtualView(virtualId);
+                                _talkBack?.NotifyVirtualViewFocused(virtualId);
+                                AnnounceCell(x, y);
+                                Invalidate();
+                            }
+                            return true;
+                        }
                     }
                 }
-                return true;
             }
             return base.DispatchHoverEvent(e);
         }
 
         private bool HandleBoardTouch(MotionEvent e)
         {
-            float density = Resources?.DisplayMetrics?.Density ?? 1.0f;
-            if (density < 1.0f) density = 1.0f;
             bool explore = _talkBack != null && _talkBack.IsTouchExplorationEnabled;
-
-            int marginY = (int)(15f * density);
-            int boardHeight = Height - (marginY * 2);
-            int tileSize = Math.Max(1, boardHeight / Board.Rows);
-            int offsetX = (int)(20f * density);
-            int offsetY = marginY;
-
-            int cellX = (int)((e.GetX() - offsetX) / tileSize);
-            int cellY = (int)((e.GetY() - offsetY) / tileSize);
-
-            int panelLeft = offsetX + (Board.Cols * tileSize) + (int)(25f * density);
-            int panelWidth = Width - panelLeft - (int)(20f * density);
-            int btnHeight = (int)(55f * density);
-            int hintTop = offsetY + (int)(20f * density);
-            int pauseTop = hintTop + btnHeight + (int)(20f * density);
+            int touchX = (int)e.GetX();
+            int touchY = (int)e.GetY();
 
             if (e.Action == MotionEventActions.Down)
             {
@@ -1488,43 +1582,50 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 _startY = e.GetY();
                 _swapExecutedInCurrentTouch = false;
 
-                // Verificar si toco el panel lateral de botones
-                if (e.GetX() >= panelLeft && e.GetX() <= panelLeft + panelWidth)
+                GetButtonBounds(GameAccessibilityNodeProvider.VIRTUAL_ID_HINT, out Rect hintRect, out _);
+                GetButtonBounds(GameAccessibilityNodeProvider.VIRTUAL_ID_PAUSE, out Rect pauseRect, out _);
+
+                if (hintRect.Contains(touchX, touchY))
                 {
-                    if (e.GetY() >= hintTop && e.GetY() <= hintTop + btnHeight) // Boton PISTA
-                    {
-                        TriggerHint();
-                        return true;
-                    }
-                    else if (e.GetY() >= pauseTop && e.GetY() <= pauseTop + btnHeight) // Boton PAUSA
-                    {
-                        TogglePause();
-                        return true;
-                    }
+                    TriggerHint();
+                    return true;
+                }
+                if (pauseRect.Contains(touchX, touchY))
+                {
+                    TogglePause();
+                    return true;
                 }
 
-                if (cellX >= 0 && cellX < Board.Cols && cellY >= 0 && cellY < Board.Rows)
+                for (int y = 0; y < Board.Rows; y++)
                 {
-                    _cursorX = cellX;
-                    _cursorY = cellY;
-
-                    if (_selectedX >= 0 && _selectedY >= 0)
+                    for (int x = 0; x < Board.Cols; x++)
                     {
-                        int dx = cellX - _selectedX;
-                        int dy = cellY - _selectedY;
-                        if (Math.Abs(dx) + Math.Abs(dy) == 1)
+                        GetCellBounds(x, y, out Rect cellRect, out _);
+                        if (cellRect.Contains(touchX, touchY))
                         {
-                            _swapExecutedInCurrentTouch = true;
-                            ExecuteSwap(_selectedX, _selectedY, cellX, cellY);
+                            _cursorX = x;
+                            _cursorY = y;
+
+                            if (_selectedX >= 0 && _selectedY >= 0)
+                            {
+                                int dx = x - _selectedX;
+                                int dy = y - _selectedY;
+                                if (Math.Abs(dx) + Math.Abs(dy) == 1)
+                                {
+                                    _swapExecutedInCurrentTouch = true;
+                                    ExecuteSwap(_selectedX, _selectedY, x, y);
+                                    return true;
+                                }
+                            }
+
+                            _selectedX = x;
+                            _selectedY = y;
+                            _sound?.PlaySoundSpatial(AudioMap.Select, x, y);
+                            AnnounceCell(x, y);
+                            Invalidate();
                             return true;
                         }
                     }
-
-                    _selectedX = cellX;
-                    _selectedY = cellY;
-                    _sound?.PlaySoundSpatial(AudioMap.Select, cellX, cellY);
-                    AnnounceCell(cellX, cellY);
-                    Invalidate();
                 }
             }
             else if (e.Action == MotionEventActions.Up)
@@ -1532,26 +1633,19 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 float deltaX = e.GetX() - _startX;
                 float deltaY = e.GetY() - _startY;
 
-                // Si ya ejecutamos el intercambio en el Down (toque de dos celdas
-                // contiguas), ignorar el gesto de deslizamiento en el Up para no
-                // disparar un segundo swap accidental.
                 if (_swapExecutedInCurrentTouch)
                 {
                     _swapExecutedInCurrentTouch = false;
                     return true;
                 }
 
-                // Con exploracion tactil (TalkBack) se desactiva el gesto de
-                // deslizamiento para intercambiar, ya que arrastrar para explorar
-                // dispararia swaps no deseados. El intercambio se hace tocando
-                // dos celdas contiguas.
                 if (!explore && (Math.Abs(deltaX) > 30 || Math.Abs(deltaY) > 30))
                 {
                     int swapDx = Math.Abs(deltaX) > Math.Abs(deltaY) ? (deltaX > 0 ? 1 : -1) : 0;
                     int swapDy = Math.Abs(deltaX) > Math.Abs(deltaY) ? 0 : (deltaY > 0 ? 1 : -1);
 
-                    int fromX = (_selectedX >= 0) ? _selectedX : cellX;
-                    int fromY = (_selectedY >= 0) ? _selectedY : cellY;
+                    int fromX = _selectedX >= 0 ? _selectedX : _cursorX;
+                    int fromY = _selectedY >= 0 ? _selectedY : _cursorY;
                     int targetX = fromX + swapDx;
                     int targetY = fromY + swapDy;
 
@@ -2006,28 +2100,10 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
             if (_view.CurrentScreen == AndroidGameScreen.Playing)
             {
-                float density = _view.Resources?.DisplayMetrics?.Density ?? 1.0f;
-                if (density < 1.0f) density = 1.0f;
-
-                int marginY = (int)(15f * density);
-                int boardHeight = _view.Height - (marginY * 2);
-                int tileSize = Math.Max(1, boardHeight / Board.Rows);
-                int offsetX = (int)(20f * density);
-                int offsetY = marginY;
-
-                int panelLeft = offsetX + (Board.Cols * tileSize) + (int)(25f * density);
-                int panelWidth = _view.Width - panelLeft - (int)(20f * density);
-                int btnHeight = (int)(55f * density);
-                int hintTop = offsetY + (int)(20f * density);
-                int pauseTop = hintTop + btnHeight + (int)(20f * density);
-
                 if (virtualViewId == VIRTUAL_ID_HINT)
                 {
-                    Rect rect = new Rect(panelLeft, hintTop, panelLeft + panelWidth, hintTop + btnHeight);
+                    _view.GetButtonBounds(VIRTUAL_ID_HINT, out Rect rect, out Rect screenRect);
                     node.SetBoundsInParent(rect);
-                    int[] loc = new int[2];
-                    _view.GetLocationOnScreen(loc);
-                    Rect screenRect = new Rect(rect.Left + loc[0], rect.Top + loc[1], rect.Right + loc[0], rect.Bottom + loc[1]);
                     node.SetBoundsInScreen(screenRect);
                     node.Text = "💡 " + Localization.Get("HintTitle");
                     node.ContentDescription = "Botón de Pista. Toca dos veces para encontrar un movimiento sugerido.";
@@ -2036,11 +2112,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
                 if (virtualViewId == VIRTUAL_ID_PAUSE)
                 {
-                    Rect rect = new Rect(panelLeft, pauseTop, panelLeft + panelWidth, pauseTop + btnHeight);
+                    _view.GetButtonBounds(VIRTUAL_ID_PAUSE, out Rect rect, out Rect screenRect);
                     node.SetBoundsInParent(rect);
-                    int[] loc = new int[2];
-                    _view.GetLocationOnScreen(loc);
-                    Rect screenRect = new Rect(rect.Left + loc[0], rect.Top + loc[1], rect.Right + loc[0], rect.Bottom + loc[1]);
                     node.SetBoundsInScreen(screenRect);
                     node.Text = "⏸️ " + Localization.Get("PauseTitle");
                     node.ContentDescription = "Botón de Pausa. Toca dos veces para pausar la partida o volver al menú.";
@@ -2056,13 +2129,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     bool isSelected = (_view.SelectedX == x && _view.SelectedY == y);
                     node.SetCollectionItemInfo(AndroidCollectionItemInfo.Obtain(y, 1, x, 1, false, isSelected));
 
-                    int left = offsetX + (x * tileSize) + (int)(2f * density);
-                    int top = offsetY + (y * tileSize) + (int)(2f * density);
-                    Rect rect = new Rect(left, top, left + tileSize - (int)(4f * density), top + tileSize - (int)(4f * density));
+                    _view.GetCellBounds(x, y, out Rect rect, out Rect screenRect);
                     node.SetBoundsInParent(rect);
-                    int[] loc = new int[2];
-                    _view.GetLocationOnScreen(loc);
-                    Rect screenRect = new Rect(rect.Left + loc[0], rect.Top + loc[1], rect.Right + loc[0], rect.Bottom + loc[1]);
                     node.SetBoundsInScreen(screenRect);
 
                     bool es = Localization.CurrentLanguage == Language.Spanish;
