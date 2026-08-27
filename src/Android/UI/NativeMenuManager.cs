@@ -10,6 +10,7 @@ using Bejeweled3Accessible.Audio;
 using Bejeweled3Accessible.Engine;
 using Bejeweled3Accessible.AndroidApp.Accessibility;
 using Bejeweled3Accessible.AndroidApp.Audio;
+using Bejeweled3Accessible.AndroidApp.Persistence;
 using Bejeweled3Accessible.AndroidApp.Update;
 
 namespace Bejeweled3Accessible.AndroidApp.UI
@@ -21,6 +22,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private readonly AndroidSoundEngine _sound;
         private readonly ProfileManager _profileMgr;
         private readonly GameOptions _options;
+        private readonly GameProgressRepository _progressRepo;
         private BadgeManager _badgeMgr;
 
         private int _relicIdx = 0;
@@ -35,6 +37,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
             _profileMgr = ProfileManager.Load();
             _options = GameOptions.Load();
+            _progressRepo = new GameProgressRepository(activity);
 
             if (_sound != null && _options != null)
             {
@@ -85,7 +88,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             return scrollView;
         }
 
-        private Button CreateMenuButton(string text, string contentDesc, Action onClick)
+        private Button CreateMenuButton(string text, string contentDesc, Action onClick, bool isLocked = false, string lockReason = null)
         {
             float density = _activity.Resources?.DisplayMetrics?.Density ?? 1.0f;
             if (density < 1.0f) density = 1.0f;
@@ -94,14 +97,23 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             {
                 Text = text,
                 TextSize = 18,
-                ContentDescription = string.IsNullOrWhiteSpace(contentDesc) ? text : contentDesc,
+                ContentDescription = !string.IsNullOrWhiteSpace(lockReason) ? lockReason : (string.IsNullOrWhiteSpace(contentDesc) ? text : contentDesc),
                 Focusable = true,
                 Clickable = true,
                 ImportantForAccessibility = ImportantForAccessibility.Yes
             };
 
-            btn.SetTextColor(Color.White);
-            btn.SetBackgroundColor(Color.Rgb(40, 50, 80));
+            if (isLocked)
+            {
+                btn.Enabled = false;
+                btn.SetTextColor(Color.LightGray);
+                btn.SetBackgroundColor(Color.Rgb(25, 30, 45));
+            }
+            else
+            {
+                btn.SetTextColor(Color.White);
+                btn.SetBackgroundColor(Color.Rgb(40, 50, 80));
+            }
 
             var lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MatchParent, ViewGroup.LayoutParams.WrapContent);
             lp.SetMargins(0, (int)(8 * density), 0, (int)(8 * density));
@@ -110,6 +122,12 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
             btn.Click += (s, e) =>
             {
+                if (isLocked)
+                {
+                    _sound?.PlaySound(AudioMap.Badmove);
+                    _talkBack?.Speak(lockReason ?? text, true);
+                    return;
+                }
                 _sound?.PlaySound(AudioMap.ButtonPress);
                 onClick?.Invoke();
             };
@@ -226,14 +244,45 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             container.AddView(CreateMenuButton(Localization.Get("ModeZen"), "", () => ShowZenOptionsScreen()));
             container.AddView(CreateMenuButton(Localization.Get("ModeQuest"), "", () => ShowQuestRelicScreen()));
 
-            if (Progress.IsPokerUnlocked)
-                container.AddView(CreateMenuButton(Localization.Get("ModePoker"), "", () => _onStartGame?.Invoke("ModePoker")));
-            if (Progress.IsButterfliesUnlocked)
-                container.AddView(CreateMenuButton(Localization.Get("ModeButterflies"), "", () => _onStartGame?.Invoke("ModeButterflies")));
-            if (Progress.IsIceStormUnlocked)
-                container.AddView(CreateMenuButton(Localization.Get("ModeIceStorm"), "", () => _onStartGame?.Invoke("ModeIceStorm")));
-            if (Progress.IsDiamondMineUnlocked)
-                container.AddView(CreateMenuButton(Localization.Get("ModeDiamondMine"), "", () => _onStartGame?.Invoke("ModeDiamondMine")));
+            bool pokerUnlocked = Progress.IsPokerUnlocked;
+            string pokerKey = pokerUnlocked ? "ModePoker" : "ModePokerLocked";
+            container.AddView(CreateMenuButton(
+                Localization.Get(pokerKey),
+                "",
+                () => _onStartGame?.Invoke("ModePoker"),
+                !pokerUnlocked,
+                Localization.Get("ModePokerLocked")
+            ));
+
+            bool butterfliesUnlocked = Progress.IsButterfliesUnlocked;
+            string butterfliesKey = butterfliesUnlocked ? "ModeButterflies" : "ModeButterfliesLocked";
+            container.AddView(CreateMenuButton(
+                Localization.Get(butterfliesKey),
+                "",
+                () => _onStartGame?.Invoke("ModeButterflies"),
+                !butterfliesUnlocked,
+                Localization.Get("ModeButterfliesLocked")
+            ));
+
+            bool iceStormUnlocked = Progress.IsIceStormUnlocked;
+            string iceStormKey = iceStormUnlocked ? "ModeIceStorm" : "ModeIceStormLocked";
+            container.AddView(CreateMenuButton(
+                Localization.Get(iceStormKey),
+                "",
+                () => _onStartGame?.Invoke("ModeIceStorm"),
+                !iceStormUnlocked,
+                Localization.Get("ModeIceStormLocked")
+            ));
+
+            bool diamondMineUnlocked = Progress.IsDiamondMineUnlocked;
+            string diamondMineKey = diamondMineUnlocked ? "ModeDiamondMine" : "ModeDiamondMineLocked";
+            container.AddView(CreateMenuButton(
+                Localization.Get(diamondMineKey),
+                "",
+                () => _onStartGame?.Invoke("ModeDiamondMine"),
+                !diamondMineUnlocked,
+                Localization.Get("ModeDiamondMineLocked")
+            ));
 
             container.AddView(CreateMenuButton(Localization.Get("BackToMain"), "", () => ShowMainMenu()));
 
