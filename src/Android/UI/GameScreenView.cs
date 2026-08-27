@@ -1229,7 +1229,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     _badgeMgr = BadgeManager.Load(name);
                     _sound?.PlaySound(AudioMap.Rankup);
                     _sound?.PlayMusic(MusicMap.MainTheme);
-                    _sound?.PlaySound(AudioMap.VoiceWelcomeback);
+                    _sound?.PlaySound(AudioMap.VoiceWelcometobejeweled);
                     _talkBack?.Speak(string.Format("Nuevo perfil creado: {0}", name), true);
                     _currentScreen = AndroidGameScreen.MainMenu;
                     _menuIdx = 0;
