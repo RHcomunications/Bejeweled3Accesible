@@ -1402,9 +1402,11 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         protected override bool DispatchHoverEvent(MotionEvent e)
         {
             // TalkBack usa HoverMove/HoverEnter para la exploracion tactil con 1 dedo.
-            // Si la vista no los intercepta, TalkBack cree que la pantalla esta vacia
-            // y obliga a usar 2 dedos (saltandose la accesibilidad). Al consumirlos
-            // aqui y anunciar la celda bajo el dedo, la exploracion de 1 dedo funciona.
+            // Un AccessibilityNodeProvider "crudo" (no ExploreByTouchHelper) depende de
+            // que la vista consuma el hover para dar feedback por celda; si no, el base
+            // View no lo reenvia al provider y la exploracion de 1 dedo deja de funcionar.
+            // Como consumimos el evento, TalkBack no lo recibe y no hay habla duplicada:
+            // aqui anunciamos una sola vez por celda al pasar el dedo por encima.
             if (e.Action == MotionEventActions.HoverMove || e.Action == MotionEventActions.HoverEnter)
             {
                 float density = Resources?.DisplayMetrics?.Density ?? 1.0f;
@@ -2019,7 +2021,12 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         movesDesc = ". Movimientos válidos hacia " + string.Join(" o ", dirs);
                     }
 
-                    node.ContentDescription = string.Format("{0}{1}: {2}{3}", colLetter, rowNum, gemName, movesDesc);
+                    // Etiqueta hablada concisa (A1, Roja) para que TalkBack lea una
+                    // sola celda de forma limpia al explorar; el ContentDescription
+                    // conserva solo el detalle de movimientos validos (sin repetir
+                    // el nombre, para no leer la gema dos veces).
+                    node.Text = string.Format("{0}{1}, {2}", colLetter, rowNum, gemName);
+                    node.ContentDescription = movesDesc;
 
                     // Acciones de intercambio direccional para TalkBack (Solucion 1).
                     if (y > 0) node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ActionSwapUp, Localization.Get("SwapUp")));
