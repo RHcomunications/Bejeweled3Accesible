@@ -123,6 +123,7 @@ namespace Bejeweled3Accessible.AndroidApp.Update
                 req.Accept = "application/vnd.github+json";
                 req.Timeout = 10000;
                 req.UserAgent = "Bejeweled3Accessible-AndroidUpdater/" + CurrentVersion;
+                req.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
                 using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
                 using (StreamReader reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
                 {
@@ -158,11 +159,16 @@ namespace Bejeweled3Accessible.AndroidApp.Update
                         int b = blockStart;
                         while (b >= 0 && b < blockEnd)
                         {
-                            int bIdx = json.IndexOf("\"browser_download_url\":\"", b, StringComparison.Ordinal);
+                            int bIdx = json.IndexOf("\"browser_download_url\"", b, StringComparison.Ordinal);
                             if (bIdx < 0 || bIdx >= blockEnd) break;
-                            int uStart = bIdx + 24;
-                            int uEnd = json.IndexOf("\"", uStart, StringComparison.Ordinal);
-                            if (uEnd < 0) break;
+                            int colon = json.IndexOf(':', bIdx);
+                            if (colon < 0 || colon >= blockEnd) { b = bIdx + 1; break; }
+                            int q = colon + 1;
+                            while (q < blockEnd && json[q] == ' ') q++;
+                            if (q >= blockEnd || json[q] != '"') { b = bIdx + 1; continue; }
+                            int uStart = q + 1;
+                            int uEnd = json.IndexOf('"', uStart);
+                            if (uEnd < 0 || uEnd >= blockEnd) { b = bIdx + 1; break; }
                             string url = json.Substring(uStart, uEnd - uStart);
                             if (url.EndsWith(".apk", StringComparison.OrdinalIgnoreCase))
                             {

@@ -1674,13 +1674,37 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                             _pokerCards.Clear();
                             _pokerHandBonus = 0;
 
-                            _pokerSkullCharge++;
-                            if (_pokerSkullCharge >= 3 && _pokerSkulls > 0)
+                            // Skull Eliminator (juego original): cada mano buena
+                            // llena la barra segun su valor; al 100% elimina una
+                            // calavera. El Color (Flush) la elimina al instante.
+                            if (hand == PokerHandType.Flush)
                             {
-                                _pokerSkulls--;
-                                _pokerSkullCharge = 0;
-                                _sound?.PlaySound(AudioMap.SkullBuster);
-                                _talkBack?.Speak(Localization.Get("PokerSkullEliminated", _pokerSkulls), true);
+                                if (_pokerSkulls > 0)
+                                {
+                                    _pokerSkulls--;
+                                    _pokerSkullCharge = 0;
+                                    _sound?.PlaySound(AudioMap.SkullBuster);
+                                    _talkBack?.Speak(Localization.Get("PokerSkullEliminated", _pokerSkulls), true);
+                                }
+                            }
+                            else
+                            {
+                                int fill = PokerHandEvaluator.GetSkullEliminatorFill(hand);
+                                if (_pokerSkulls > 0)
+                                {
+                                    _pokerSkullCharge += fill;
+                                    if (_pokerSkullCharge >= PokerHandEvaluator.SkullEliminatorMax)
+                                    {
+                                        _pokerSkullCharge -= PokerHandEvaluator.SkullEliminatorMax;
+                                        _pokerSkulls--;
+                                        _sound?.PlaySound(AudioMap.SkullBuster);
+                                        _talkBack?.Speak(Localization.Get("PokerSkullEliminated", _pokerSkulls), true);
+                                    }
+                                }
+                                else
+                                {
+                                    _pokerSkullCharge = 0;
+                                }
                             }
                         }
                     }

@@ -327,7 +327,7 @@ namespace Bejeweled3Accessible.Engine
             // Per-mode playing status (press Q)
             { "ClassicStatus", new Tuple<string, string>("Modo Clásico. Puntuación: {0}. Nivel: {1}. Progreso de nivel: {2} de {3} puntos. Barajadas restantes: {4}.", "Classic Mode. Score: {0}. Level: {1}. Level progress: {2} of {3} points. Shuffles left: {4}.") },
             { "ZenStatus", new Tuple<string, string>("Modo Zen. Puntuación: {0}. Nivel: {1}. Progreso de nivel: {2} de {3} puntos.", "Zen Mode. Score: {0}. Level: {1}. Level progress: {2} of {3} points.") },
-            { "PokerStatus", new Tuple<string, string>("Modo Póker. Puntuación: {0}. Cartas en la mano: {1} de 5. Calaveras en la mesa: {2}. Barra eliminadora: {3} de 3.", "Poker Mode. Score: {0}. Cards in hand: {1} of 5. Skulls on the table: {2}. Skull eliminator: {3} of 3.") },
+            { "PokerStatus", new Tuple<string, string>("Modo Póker. Puntuación: {0}. Cartas en la mano: {1} de 5. Calaveras en la mesa: {2}. Barra eliminadora: {3}%.", "Poker Mode. Score: {0}. Cards in hand: {1} of 5. Skulls on the table: {2}. Skull eliminator: {3}%.") },
             { "ButterfliesModeStatus", new Tuple<string, string>("Modo Mariposas. Puntuación: {0}. Mariposas en el tablero: {1}. Columnas: {2}.", "Butterflies Mode. Score: {0}. Butterflies on the board: {1}. Columns: {2}.") },
             { "IceStormModeStatus", new Tuple<string, string>("Tormenta de Hielo. Puntuación: {0}. Columnas desheladas: {1}. {2}", "Ice Storm. Score: {0}. Columns melted: {1}. {2}") },
             { "IceSkullSuffix", new Tuple<string, string>("Columnas crestadas CON cráneo activo: {0}. ", "Columns crested WITH active skull: {0}. ") },
