@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using Android.Content;
 using Android.Content.Res;
 using Android.Media;
+using Java.Nio;
 using Bejeweled3Accessible.Audio;
 
 namespace Bejeweled3Accessible.AndroidApp.Audio
@@ -22,6 +24,13 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         private AndroidModulePlayer _modulePlayer;
         private string _currentModuleTrack;
         private byte[] _mo3Bytes;
+
+        // Cache de PCM mono decodificado (modelo binaural completo tipo Windows).
+        // Si la decodificacion OGG->PCM falla en un dispositivo, el sonido se marca
+        // en _pcmFailed y se cae al paneo equal-power de SoundPool (.10).
+        private readonly Dictionary<string, MonoSamples> _pcmCache = new Dictionary<string, MonoSamples>(StringComparer.OrdinalIgnoreCase);
+        private readonly HashSet<string> _pcmFailed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        private readonly List<SpatialVoice> _activeVoices = new List<SpatialVoice>();
 
         public int MusicVol { get; set; } = 80;
         public int SfxVol { get; set; } = 100;
@@ -58,6 +67,23 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
             _soundPool.SetOnLoadCompleteListener(this);
 
             IndexAssetSounds();
+
+            // Pre-decodificar en segundo plano los SFX espaciales mas frecuentes
+            // para no encadenar decodificaciones OGG en el hilo de juego (cascadas).
+            Task.Run(() => WarmSpatialCache());
+        }
+
+        private void WarmSpatialCache()
+        {
+            try
+            {
+                string[] common = { "gem_hit", "combo_1", "combo_2", "combo_3" };
+                foreach (var k in common)
+                {
+                    if (BinauralEnabled) GetMonoSamples(k);
+                }
+            }
+            catch { }
         }
 
         private void IndexAssetSounds()
@@ -215,11 +241,39 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
             float master = isVoice ? (VoiceVol / 100f) : (SfxVol / 100f);
             float scaledBase = baseVol * master;
 
+            // Binaural completo, idéntico a GridSpatializer de Windows: decodificamos
+            // el OGG a PCM mono, aplicamos paneo equal-power + aire (low-pass por
+            // profundidad) + anchura estereo y reproducimos por AudioTrack. Si la
+            // decodificación falla en este dispositivo, caemos al modelo .10 (SoundPool).
+            if (BinauralEnabled && !isVoice)
+            {
+                MonoSamples pcm = GetMonoSamples(key);
+                if (pcm != null)
+                {
+                    try
+                    {
+                        var grid = new GridSpatializer();
+                        grid.SampleRate = pcm.SampleRate;
+                        grid.Pan = pan;
+                        grid.Depth = depth;
+                        grid.Volume = scaledBase;
+                        float[] mono = pcm.Data;
+                        float[] stereo = new float[mono.Length * 2];
+                        grid.Process(mono, mono.Length, stereo);
+                        PlayStereoFrames(stereo, pcm.SampleRate);
+                        return;
+                    }
+                    catch (Exception ex)
+                    {
+                        Android.Util.Log.Error("BejeweledAudio", "Binaural fallo, fallback SoundPool: " + ex.Message);
+                    }
+                }
+            }
+
+            // Fallback: paneo equal-power + atenuacion por profundidad (.10) via SoundPool.
             int soundId = EnsureSoundLoaded(key);
             if (soundId > 0)
             {
-                // Mismo modelo espacial que el motor de Windows (GridSpatializer):
-                // paneo equal-power (cos/sin) + atenuacion por profundidad de fila.
                 float t = (pan + 1.0f) * 0.5f;
                 float lg = (float)Math.Cos(t * Math.PI * 0.5f);
                 float rg = (float)Math.Sin(t * Math.PI * 0.5f);
@@ -238,6 +292,214 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
                     }
                 }
             }
+        }
+
+        private MonoSamples GetMonoSamples(string key)
+        {
+            lock (_pcmCache)
+            {
+                if (_pcmFailed.Contains(key)) return null;
+                if (_pcmCache.TryGetValue(key, out MonoSamples cached)) return cached;
+            }
+            MonoSamples decoded = DecodeMonoSamples(key);
+            lock (_pcmCache)
+            {
+                if (decoded == null) _pcmFailed.Add(key);
+                else _pcmCache[key] = decoded;
+                return decoded;
+            }
+        }
+
+        private MonoSamples DecodeMonoSamples(string key)
+        {
+            if (!_assetSoundFiles.TryGetValue(key, out string file)) return null;
+            try
+            {
+                using (var afd = _context.Assets.OpenFd("sounds/" + file))
+                {
+                    var extractor = new MediaExtractor();
+                    try
+                    {
+                        extractor.SetDataSource(afd.FileDescriptor, afd.StartOffset, afd.Length);
+                        int trackCount = extractor.TrackCount;
+                        int audioTrack = -1;
+                        for (int i = 0; i < trackCount; i++)
+                        {
+                            var tf = extractor.GetTrackFormat(i);
+                            string mime = tf.GetString(MediaFormat.KeyMime);
+                            if (mime != null && mime.StartsWith("audio/", StringComparison.OrdinalIgnoreCase))
+                            {
+                                audioTrack = i;
+                                break;
+                            }
+                        }
+                        if (audioTrack < 0) return null;
+                        var fmt = extractor.GetTrackFormat(audioTrack);
+                        extractor.SelectTrack(audioTrack);
+                        int sampleRate = fmt.ContainsKey(MediaFormat.KeySampleRate) ? fmt.GetInteger(MediaFormat.KeySampleRate) : 44100;
+                        int channels = fmt.ContainsKey(MediaFormat.KeyChannelCount) ? fmt.GetInteger(MediaFormat.KeyChannelCount) : 1;
+                        int pcmEnc = fmt.ContainsKey(MediaFormat.KeyPcmEncoding)
+                            ? fmt.GetInteger(MediaFormat.KeyPcmEncoding)
+                            : (int)Android.Media.Encoding.Pcm16bit;
+
+                        var codec = MediaCodec.CreateDecoderByType(fmt.GetString(MediaFormat.KeyMime));
+                        if (codec == null) return null;
+                        try
+                        {
+                            codec.Configure(fmt, null, null, 0);
+                            codec.Start();
+                            var bufferInfo = new MediaCodec.BufferInfo();
+                            var pcmList = new List<byte>(2048);
+                            bool sawInputEos = false;
+                            bool sawOutputEos = false;
+                            int guard = 0;
+                            while (!sawOutputEos && guard++ < 200000)
+                            {
+                                if (!sawInputEos)
+                                {
+                                    int inIdx = codec.DequeueInputBuffer(5000);
+                                    if (inIdx >= 0)
+                                    {
+                                        var inBuf = codec.GetInputBuffer(inIdx);
+                                        inBuf.Clear();
+                                        int size = extractor.ReadSampleData(inBuf, 0);
+                                        if (size < 0)
+                                        {
+                                            codec.QueueInputBuffer(inIdx, 0, 0, 0, MediaCodecBufferFlags.EndOfStream);
+                                            sawInputEos = true;
+                                        }
+                                        else
+                                        {
+                                            long pts = extractor.SampleTime;
+                                            codec.QueueInputBuffer(inIdx, 0, size, pts, 0);
+                                            extractor.Advance();
+                                        }
+                                    }
+                                }
+                                int outIdx = codec.DequeueOutputBuffer(bufferInfo, 5000);
+                                if (outIdx >= 0)
+                                {
+                                    if ((bufferInfo.Flags & MediaCodecBufferFlags.EndOfStream) != 0) sawOutputEos = true;
+                                    if (bufferInfo.Size > 0)
+                                    {
+                                        var outBuf = codec.GetOutputBuffer(outIdx);
+                                        outBuf.Position(bufferInfo.Offset);
+                                        outBuf.Limit(bufferInfo.Offset + bufferInfo.Size);
+                                        byte[] chunk = new byte[bufferInfo.Size];
+                                        outBuf.Get(chunk);
+                                        pcmList.AddRange(chunk);
+                                    }
+                                    codec.ReleaseOutputBuffer(outIdx, false);
+                                    if (sawOutputEos) break;
+                                }
+                                else if (outIdx == (int)MediaCodecInfoState.OutputFormatChanged)
+                                {
+                                    var nf = codec.OutputFormat;
+                                    if (nf.ContainsKey(MediaFormat.KeySampleRate)) sampleRate = nf.GetInteger(MediaFormat.KeySampleRate);
+                                    if (nf.ContainsKey(MediaFormat.KeyChannelCount)) channels = nf.GetInteger(MediaFormat.KeyChannelCount);
+                                    if (nf.ContainsKey(MediaFormat.KeyPcmEncoding)) pcmEnc = nf.GetInteger(MediaFormat.KeyPcmEncoding);
+                                }
+                            }
+
+                            float[] mono = DownmixToMono(pcmList.ToArray(), channels, pcmEnc);
+                            return mono == null ? null : new MonoSamples { Data = mono, SampleRate = sampleRate };
+                        }
+                        finally
+                        {
+                            try { codec.Stop(); } catch { }
+                            try { codec.Release(); } catch { }
+                        }
+                    }
+                    finally
+                    {
+                        try { extractor.Release(); } catch { }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Android.Util.Log.Error("BejeweledAudio", "Decode OGG fallo " + key + ": " + ex.Message);
+                return null;
+            }
+        }
+
+        private static float[] DownmixToMono(byte[] pcm, int channels, int pcmEnc)
+        {
+            if (pcm == null || pcm.Length == 0) return null;
+            channels = Math.Max(1, channels);
+            if (pcmEnc == (int)Android.Media.Encoding.PcmFloat)
+            {
+                int bytesPerSample = 4;
+                int frames = (pcm.Length / bytesPerSample) / channels;
+                if (frames <= 0) return null;
+                float[] mono = new float[frames];
+                for (int i = 0; i < frames; i++)
+                {
+                    float sum = 0f;
+                    for (int c = 0; c < channels; c++)
+                        sum += BitConverter.ToSingle(pcm, (i * channels + c) * bytesPerSample);
+                    mono[i] = sum / channels;
+                }
+                return mono;
+            }
+            else
+            {
+                int bytesPerSample = 2;
+                int frames = (pcm.Length / bytesPerSample) / channels;
+                if (frames <= 0) return null;
+                float[] mono = new float[frames];
+                for (int i = 0; i < frames; i++)
+                {
+                    float sum = 0f;
+                    for (int c = 0; c < channels; c++)
+                        sum += BitConverter.ToInt16(pcm, (i * channels + c) * bytesPerSample) / 32768f;
+                    mono[i] = sum / channels;
+                }
+                return mono;
+            }
+        }
+
+        private void PlayStereoFrames(float[] stereo, int sampleRate)
+        {
+            int shortsLen = stereo.Length;
+            short[] pcm16 = new short[shortsLen];
+            for (int i = 0; i < shortsLen; i++)
+            {
+                float v = stereo[i];
+                if (v > 1f) v = 1f; else if (v < -1f) v = -1f;
+                pcm16[i] = (short)(v * 32767f);
+            }
+            int frames = shortsLen / 2;
+
+            var attrs = new AudioAttributes.Builder()
+                .SetUsage(AudioUsageKind.Game)
+                .SetContentType(AudioContentType.Sonification)
+                .Build();
+            var afmt = new AudioFormat.Builder()
+                .SetEncoding(Android.Media.Encoding.Pcm16bit)
+                .SetSampleRate(sampleRate)
+                .SetChannelMask(ChannelOut.Stereo)
+                .Build();
+            int minBuf = AudioTrack.GetMinBufferSize(sampleRate, ChannelOut.Stereo, Android.Media.Encoding.Pcm16bit);
+            int bufSize = Math.Max(minBuf, pcm16.Length * 2);
+            var track = new AudioTrack(attrs, afmt, bufSize, AudioTrackMode.Static, 0);
+            int written = track.Write(pcm16, 0, pcm16.Length);
+            if (written <= 0) { track.Release(); return; }
+
+            var voice = new SpatialVoice(this, track);
+            lock (_activeVoices)
+            {
+                if (_activeVoices.Count >= 40)
+                {
+                    var old = _activeVoices[0];
+                    _activeVoices.RemoveAt(0);
+                    old.ForceRelease();
+                }
+                _activeVoices.Add(voice);
+            }
+            track.SetPlaybackPositionUpdateListener(voice);
+            track.SetNotificationMarkerPosition(frames);
+            track.Play();
         }
 
         public void PlayMusic(string trackName, bool loop = true)
@@ -438,6 +700,44 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         {
             StopMusic();
             _soundPool?.Release();
+            lock (_activeVoices)
+            {
+                foreach (var v in _activeVoices) v.ForceRelease();
+                _activeVoices.Clear();
+            }
+        }
+
+        private sealed class MonoSamples
+        {
+            public float[] Data;
+            public int SampleRate;
+        }
+
+        private sealed class SpatialVoice : Java.Lang.Object, AudioTrack.IOnPlaybackPositionUpdateListener
+        {
+            private readonly AndroidSoundEngine _owner;
+            private readonly AudioTrack _track;
+
+            public SpatialVoice(AndroidSoundEngine owner, AudioTrack track)
+            {
+                _owner = owner;
+                _track = track;
+            }
+
+            public void OnMarkerReached(AudioTrack track)
+            {
+                ForceRelease();
+            }
+
+            public void OnPeriodicNotification(AudioTrack track)
+            {
+            }
+
+            public void ForceRelease()
+            {
+                try { _track.Release(); } catch { }
+                lock (_owner._activeVoices) _owner._activeVoices.Remove(this);
+            }
         }
     }
 }
