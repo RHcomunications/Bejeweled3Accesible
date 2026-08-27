@@ -161,9 +161,9 @@ namespace Bejeweled3Accessible.AndroidApp.Update
                         {
                             int bIdx = json.IndexOf("\"browser_download_url\"", b, StringComparison.Ordinal);
                             if (bIdx < 0 || bIdx >= blockEnd) break;
-                            int colon = json.IndexOf(':', bIdx);
-                            if (colon < 0 || colon >= blockEnd) { b = bIdx + 1; break; }
-                            int q = colon + 1;
+                            int colonIdx = json.IndexOf(':', bIdx);
+                            if (colonIdx < 0 || colonIdx >= blockEnd) { b = bIdx + 1; break; }
+                            int q = colonIdx + 1;
                             while (q < blockEnd && json[q] == ' ') q++;
                             if (q >= blockEnd || json[q] != '"') { b = bIdx + 1; continue; }
                             int uStart = q + 1;
