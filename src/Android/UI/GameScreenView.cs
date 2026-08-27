@@ -547,20 +547,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             Invalidate();
         }
 
-        private GameAccessibilityNodeProvider _nodeProvider;
-
-        public override AccessibilityNodeProvider AccessibilityNodeProvider
-        {
-            get
-            {
-                if (_nodeProvider == null)
-                {
-                    _nodeProvider = new GameAccessibilityNodeProvider(this);
-                }
-                return _nodeProvider;
-            }
-        }
-
         public int SelectedX => _selectedX;
         public int SelectedY => _selectedY;
 
