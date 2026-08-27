@@ -67,5 +67,26 @@ namespace Bejeweled3Accessible.Engine
                 default: return 0;
             }
         }
+
+        // Barra "Skull Eliminator" del juego original: se llena segun el valor
+        // de la mano (mejor mano = mas carga); el Color (Flush) elimina una
+        // calavera al instante. HighCard no es mano valida y en su lugar suelta
+        // una calavera (lo gestiona quien llama).
+        public const int SkullEliminatorMax = 100;
+
+        public static int GetSkullEliminatorFill(PokerHandType hand)
+        {
+            switch (hand)
+            {
+                case PokerHandType.Pair: return 10;
+                case PokerHandType.Spectrum: return 15;
+                case PokerHandType.TwoPair: return 20;
+                case PokerHandType.ThreeOfAKind: return 35;
+                case PokerHandType.FullHouse: return 50;
+                case PokerHandType.FourOfAKind: return 75;
+                case PokerHandType.Flush: return 100;
+                default: return 0;
+            }
+        }
     }
 }

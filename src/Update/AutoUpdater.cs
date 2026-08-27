@@ -123,6 +123,7 @@ namespace Bejeweled3Accessible.Update
                 req.Accept = "application/vnd.github+json";
                 req.Timeout = timeoutMs;
                 req.UserAgent = "Bejeweled3Accessible-Updater/" + CurrentVersionString;
+                req.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
                 using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
                 using (StreamReader reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
                 {
@@ -195,6 +196,7 @@ namespace Bejeweled3Accessible.Update
                 req.Accept = "application/vnd.github+json";
                 req.Timeout = timeoutMs;
                 req.UserAgent = "Bejeweled3Accessible-Updater/" + CurrentVersionString;
+                req.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
                 using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
                 using (StreamReader reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
                 {
