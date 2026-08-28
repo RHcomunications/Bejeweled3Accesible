@@ -197,11 +197,24 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         private void ExecuteSwap(int fromX, int fromY, int toX, int toY)
         {
-            _sound?.PlaySoundSpatial(AudioMap.GemHit, toX, toY);
             _board.SwapGems(fromX, fromY, toX, toY);
             CascadeResult res = _board.ProcessMatchesAndGravity(false, false, false, false);
             if (res != null && res.AnyMatched)
             {
+                // Efecto "lagrima": cada gema que cae/regenera suena como una gota de
+                // GemHit espaciada ~100ms y subiendo semitonos (fire-and-forget).
+                int dropCount = Math.Max(1, Math.Min(res.TotalGemsDestroyed, 16));
+                int cx = toX, cy = toY;
+                var snd = _sound;
+                System.Threading.Tasks.Task.Run(async () =>
+                {
+                    for (int k = 0; k < dropCount; k++)
+                    {
+                        float p = (float)System.Math.Pow(2.0, k / 12.0);
+                        snd?.PlaySoundSpatialPitch(AudioMap.GemHit, cx, cy, p);
+                        await System.Threading.Tasks.Task.Delay(100);
+                    }
+                });
                 _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + "1", toX, toY);
             }
             _selectedX = -1;

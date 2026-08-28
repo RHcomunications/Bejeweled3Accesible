@@ -1695,13 +1695,35 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         internal void ExecuteSwap(int fromX, int fromY, int toX, int toY)
         {
-            _sound?.PlaySoundSpatial(AudioMap.GemHit, toX, toY);
             _board.SwapGems(fromX, fromY, toX, toY);
             CascadeResult res = _board.ProcessMatchesAndGravity(false, false, false, false);
             if (res != null && res.AnyMatched)
             {
                 int combo = Math.Min(res.CascadeDepth, 7);
-                _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + (combo > 0 ? combo.ToString() : "1"), toX, toY);
+
+                // Efecto "lagrima": cada gema que cae/regenera suena como una gota de
+                // GemHit espaciada ~100ms y subiendo semitonos. El tablero ya esta
+                // resuelto; solo espaciamos el audio en segundo plano (fire-and-forget)
+                // para no bloquear el hilo de UI, igual que en el Relampago original.
+                int dropCount = Math.Max(1, Math.Min(res.TotalGemsDestroyed, 16));
+                int cx = toX, cy = toY;
+                var snd = _sound;
+                System.Threading.Tasks.Task.Run(async () =>
+                {
+                    for (int k = 0; k < dropCount; k++)
+                    {
+                        float p = (float)System.Math.Pow(2.0, k / 12.0);
+                        snd?.PlaySoundSpatialPitch(AudioMap.GemHit, cx, cy, p);
+                        await System.Threading.Tasks.Task.Delay(100);
+                    }
+                });
+
+                // En Relampago las combinaciones tambien suben semitonos al realizarse.
+                string comboName = AudioMap.ComboPrefix + (combo > 0 ? combo.ToString() : "1");
+                if (_currentModeKey == "ModeLightning")
+                    _sound?.PlaySoundSpatialPitch(comboName, toX, toY, (float)System.Math.Pow(2.0, (combo - 1) / 12.0));
+                else
+                    _sound?.PlaySoundSpatial(comboName, toX, toY);
 
                 // Explosiones y creación de gemas especiales
                 if (res.SupernovaCreated > 0)

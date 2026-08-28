@@ -233,7 +233,7 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
             PlaySoundSpatialPan(pan, depth, key, baseVol);
         }
 
-        public void PlaySoundSpatialPan(float pan, float depth, string key, float baseVol = 1.0f)
+        public void PlaySoundSpatialPan(float pan, float depth, string key, float baseVol = 1.0f, float rate = 1.0f)
         {
             if (string.IsNullOrWhiteSpace(key)) return;
 
@@ -258,6 +258,7 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
                         grid.Depth = depth;
                         grid.Volume = scaledBase;
                         float[] mono = pcm.Data;
+                        if (rate != 1.0f) mono = ResampleMono(mono, rate);
                         float[] stereo = new float[mono.Length * 2];
                         grid.Process(mono, mono.Length, stereo);
                         PlayStereoFrames(stereo, pcm.SampleRate);
@@ -284,7 +285,7 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
                 {
                     if (_loadedSoundIds.Contains(soundId))
                     {
-                        _soundPool.Play(soundId, leftVol, rightVol, 1, 0, 1.0f);
+                        _soundPool.Play(soundId, leftVol, rightVol, 1, 0, ClampRate(rate));
                     }
                     else
                     {
@@ -292,6 +293,43 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
                     }
                 }
             }
+        }
+
+        public void PlaySoundPitch(string key, float pitch)
+        {
+            PlaySoundSpatialPan(0f, 0f, key, 1.0f, pitch);
+        }
+
+        public void PlaySoundSpatialPitch(string key, int col, int row, float pitch)
+        {
+            float pan = BinauralEnabled ? SpatialAudio.PanColumn(col) : 0f;
+            float depth = BinauralEnabled ? SpatialAudio.DepthForRow(row) : 0f;
+            PlaySoundSpatialPan(pan, depth, key, 1.0f, pitch);
+        }
+
+        private static float ClampRate(float r)
+        {
+            if (r <= 0f) return 1.0f;
+            if (r < 0.5f) return 0.5f;
+            if (r > 2.0f) return 2.0f;
+            return r;
+        }
+
+        private static float[] ResampleMono(float[] src, float factor)
+        {
+            if (src == null || src.Length == 0) return src;
+            int n = (int)(src.Length / factor);
+            if (n < 1) n = 1;
+            float[] dst = new float[n];
+            for (int i = 0; i < n; i++)
+            {
+                float pos = i * factor;
+                int i0 = (int)pos;
+                int i1 = Math.Min(i0 + 1, src.Length - 1);
+                float frac = pos - i0;
+                dst[i] = src[i0] * (1f - frac) + src[i1] * frac;
+            }
+            return dst;
         }
 
         private MonoSamples GetMonoSamples(string key)
