@@ -1815,8 +1815,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             CascadeResult res = _board.ProcessMatchesAndGravity(false, false, false, false);
             if (res != null && res.AnyMatched)
             {
-                int combo = Math.Min(res.CascadeDepth, 7);
-
                 // Efecto "lagrima": cada gema que cae/regenera suena como una gota de
                 // GemHit espaciada ~100ms y subiendo semitonos. El tablero ya esta
                 // resuelto; solo espaciamos el audio en segundo plano (fire-and-forget)
@@ -1826,11 +1824,28 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 var snd = _sound;
                 System.Threading.Tasks.Task.Run(async () =>
                 {
-                    for (int k = 0; k < dropCount; k++)
+                    int levels = Math.Max(1, Math.Min(res.CascadeDepth, 7));
+                    int gemIndex = 0;
+                    for (int lvl = 1; lvl <= levels; lvl++)
                     {
-                        float p = (float)System.Math.Pow(2.0, k / 12.0);
-                        snd?.PlaySoundSpatialPitch(AudioMap.GemHit, cx, cy, p);
-                        await System.Threading.Tasks.Task.Delay(100);
+                        int gemsThisLevel = (dropCount + levels - 1) / levels;
+                        if (gemIndex + gemsThisLevel > dropCount) gemsThisLevel = dropCount - gemIndex;
+                        if (gemsThisLevel < 1 && lvl == 1) gemsThisLevel = 1;
+                        for (int g = 0; g < gemsThisLevel && gemIndex < dropCount; g++, gemIndex++)
+                        {
+                            float p = (float)System.Math.Pow(2.0, (lvl - 1 + g) / 12.0);
+                            snd?.PlaySoundSpatialPitch(AudioMap.GemHit, cx, cy, p);
+                            await System.Threading.Tasks.Task.Delay(100);
+                        }
+
+                        // Combo de este nivel de cadena (sube de tono en Relampago), cada 130 ms
+                        string comboName = AudioMap.ComboPrefix + lvl;
+                        float comboPitch = (float)System.Math.Pow(2.0, (_currentModeKey == "ModeLightning" ? (lvl - 1) : 0) / 12.0);
+                        if (_currentModeKey == "ModeLightning")
+                            snd?.PlaySoundSpatialPitch(comboName, cx, cy, comboPitch);
+                        else
+                            snd?.PlaySoundSpatial(comboName, cx, cy);
+                        await System.Threading.Tasks.Task.Delay(130);
                     }
                 });
 
@@ -1846,13 +1861,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     _teardrops.Add(new TeardropSplash { Col = sCol, Row = sRow, StartMs = nowMs + k * 100 });
                 }
                 if (_teardrops.Count > 200) _teardrops.RemoveRange(0, _teardrops.Count - 200);
-
-                // En Relampago las combinaciones tambien suben semitonos al realizarse.
-                string comboName = AudioMap.ComboPrefix + (combo > 0 ? combo.ToString() : "1");
-                if (_currentModeKey == "ModeLightning")
-                    _sound?.PlaySoundSpatialPitch(comboName, toX, toY, (float)System.Math.Pow(2.0, (combo - 1) / 12.0));
-                else
-                    _sound?.PlaySoundSpatial(comboName, toX, toY);
 
                 // Explosiones y creación de gemas especiales
                 if (res.SupernovaCreated > 0)

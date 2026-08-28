@@ -235,11 +235,23 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 var snd = _sound;
                 System.Threading.Tasks.Task.Run(async () =>
                 {
-                    for (int k = 0; k < dropCount; k++)
+                    int levels = Math.Max(1, Math.Min(res.CascadeDepth, 7));
+                    int gemIndex = 0;
+                    for (int lvl = 1; lvl <= levels; lvl++)
                     {
-                        float p = (float)System.Math.Pow(2.0, k / 12.0);
-                        snd?.PlaySoundSpatialPitch(AudioMap.GemHit, cx, cy, p);
-                        await System.Threading.Tasks.Task.Delay(100);
+                        int gemsThisLevel = (dropCount + levels - 1) / levels;
+                        if (gemIndex + gemsThisLevel > dropCount) gemsThisLevel = dropCount - gemIndex;
+                        if (gemsThisLevel < 1 && lvl == 1) gemsThisLevel = 1;
+                        for (int g = 0; g < gemsThisLevel && gemIndex < dropCount; g++, gemIndex++)
+                        {
+                            float p = (float)System.Math.Pow(2.0, (lvl - 1 + g) / 12.0);
+                            snd?.PlaySoundSpatialPitch(AudioMap.GemHit, cx, cy, p);
+                            await System.Threading.Tasks.Task.Delay(100);
+                        }
+
+                        // Combo de este nivel de cadena, cada 130 ms
+                        snd?.PlaySoundSpatial(AudioMap.ComboPrefix + lvl, cx, cy);
+                        await System.Threading.Tasks.Task.Delay(130);
                     }
                 });
 
@@ -254,8 +266,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     _teardrops.Add(new TeardropSplash { Col = sCol, Row = sRow, StartMs = nowMs + k * 100 });
                 }
                 if (_teardrops.Count > 200) _teardrops.RemoveRange(0, _teardrops.Count - 200);
-
-                _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + "1", toX, toY);
             }
             _selectedX = -1;
             _selectedY = -1;
