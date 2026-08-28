@@ -1969,18 +1969,46 @@ namespace Bejeweled3Accessible.UI
 
                     bool levelUpVoicePlayed = false;
 
-                    // Efecto "lágrima": cada gema que cae/regenera suena como una
-                    // gota de GemHit espaciada ~100ms y subiendo semitonos, igual
-                    // que en el Relampago original. La primera gota barre (HRTF)
-                    // desde el origen del swap hasta su columna de aterrizaje.
-                    float pitchMult = (float)Math.Pow(2.0, (_cascadeChain - 1) / 12.0);
+                    // Reaccion en cadena (efecto "lagrima" + combos por nivel de cascada):
+                    // cada nivel de la cadena reproduce las gotas de gemhit que caen y su
+                    // combo, espaciados 130ms, como en el Relampago original.
+                    int levels = Math.Max(1, Math.Min(res.CascadeDepth, 7));
                     int teardropCount = Math.Min(res.TotalGemsDestroyed, 16);
                     if (teardropCount <= 0) teardropCount = 1;
-                    for (int k = 0; k < teardropCount; k++)
+                    int gemIndex = 0;
+                    for (int lvl = 1; lvl <= levels; lvl++)
                     {
-                        float p = (float)Math.Pow(2.0, ((_cascadeChain - 1) + k) / 12.0);
-                        _sound.PlaySoundSpatialSweep(AudioMap.GemHit, fromX, _cursorX, _cursorY, p);
-                        await Task.Delay(100);
+                        // Gema(s) que caen en este nivel de la cadena
+                        int gemsThisLevel = (teardropCount + levels - 1) / levels;
+                        if (gemIndex + gemsThisLevel > teardropCount) gemsThisLevel = teardropCount - gemIndex;
+                        if (gemsThisLevel < 1 && lvl == 1) gemsThisLevel = 1;
+                        for (int g = 0; g < gemsThisLevel && gemIndex < teardropCount; g++, gemIndex++)
+                        {
+                            float p = (float)Math.Pow(2.0, ((_cascadeChain - 1) + gemIndex) / 12.0);
+                            _sound.PlaySoundSpatialSweep(AudioMap.GemHit, fromX, _cursorX, _cursorY, p);
+                            await Task.Delay(100);
+                        }
+
+                        // Combo de este nivel de cadena (sube de tono en Relampago)
+                        string comboSoundName;
+                        if (_currentModeKey == "ModeZen" && lvl <= 2)
+                            comboSoundName = (lvl <= 1) ? AudioMap.Combo1 : AudioMap.ZenCombo2;
+                        else
+                            comboSoundName = AudioMap.ComboPrefix + lvl;
+                        float comboPitch = (float)Math.Pow(2.0, (_currentModeKey == "ModeLightning" ? (lvl - 1) : 0) / 12.0);
+                        if (_currentModeKey == "ModeLightning")
+                            _sound.PlaySoundPitch(comboSoundName, comboPitch);
+                        else
+                            _sound.PlaySound(comboSoundName);
+
+                        await Task.Delay(130);
+                    }
+
+                    // Revalidate: the user may have paused / reset / restarted while
+                    // the swap was resolving asynchronously, so abandon stale state.
+                    if (_screen != screenAtSwap || !ReferenceEquals(_board, boardAtSwap) || _currentModeKey != modeAtSwap)
+                    {
+                        return;
                     }
 
                     // Visual "lágrima": salpicaduras en las celdas por donde entran las gemas
@@ -1994,29 +2022,6 @@ namespace Bejeweled3Accessible.UI
                         _teardrops.Add(new TeardropSplash { Col = sCol, Row = sRow, StartMs = nowMs + k * 100 });
                     }
                     if (_teardrops.Count > 200) _teardrops.RemoveRange(0, _teardrops.Count - 200);
-
-                    // Revalidate: the user may have paused / reset / restarted while
-                    // the swap was resolving asynchronously, so abandon stale state.
-                    if (_screen != screenAtSwap || !ReferenceEquals(_board, boardAtSwap) || _currentModeKey != modeAtSwap)
-                    {
-                        return;
-                    }
-
-                    string comboSoundName;
-                    if (_currentModeKey == "ModeZen" && _cascadeChain <= 2)
-                    {
-                        comboSoundName = (_cascadeChain <= 1) ? AudioMap.Combo1 : AudioMap.ZenCombo2;
-                    }
-                    else
-                    {
-                        comboSoundName = AudioMap.ComboPrefix + _cascadeChain;
-                    }
-                    // En Relampago las combinaciones tambien suben semitonos al
-                    // realizarse, como en el original.
-                    if (_currentModeKey == "ModeLightning")
-                        _sound.PlaySoundPitch(comboSoundName, pitchMult);
-                    else
-                        _sound.PlaySound(comboSoundName);
 
                     // Official scoring per mode: Classic scales with the level,
                     // Lightning applies the 5x multiplier to everything except
