@@ -428,6 +428,11 @@ namespace Bejeweled3Accessible.UI
             }
             else if (_currentModeKey == "ModeLightning")
             {
+                // Reloj del multiplicador de tiempo: tickea cada segundo mientras
+                // hay un multiplicador activo (>1x), como en el Relampago original.
+                if (_lightningMultiplier > 1)
+                    _sound.PlaySound(AudioMap.Tick);
+
                 _lightningTimeLeft--;
                 if (_lightningTimeLeft == 30)
                 {
@@ -1964,13 +1969,19 @@ namespace Bejeweled3Accessible.UI
 
                     bool levelUpVoicePlayed = false;
 
-                    // Pitch scales semitone-wise with cascade depth (2^((n-1)/12):
-                    // +1 semitone per cascade level, like the original), and the
-                    // first cascade gem glides (HRTF) from the swap origin to its
-                    // landing column, so the chain is heard sweeping the board.
+                    // Efecto "lágrima": cada gema que cae/regenera suena como una
+                    // gota de GemHit espaciada ~100ms y subiendo semitonos, igual
+                    // que en el Relampago original. La primera gota barre (HRTF)
+                    // desde el origen del swap hasta su columna de aterrizaje.
                     float pitchMult = (float)Math.Pow(2.0, (_cascadeChain - 1) / 12.0);
-                    _sound.PlaySoundSpatialSweep(AudioMap.GemHit, fromX, _cursorX, _cursorY, pitchMult);
-                    await Task.Delay(110);
+                    int teardropCount = Math.Min(res.TotalGemsDestroyed, 16);
+                    if (teardropCount <= 0) teardropCount = 1;
+                    for (int k = 0; k < teardropCount; k++)
+                    {
+                        float p = (float)Math.Pow(2.0, ((_cascadeChain - 1) + k) / 12.0);
+                        _sound.PlaySoundSpatialSweep(AudioMap.GemHit, fromX, _cursorX, _cursorY, p);
+                        await Task.Delay(100);
+                    }
 
                     // Revalidate: the user may have paused / reset / restarted while
                     // the swap was resolving asynchronously, so abandon stale state.
@@ -1988,7 +1999,12 @@ namespace Bejeweled3Accessible.UI
                     {
                         comboSoundName = AudioMap.ComboPrefix + _cascadeChain;
                     }
-                    _sound.PlaySound(comboSoundName);
+                    // En Relampago las combinaciones tambien suben semitonos al
+                    // realizarse, como en el original.
+                    if (_currentModeKey == "ModeLightning")
+                        _sound.PlaySoundPitch(comboSoundName, pitchMult);
+                    else
+                        _sound.PlaySound(comboSoundName);
 
                     // Official scoring per mode: Classic scales with the level,
                     // Lightning applies the 5x multiplier to everything except
