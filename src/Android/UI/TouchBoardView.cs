@@ -31,6 +31,15 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             { GemColor.Orange, Color.Rgb(255, 140, 0) }
         };
 
+        private class TeardropSplash
+        {
+            public int Col;
+            public int Row;
+            public int StartMs;
+            public int DurationMs = 260;
+        }
+        private readonly List<TeardropSplash> _teardrops = new List<TeardropSplash>();
+
         public TouchBoardView(Context context, Board board, TalkBackBridge talkBack, AndroidSoundEngine sound) : base(context)
         {
             _board = board;
@@ -97,6 +106,24 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         }
                     }
                 }
+            }
+
+            // Efecto visual "lagrima": salpicaduras transitorias en las celdas que regeneran
+            long nowDrop = Java.Lang.JavaSystem.CurrentTimeMillis();
+            for (int i = _teardrops.Count - 1; i >= 0; i--)
+            {
+                TeardropSplash t = _teardrops[i];
+                long age = nowDrop - t.StartMs;
+                if (age < 0) continue;
+                if (age > t.DurationMs) { _teardrops.RemoveAt(i); continue; }
+                float p = (float)age / t.DurationMs;
+                float cx = offsetX + (t.Col * tileSize) + tileSize / 2f;
+                float cy = offsetY + (t.Row * tileSize) + tileSize / 2f;
+                int alpha = (int)(200f * (1f - p));
+                float r = 4f + 14f * p;
+                _paint.Color = Color.Argb(alpha, 130, 200, 255);
+                _paint.SetStyle(Paint.Style.Fill);
+                canvas.DrawCircle(cx, cy - (10f * p), r, _paint);
             }
         }
 
@@ -215,6 +242,19 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         await System.Threading.Tasks.Task.Delay(100);
                     }
                 });
+
+                // Visual "lagrima": salpicaduras en las celdas por donde entran las gemas
+                int nowMs = (int)Java.Lang.JavaSystem.CurrentTimeMillis();
+                var splashCols = (res.MatchedColumns != null && res.MatchedColumns.Count > 0)
+                    ? res.MatchedColumns.ToArray() : new int[] { 0, 1, 2, 3, 4, 5, 6, 7 };
+                for (int k = 0; k < dropCount; k++)
+                {
+                    int sCol = splashCols[k % splashCols.Length];
+                    int sRow = (k < splashCols.Length) ? 0 : ((k / splashCols.Length) % 8);
+                    _teardrops.Add(new TeardropSplash { Col = sCol, Row = sRow, StartMs = nowMs + k * 100 });
+                }
+                if (_teardrops.Count > 200) _teardrops.RemoveRange(0, _teardrops.Count - 200);
+
                 _sound?.PlaySoundSpatial(AudioMap.ComboPrefix + "1", toX, toY);
             }
             _selectedX = -1;

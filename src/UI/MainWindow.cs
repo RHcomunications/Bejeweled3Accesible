@@ -428,6 +428,11 @@ namespace Bejeweled3Accessible.UI
             }
             else if (_currentModeKey == "ModeLightning")
             {
+                // Reloj del multiplicador de tiempo: tickea cada segundo mientras hay
+                // un multiplicador activo (>1x), como en el Relámpago original.
+                if (_lightningMultiplier > 1)
+                    _sound.PlaySound(AudioMap.Tick);
+
                 _lightningTimeLeft--;
                 if (_lightningTimeLeft == 30)
                 {
@@ -1964,13 +1969,31 @@ namespace Bejeweled3Accessible.UI
 
                     bool levelUpVoicePlayed = false;
 
-                    // Pitch scales semitone-wise with cascade depth (2^((n-1)/12):
-                    // +1 semitone per cascade level, like the original), and the
-                    // first cascade gem glides (HRTF) from the swap origin to its
-                    // landing column, so the chain is heard sweeping the board.
-                    float pitchMult = (float)Math.Pow(2.0, (_cascadeChain - 1) / 12.0);
-                    _sound.PlaySoundSpatialSweep(AudioMap.GemHit, fromX, _cursorX, _cursorY, pitchMult);
-                    await Task.Delay(110);
+                    // Efecto "lágrima": cada gema que cae/regenera repite el gemhit,
+                    // subiendo un semitono por cada caída (~100ms por gema). En Lightning
+                    // la altura arranca desde la cadena actual y sube por cada gema.
+                    int teardropCount = Math.Min(res.TotalGemsDestroyed, 16);
+                    for (int k = 0; k < teardropCount; k++)
+                    {
+                        float pitchMult = (float)Math.Pow(2.0, ((_currentModeKey == "ModeLightning" ? _cascadeChain : 1) + k - 1) / 12.0);
+                        if (k == 0)
+                            _sound.PlaySoundSpatialSweep(AudioMap.GemHit, fromX, _cursorX, _cursorY, pitchMult);
+                        else
+                            _sound.PlaySoundSpatial(AudioMap.GemHit, _cursorX, _cursorY, pitchMult);
+                        await Task.Delay(100);
+                    }
+
+                    // Visual "lágrima": salpicaduras en las celdas por donde entran las gemas
+                    int nowMs = Environment.TickCount;
+                    int[] splashCols = (res.MatchedColumns != null && res.MatchedColumns.Count > 0)
+                        ? res.MatchedColumns.ToArray() : new int[] { 0, 1, 2, 3, 4, 5, 6, 7 };
+                    for (int k = 0; k < teardropCount; k++)
+                    {
+                        int sCol = splashCols[k % splashCols.Length];
+                        int sRow = (k < splashCols.Length) ? 0 : ((k / splashCols.Length) % 8);
+                        _teardrops.Add(new TeardropSplash { Col = sCol, Row = sRow, StartMs = nowMs + k * 100 });
+                    }
+                    if (_teardrops.Count > 200) _teardrops.RemoveRange(0, _teardrops.Count - 200);
 
                     // Revalidate: the user may have paused / reset / restarted while
                     // the swap was resolving asynchronously, so abandon stale state.
@@ -1988,7 +2011,11 @@ namespace Bejeweled3Accessible.UI
                     {
                         comboSoundName = AudioMap.ComboPrefix + _cascadeChain;
                     }
-                    _sound.PlaySound(comboSoundName);
+                    // En Lightning los combos suben de tono por cada nivel de cadena.
+                    if (_currentModeKey == "ModeLightning")
+                        _sound.PlaySoundPitch(comboSoundName, (float)Math.Pow(2.0, (_cascadeChain - 1) / 12.0));
+                    else
+                        _sound.PlaySound(comboSoundName);
 
                     // Official scoring per mode: Classic scales with the level,
                     // Lightning applies the 5x multiplier to everything except
@@ -3325,6 +3352,15 @@ case Engine.QuestType.TimeBomb:
             return dst;
         }
 
+        private class TeardropSplash
+        {
+            public int Col;
+            public int Row;
+            public int StartMs;
+            public int DurationMs = 260;
+        }
+        private readonly List<TeardropSplash> _teardrops = new List<TeardropSplash>();
+
         private void DrawBoard(Graphics g)
         {
             int tileSize = 60;
@@ -3421,6 +3457,27 @@ case Engine.QuestType.TimeBomb:
                             DrawDirectionArrow(g, rect, move.Key, move.Value);
                         }
                     }
+                }
+            }
+
+            // Efecto visual "lágrima": salpicaduras transitorias en las celdas que regeneran
+            int now2 = Environment.TickCount;
+            for (int i = _teardrops.Count - 1; i >= 0; i--)
+            {
+                TeardropSplash t = _teardrops[i];
+                int age = now2 - t.StartMs;
+                if (age < 0) continue;
+                if (age > t.DurationMs) { _teardrops.RemoveAt(i); continue; }
+                float p = age / (float)t.DurationMs;
+                int cx = startX + t.Col * tileSize + tileSize / 2;
+                int cy = startY + t.Row * tileSize + tileSize / 2;
+                int alpha = (int)(255 * (1f - p));
+                int r = 4 + (int)(14 * p);
+                using (Brush b = new SolidBrush(Color.FromArgb(alpha, 130, 200, 255)))
+                using (Pen pen = new Pen(Color.FromArgb(alpha, 200, 235, 255), 2))
+                {
+                    g.FillEllipse(b, cx - r, cy - r, r * 2, r * 2);
+                    g.DrawLine(pen, cx, cy - r, cx, cy - r - 10 - (int)(8 * p));
                 }
             }
         }

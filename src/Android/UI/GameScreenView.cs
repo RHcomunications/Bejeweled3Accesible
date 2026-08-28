@@ -73,6 +73,22 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private float _startX, _startY;
         private bool _swapExecutedInCurrentTouch = false;
 
+        // Modo Relampago (Lightning): contador, multiplicador de tiempo y Last Hurrah
+        private int _lightningTimeLeft = 60;
+        private int _lightningMultiplier = 1;
+        private int _lightningTankSeconds = 0;
+        private bool _lastHurrahActive = false;
+        private System.Threading.Timer _lightningTimer;
+
+        private class TeardropSplash
+        {
+            public int Col;
+            public int Row;
+            public int StartMs;
+            public int DurationMs = 260;
+        }
+        private readonly List<TeardropSplash> _teardrops = new List<TeardropSplash>();
+
         private readonly Paint _paint = new Paint(PaintFlags.AntiAlias);
         private readonly Dictionary<GemColor, Color> _gemColors = new Dictionary<GemColor, Color>
         {
@@ -845,6 +861,24 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
             _paint.Color = Color.White;
             canvas.DrawText("⏸️ " + Localization.Get("PauseTitle"), panelLeft + (15f * density), pauseRect.CenterY() + (6f * density), _paint);
+
+            // Efecto visual "lagrima": salpicaduras transitorias en las celdas que regeneran
+            long nowDrop = Java.Lang.JavaSystem.CurrentTimeMillis();
+            for (int i = _teardrops.Count - 1; i >= 0; i--)
+            {
+                TeardropSplash t = _teardrops[i];
+                long age = nowDrop - t.StartMs;
+                if (age < 0) continue;
+                if (age > t.DurationMs) { _teardrops.RemoveAt(i); continue; }
+                float p = (float)age / t.DurationMs;
+                float cx = offsetX + (t.Col * tileSize) + tileSize / 2f;
+                float cy = offsetY + (t.Row * tileSize) + tileSize / 2f;
+                int alpha = (int)(200f * (1f - p));
+                float r = (4f + 14f * p) * density;
+                _paint.Color = Color.Argb(alpha, 130, 200, 255);
+                _paint.SetStyle(Paint.Style.Fill);
+                canvas.DrawCircle(cx, cy - (10f * density * p), r, _paint);
+            }
         }
 
         private void DrawArrow(Canvas canvas, RectF rect, int dx, int dy)
@@ -1439,6 +1473,82 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
         }
 
+        private void StartLightningTimer()
+        {
+            StopLightningTimer();
+            _lightningTimer = new System.Threading.Timer(LightningTimerTick, null, 1000, 1000);
+        }
+
+        private void StopLightningTimer()
+        {
+            if (_lightningTimer != null)
+            {
+                _lightningTimer.Dispose();
+                _lightningTimer = null;
+            }
+        }
+
+        private void LightningTimerTick(object state)
+        {
+            Post(new Java.Lang.Runnable(() =>
+            {
+                if (_currentScreen != AndroidGameScreen.Playing || _currentModeKey != "ModeLightning")
+                {
+                    StopLightningTimer();
+                    return;
+                }
+
+                // Reloj del multiplicador de tiempo: tickea cada segundo mientras hay
+                // un multiplicador activo (>1x), como en el Relampago original.
+                if (_lightningMultiplier > 1)
+                    _sound?.PlaySound(AudioMap.Tick);
+
+                _lightningTimeLeft--;
+                if (_lightningTimeLeft == 30)
+                    _sound?.PlaySound(AudioMap.VoiceThirtyseconds);
+                else if (_lightningTimeLeft <= 10 && _lightningTimeLeft > 0)
+                {
+                    _sound?.PlaySound(AudioMap.CountdownWarning);
+                    _talkBack?.Speak(_lightningTimeLeft.ToString(), false);
+                }
+
+                if (_lightningTimeLeft <= 0)
+                {
+                    if (_lightningTankSeconds > 0)
+                    {
+                        _lightningTimeLeft = _lightningTankSeconds;
+                        _lightningTankSeconds = 0;
+                        _lastHurrahActive = true;
+                        _lightningMultiplier++;
+                        _sound?.PlaySound(AudioMap.LightningTubeFill10);
+                        _sound?.PlaySound(AudioMap.MultiplierAppears);
+                        _sound?.PlaySound(AudioMap.MultiplierHurrahed);
+                        _talkBack?.Speak(Localization.Get("TimeExtended", _lightningMultiplier), true);
+                    }
+                    else
+                    {
+                        StopLightningTimer();
+                        _currentScreen = AndroidGameScreen.GameOver;
+                        _gameOverIdx = 0;
+                        _sound?.PlaySound(AudioMap.VoiceTimeup);
+                        _sound?.PlaySound(AudioMap.VoiceGameover);
+                        if (_score > Progress.LightningHighScore)
+                        {
+                            Progress.LightningHighScore = _score;
+                            _profileMgr.Save();
+                        }
+                        _talkBack?.Speak(Localization.Get("GameOver", _score), true);
+                        Invalidate();
+                        _talkBack?.NotifyStructureChanged();
+                    }
+                }
+                else
+                {
+                    _talkBack?.Speak(Localization.Get("LightningScoreAnnouncement", _score, _lightningTimeLeft, _lightningMultiplier * 5), false);
+                }
+            }));
+        }
+
         private void StartGame(string modeKey)
         {
             if (_context is MainActivity mainAct)
@@ -1466,7 +1576,13 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
             if (modeKey == "ModeLightning")
             {
+                _lightningTimeLeft = 60;
+                _lightningMultiplier = 1;
+                _lightningTankSeconds = 0;
+                _lastHurrahActive = false;
                 _sound?.PlayMusic(MusicMap.FileName(MusicMap.Lightning));
+                StartLightningTimer();
+                _talkBack?.Speak(Localization.Get("LightningStarted"), true);
             }
             else if (modeKey == "ModePoker")
             {
@@ -1718,6 +1834,19 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     }
                 });
 
+                // Visual "lagrima": salpicaduras en las celdas por donde entran las gemas
+                int nowMs = (int)Java.Lang.JavaSystem.CurrentTimeMillis();
+                var splashCols = (res.MatchedColumns != null && res.MatchedColumns.Count > 0)
+                    ? res.MatchedColumns.ToArray() : new int[] { 0, 1, 2, 3, 4, 5, 6, 7 };
+                int dc = Math.Max(1, Math.Min(res.TotalGemsDestroyed, 16));
+                for (int k = 0; k < dc; k++)
+                {
+                    int sCol = splashCols[k % splashCols.Length];
+                    int sRow = (k < splashCols.Length) ? 0 : ((k / splashCols.Length) % 8);
+                    _teardrops.Add(new TeardropSplash { Col = sCol, Row = sRow, StartMs = nowMs + k * 100 });
+                }
+                if (_teardrops.Count > 200) _teardrops.RemoveRange(0, _teardrops.Count - 200);
+
                 // En Relampago las combinaciones tambien suben semitonos al realizarse.
                 string comboName = AudioMap.ComboPrefix + (combo > 0 ? combo.ToString() : "1");
                 if (_currentModeKey == "ModeLightning")
@@ -1939,9 +2068,15 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 }
 
                 // Cálculo y acumulación de puntuación
-                int matchScore = res.TotalGemsDestroyed * 50 * Math.Max(1, res.CascadeDepth);
+                int lightningMult = (_currentModeKey == "ModeLightning") ? (_lightningMultiplier * 5) : 1;
+                int matchScore = res.TotalGemsDestroyed * 50 * Math.Max(1, res.CascadeDepth) * lightningMult;
                 _score += matchScore;
                 Progress.TotalGemsCleared += res.TotalGemsDestroyed;
+                if (_currentModeKey == "ModeLightning" && res.ExtraTimeSeconds > 0)
+                {
+                    _lightningTankSeconds += res.ExtraTimeSeconds;
+                    _sound?.PlaySound(res.ExtraTimeSeconds >= 10 ? AudioMap.LightningTubeFill10 : AudioMap.LightningTubeFill5);
+                }
                 _profileMgr.Save();
 
                 // Locuciones auténticas de PopCap
