@@ -2,7 +2,7 @@
 
 **Proyecto:** Bejeweled 3 Accesible (Clon Fiel y Accesible de Bejeweled 3 para Jugadores Ciegos y con Baja Visión)  
 **Repositorio:** `RHcomunications/Bejeweled3Accesible`  
-**Versión Actual:** Windows: `v2026.08.28.0` | Android: `android-v2026.08.27.2`  
+**Versión Actual:** Windows: `v2026.08.28.1` | Android: `android-v2026.08.27.2`  
 **Tecnología Base:** 
 - **Windows (`main`):** C# (.NET Framework 4.5), Windows Forms, BASS Audio Engine (P/Invoke nativo), libopenmpt (decodificador de módulos .mo3), SAPI 5 / NVDA Controller Client.
 - **Android (`android`):** C# (.NET 9 Android / MAUI), Android Accessibility Framework (`AccessibilityManager`, `AnnounceForAccessibility`), `SoundPool` para efectos de ultra baja latencia y `MediaPlayer` para la banda sonora original completa en MP3.
@@ -160,7 +160,7 @@ bejeweled3_accessible/
 
 ## 🏆 7. Estado del Proyecto y Releases
 
-- **Windows (`main`)**: Release `v2026.08.28.0` (Relámpago con reloj tic y efecto "lágrima" audio+visual en cascadas) con soporte completo de teclado, ratón hablado, audio binaural 3D, suite de 145 tests en verde y auto-actualizador multiplataforma (filtra tags `android-*`). Marcado como **Latest**.
+- **Windows (`main`)**: Release `v2026.08.28.1` (reacción en cadena: combos por nivel de cascada cada 130 ms, más Relámpago con reloj tic y efecto "lágrima" audio+visual) con soporte completo de teclado, ratón hablado, audio binaural 3D, suite de 145 tests en verde y auto-actualizador multiplataforma (filtra tags `android-*`). Marcado como **Latest**.
 - **Android (`android`)**: Release `android-v2026.08.27.2` (recorrido vertical por columnas, cabecera dinámica y selección secuencial de 2 pasos) con TalkBack 100% nativo, árbol de accesibilidad virtual de 64 nodos, auto-actualizador de APK que busca su propio tag `android-v…`, y APK firmado con keystore estable (actualización en sitio). **Rama congelada (sin releases nuevas por ahora).** Nota de desfase: `Localization.cs` (LoadingTitle/AppTitle) aún dice `2026.08.27.0`, mientras `csproj`/`AndroidAutoUpdater` dicen `2026.08.27.2`; pendiente de sincronizar al retomar Android.
 - **Cómo distinguir al distribuir**: tag `v…` + asset `.zip` = Windows; tag `android-v…` + asset `.apk` = Android. El auto-actualizador de cada plataforma entrega el correcto sin que el usuario elija.
 - **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); en Windows build Debug+Release + suite completa (145/145) y zip con exe/PDB Release + `bass.dll` + `nvdaControllerClient32.dll` + 5 `libopenmpt*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (generado por `--pack-audio`) + `sounds\images\` completa; en Android el APK se compila en GitHub Actions (ver anecdotario 7); `gh release create` + `gh release upload`; limpiar `Temp\opencode`.
