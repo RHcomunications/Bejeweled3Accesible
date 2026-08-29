@@ -2,7 +2,7 @@
 
 **Proyecto:** Bejeweled 3 Accesible (Clon Fiel y Accesible de Bejeweled 3 para Jugadores Ciegos y con Baja Visión)  
 **Repositorio:** `RHcomunications/Bejeweled3Accesible`  
-**Versión Actual:** Windows: `v2026.08.28.1` | Android: `android-v2026.08.27.2`  
+**Versión Actual:** Windows: `v2026.08.28.2` | Android: `android-v2026.08.27.2`  
 **Tecnología Base:** 
 - **Windows (`main`):** C# (.NET Framework 4.5), Windows Forms, BASS Audio Engine (P/Invoke nativo), libopenmpt (decodificador de módulos .mo3), SAPI 5 / NVDA Controller Client.
 - **Android (`android`):** C# (.NET 9 Android / MAUI), Android Accessibility Framework (`AccessibilityManager`, `AnnounceForAccessibility`), `SoundPool` para efectos de ultra baja latencia y `MediaPlayer` para la banda sonora original completa en MP3.
@@ -35,10 +35,10 @@ bejeweled3_accessible/
 │   │   ├── SoundEngine.cs         # Motor BASS, colas atómicas, ducking, rutas espaciales de grid
 │   │   ├── SpatialAudio.cs        # Modelo grid espacial estático: PanColumn, DepthForRow, Volume/Air/Width
 │   │   ├── GridSpatializer.cs     # Render grid: pan equal-power + aire/profundidad por one-pole LP
-│   │   ├── AudioMap.cs            # Mapa canónico tipado de los 189 efectos de sonido oficiales
+│   │   ├── AudioMap.cs            # Mapa canónico tipado de los 190 efectos de sonido oficiales
 │   │   ├── MusicMap.cs            # Mapa canónico de las 29 pistas musicales originales (suite + ambientales)
 │   │   ├── PacCipher.cs           # Cifrado XOR / ofuscación del contenedor audio.pac
-│   │   ├── PacPacker.cs           # Herramienta de empaquetado en memoria
+│   │   ├── PacPacker.cs           # Empaquetado en memoria; excluye los MP3 01-23 (offsets del módulo .mo3)
 │   │   └── PacReader.cs           # Lector de archivos PAC en streaming
 │   ├── Engine/
 │   │   ├── Board.cs               # Cuadrícula 8x8, físicas de gravedad, cascadas y gemas especiales
@@ -60,7 +60,7 @@ bejeweled3_accessible/
 │   └── Tests/
 │       └── TestRunner.cs          # Suite de pruebas unitarias integradas
 ├── music/                         # Banda sonora completa (29 MP3s originales masterizados de estudio)
-├── sounds/                        # 189 efectos de sonido oficiales extraídos en .ogg
+├── sounds/                        # 190 efectos de sonido oficiales extraídos en .ogg
 ```
 
 ---
@@ -156,11 +156,22 @@ bejeweled3_accessible/
     - *Desafío:* El workflow regeneraba el keystore en cada run, así que cada APK tenía una firma distinta y no se podía actualizar en sitio sobre una instalación previa.
     - *Solución:* Se generó y commiteó `.github/release.keystore` (alias `bejeweled3key`, storepass `bejeweled3secret`). El workflow ahora lo reutiliza, de modo que todas las releases Android futuras comparten la misma firma y permiten actualización en sitio. El APK de `android-v2026.08.25.5` ya se re-publicó firmado con esta clave estable.
 
+ 9. **Modelo de canales dev/stable y bug 404 del auto-updater (2026-08-28)**:
+    - *Canales (decisión del usuario)*: `Debug` = canal **dev** → corre en la máquina del usuario y se mantiene al día **reconstruyendo `bin\Debug` en el workspace**; **jamás se publica un zip de Debug en el repo**. `Release` = canal **stable** → se publica en GitHub (`v…`) y es lo que recibe el público. El auto-updater elige canal en tiempo de compilación con `#if DEBUG` (`AutoUpdater.IsDevBuild`): en `Debug` no consulta GitHub (se actualiza localmente al reconstruir); en `Release` consulta la última release estable. Por tanto, tras cada cambio de código hay que reconstruir también `Debug`.
+    - *Bug 404*: el actualizador descargaba `…/releases/download/vX/Bejeweled3Accesible-<ver>.zip` (una 'c', según `AutoUpdater.ZipAssetPrefix`), pero los zips se habían subido como `Bejeweled3Accessible-…zip` (doble 'c') → **404**. Se renombraron los assets de `v2026.08.27.0`, `v2026.08.28.0` y `v2026.08.28.1` a la forma de una 'c'. Regla estricta: el nombre del zip SIEMPRE debe ser `Bejeweled3Accesible-<version>.zip` (una 'c'), idéntico a `AutoUpdater.BuildZipAssetName(tag)`; si no, el updater falla con 404.
+
+ 10. **Empaquetado compacto de `audio.pac` (162 MB → 14 MB) y orden de explosión en cascadas (v2026.08.28.2)**:
+     - *Contexto:* `audio.pac` pesaba ~162 MB porque empaquetaba también los 29 MP3 de música, pero las pistas 01-23 no son archivos sueltos: son **offsets** dentro del módulo `Bejeweled3_suite.mo3` (0.74 MB) que el motor reproduce con `libopenmpt` (saltando al orden/pista). Los 23 MP3 eran ~148 MB muertos.
+     - *Solución (`PacPacker.cs`)*: se añadió `IsRedundantModuleMp3(file, baseDir)` que omite los `.mp3` de `music\` cuyo nombre corresponde a un offset del módulo (`MusicMap.OrderForTrack(name) >= 0`). El PAC queda en **~14 MB** (SFX + módulo `.mo3` + ambientales 24-29). Los 23 MP3 originales siguen en `music/` como respaldo dev, pero ya no se empaquetan ni se usan en runtime.
+     - *Cascadas (corrección de cierre/crash):* en `MainWindow.cs` la explosión de una jugada se movió a `PlaySwapExplosions(CascadeResult, col, row)` y se reproduce **después** de los combos en sucesión (`combo→explosión`), siempre vía `BeginInvoke` al hilo de UI (BASS se inicializa en el hilo de UI); cada lambda de audio va envuelta en `try/catch` para no crashear el juego. Los combos empiezan en el nivel 2 de la cadena. Se añadieron `gem_fall.ogg` (64 ms, caída por gema) y `gem_hit_p0..p12.ogg` (pitch pre-renderizado con rubberband) para subir semitonos en cascadas/Relámpago sin `BASS_FX_TempoCreate`.
+     - *Restauración de assets:* un apagado precipitado del equipo borró los 23 MP3 originales de `music-ost-original/`; se recuperaron con `git checkout -- music-ost-original/`. El working tree quedó limpio tras esto.
+     - *Release:* `v2026.08.28.2` publicado en `main` (commit `d741df7`), con zip `Bejeweled3Accesible-2026.08.28.2.zip` (19.95 MB) que incluye `libopenmpt.dll` + 4 `openmpt-*.dll`, `bass.dll`, `bass_fx.dll` (x64) + `bass_fx32.dll` (x86), `nvdaControllerClient32.dll`, `mscorlib.dll`, `norm*.nlp`, `es\`, `README.html`, `audio.pac` (~14 MB) y `sounds\images\` completa; sin `Tests.*`, sin `music/`, sin `sounds/*.ogg`.
+
 ---
 
 ## 🏆 7. Estado del Proyecto y Releases
 
-- **Windows (`main`)**: Release `v2026.08.28.1` (reacción en cadena: combos por nivel de cascada cada 130 ms, más Relámpago con reloj tic y efecto "lágrima" audio+visual) con soporte completo de teclado, ratón hablado, audio binaural 3D, suite de 145 tests en verde y auto-actualizador multiplataforma (filtra tags `android-*`). Marcado como **Latest**.
+- **Windows (`main`)**: Release `v2026.08.28.2` (audio.pac compacto 162 MB→14 MB vía exclusión de MP3 01-23; explosión en cascadas corregida para sonar tras los combos en el hilo de UI; assets originales restaurados) con soporte completo de teclado, ratón hablado, audio binaural 3D, suite de 145 tests en verde y auto-actualizador multiplataforma (filtra tags `android-*`). Marcado como **Latest**.
 - **Android (`android`)**: Release `android-v2026.08.27.2` (recorrido vertical por columnas, cabecera dinámica y selección secuencial de 2 pasos) con TalkBack 100% nativo, árbol de accesibilidad virtual de 64 nodos, auto-actualizador de APK que busca su propio tag `android-v…`, y APK firmado con keystore estable (actualización en sitio). **Rama congelada (sin releases nuevas por ahora).** Nota de desfase: `Localization.cs` (LoadingTitle/AppTitle) aún dice `2026.08.27.0`, mientras `csproj`/`AndroidAutoUpdater` dicen `2026.08.27.2`; pendiente de sincronizar al retomar Android.
 - **Cómo distinguir al distribuir**: tag `v…` + asset `.zip` = Windows; tag `android-v…` + asset `.apk` = Android. El auto-actualizador de cada plataforma entrega el correcto sin que el usuario elija.
-- **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); en Windows build Debug+Release + suite completa (145/145) y zip con exe/PDB Release + `bass.dll` + `nvdaControllerClient32.dll` + 5 `libopenmpt*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (generado por `--pack-audio`) + `sounds\images\` completa; en Android el APK se compila en GitHub Actions (ver anecdotario 7); `gh release create` + `gh release upload`; limpiar `Temp\opencode`.
+- **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); en Windows build Debug+Release + suite completa (145/145) y zip con exe/PDB Release + `bass.dll` + `bass_fx.dll` (x64) + `bass_fx32.dll` (x86) + `nvdaControllerClient32.dll` + `libopenmpt.dll` + 4 `openmpt-*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (generado por `--pack-audio`, ~14 MB) + `sounds\images\` completa (sin `sounds/*.ogg` ni `music/`); en Android el APK se compila en GitHub Actions (ver anecdotario 7); `gh release create` + `gh release upload`; limpiar `Temp\opencode`.
