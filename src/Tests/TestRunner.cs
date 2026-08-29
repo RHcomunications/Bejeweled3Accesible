@@ -1489,10 +1489,16 @@ namespace Bejeweled3Accessible.Tests
             {
                 float left = SpatialAudio.PanColumn(0);
                 float right = SpatialAudio.PanColumn(7);
-                float mid = SpatialAudio.PanColumn(3);
+                float midL = SpatialAudio.PanColumn(3);
+                float midR = SpatialAudio.PanColumn(4);
                 Assert.True(left < 0f, "Columna 0 a la izquierda (" + left.ToString("F3") + ")");
                 Assert.True(right > 0f, "Columna 7 a la derecha (" + right.ToString("F3") + ")");
-                Assert.Near(0f, mid, 0.001f, "Columna central centrada");
+                // Tablero de 8 columas: no hay columna central unica; las dos del
+                // medio (3 y 4) deben quedar cerca del centro (pan ~0) y en lados
+                // opuestos.
+                Assert.True(Math.Abs(midL) < 0.2f, "Columna 3 cerca del centro (" + midL.ToString("F3") + ")");
+                Assert.True(Math.Abs(midR) < 0.2f, "Columna 4 cerca del centro (" + midR.ToString("F3") + ")");
+                Assert.True(midL < 0f && midR > 0f, "Columnas centrales en lados opuestos");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Sound: valores por defecto del motor", () =>

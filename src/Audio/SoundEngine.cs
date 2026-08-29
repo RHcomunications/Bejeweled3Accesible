@@ -2064,6 +2064,7 @@ namespace Bejeweled3Accessible.Audio
 
         private const int BASS_FX_FREESOURCE = 0x10000;
         private const int BASS_ATTRIB_TEMPO_PITCH = 0x10001;
+        private const int BASS_ATTRIB_PAN = 3;
         private const uint BASS_SAMPLE_FLOAT = 0x100;
 
         [StructLayout(LayoutKind.Sequential)]
