@@ -4,6 +4,7 @@ Instrucciones para asistentes de código que trabajen en este repositorio.
 
 ## Reglas de oro
 
+- **Documentación siempre al día (directiva innegociable):** en CUALQUIER cambio de código, fix o nueva funcionalidad se debe actualizar `context.md` (informe técnico/arquitectura/anecdotario) y la documentación pertinente (`README.html`, y esta misma `AGENTS.md` si afecta convenciones de build/release/tests). No entregar un cambio sin su correspondiente actualización de docs.
 - **No borrar nunca más sonidos, música ni ficheros del proyecto original.** Los assets son imprescindibles; cualquier limpieza debe confirmarse siempre con el usuario.
 - El proyecto target es .NET Framework 4.5 (C# 5), mono-proyecto `src/Bejeweled3Accessible.csproj`.
 - Dos únicos builds soportados: `Debug` y `Release` (MSBuild del Framework).
