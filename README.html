@@ -89,7 +89,7 @@
 <body>
 
     <h1>💎 Bejeweled 3 Accesible (Español &amp; English)</h1>
-    <p style="text-align:center;">Versión <strong>2026.08.28.1</strong> · 28 de agosto de 2026</p>
+    <p style="text-align:center;">Versión <strong>2026.08.28.2</strong> · 28 de agosto de 2026</p>
 
     <div class="feature-box lang-index" style="text-align:center;">
         <p><a href="#es">🇪🇸 Español</a> &nbsp;·&nbsp; <a href="#en">🇬🇧 English</a></p>
@@ -222,7 +222,8 @@
 
     <h3>📝 Historial de Versiones</h3>
      <ul>
-          <li><strong>2026.08.28.1</strong> — <strong>Reacción en cadena: combos por nivel de cascada cada 130 ms</strong>: cuando las gemas caen y forman combinaciones en cascada (según el original), ahora se reproduce un combo por cada nivel de la cadena, espaciado 130 ms, con las gotas de <em>gemhit</em> que caen subiendo semitonos. En Relámpago los combos también suben de tono por nivel. Afecta a todos los modos.</li>
+                     <li><strong>2026.08.28.2</strong> — <strong>audio.pac compacto (162 MB → 14 MB) y orden de explosión en cascadas</strong>: (a) El empaquetador <code>PacPacker</code> ahora excluye los MP3 de las pistas 01-23, que son solo offsets del módulo <code>Bejeweled3_suite.mo3</code> (la música real del juego), así que el paquete de distribución baja de ~162 MB a ~14 MB (SFX + módulo .mo3 + ambientales 24-29). (b) En las cascadas la explosión suena después de los combos en sucesión (combo→explosión) y en el hilo de UI, corrigiendo el solapamiento y un cierre por hilo incorrecto de BASS. (c) Restaurados los assets originales de <code>music-ost-original/</code>.</li>
+           <li><strong>2026.08.28.1</strong> — <strong>Reacción en cadena: combos por nivel de cascada cada 130 ms</strong>: cuando las gemas caen y forman combinaciones en cascada (según el original), ahora se reproduce un combo por cada nivel de la cadena, espaciado 130 ms, con las gotas de <em>gemhit</em> que caen subiendo semitonos. En Relámpago los combos también suben de tono por nivel. Afecta a todos los modos.</li>
           <li><strong>2026.08.28.0</strong> — <strong>Relámpago con reloj y efecto "lágrima" en cascadas</strong>: (a) En Relámpago el reloj del multiplicador de tiempo hace <em>tick</em> cada segundo mientras hay un multiplicador activo (&gt;1x), y las combinaciones suben de tono por cada nivel de cadena (semitonos), como en el original. (b) Efecto "lágrima" en todos los modos: cada gema que cae o se regenera repite el <em>gemhit</em> espaciado ~100 ms y subiendo semitonos, y aparece un splash ligero sobre las celdas que se regeneran. (c) Paridad Android: las mismas mejoras de audio y el splash se aplican en la rama Android.</li>
           <li><strong>2026.08.27.0</strong> — <strong>Skull Eliminator completo en Póker y actualizador corregido</strong>: (a) En Póker la barra "Skull Eliminator" se llena según el valor de la mano (Pareja 10%, Espectro 15%, Doble Pareja 20%, Trío 35%, Full House 50%, Póker 75%) y el Color elimina una calavera al instante, como el original. (b) El actualizador de Windows descomprime gzip en la API de GitHub (igual que el de Android) y detecta versiones de forma fiable. (c) Paridad: ambas plataformas comparten el evaluador de manos.</li>
 

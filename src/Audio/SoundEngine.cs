@@ -61,6 +61,28 @@ namespace Bejeweled3Accessible.Audio
         private const int BASS_ATTRIB_VOL = 2;
         private const int BASS_ATTRIB_PAN = 3;
 
+        // --- BASS FX (add-on bass_fx.dll): pitch natural sin resample ---
+        // Solo se usa si el DLL esta disponible; si no, el juego degrada a las
+        // variantes pre-renderizadas con rubberband (gem_hit_p*).
+        [DllImport("bass_fx.dll", CharSet = CharSet.Auto)]
+        private static extern int BASS_FX_GetVersion();
+
+        private const int BASS_ATTRIB_TEMPO_PITCH = 0x10001;
+
+        private static int _bassFxState = 0; // 0=no probado, 1=OK, -1=fallo
+        internal bool BassFxAvailable
+        {
+            get
+            {
+                if (_bassFxState == 0)
+                {
+                    try { int v = BASS_FX_GetVersion(); _bassFxState = (v != 0) ? 1 : -1; }
+                    catch { _bassFxState = -1; }
+                }
+                return _bassFxState == 1;
+            }
+        }
+
         // Callback con el que BASS pide PCM de la musica del modulo real
         // (BASS_StreamCreate con STREAMPROC). Devuelve bytes escritos.
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
@@ -963,7 +985,7 @@ namespace Bejeweled3Accessible.Audio
             try
             {
                 float depth = (depthFar < 0.0f) ? 0.0f : depthFar;
-                SpatialSfxSource source = new SpatialSfxSource(this, audioBytes, pinned, pan, depth, -1, BinauralEnabled);
+                SpatialSfxSource source = new SpatialSfxSource(this, audioBytes, pinned, -1, pan, depth, -1, BinauralEnabled);
                 int handle = source.OutputHandle;
                 if (handle == 0)
                 {
@@ -999,7 +1021,7 @@ namespace Bejeweled3Accessible.Audio
             GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
             try
             {
-                SpatialSfxSource source = new SpatialSfxSource(this, audioBytes, pinned, fromPan, fromDepth, -1, BinauralEnabled);
+                SpatialSfxSource source = new SpatialSfxSource(this, audioBytes, pinned, -1, fromPan, fromDepth, -1, BinauralEnabled);
                 int handle = source.OutputHandle;
                 if (handle == 0)
                 {
@@ -1063,9 +1085,9 @@ namespace Bejeweled3Accessible.Audio
         // Creates a one-shot BASS stream for a sound effect and hands the channel
         // to the _activeSfxList. Every failure path frees the handle + GCHandle so
         // nothing leaks when BASS reports an error after StreamCreateFile.
-private void StartSfxStream(string soundName, int col, float pitchMultiplier)
+        private void StartSfxStream(string soundName, int col, float pitchMultiplier, float? fxSemitones = null)
         {
-            StartSfxStream(soundName, col, -1, pitchMultiplier, -1);
+            StartSfxStream(soundName, col, -1, pitchMultiplier, -1, fxSemitones);
         }
 
         // sweepToCol >= 0 desplaza el canal lateralmente desde la columna de
@@ -1074,7 +1096,9 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         // plano de profundidad (fila 0 = lejos, fila 7 = frente). Siempre
         // espacial (sin perfiles): pan por columna + profundidad por fila, con
         // volumen/aire/anchura ya aplicados por el GridSpatializer.
-        private void StartSfxStream(string soundName, int col, int row, float pitchMultiplier, int sweepToCol)
+        // fxSemitones (en semitonos) usa BASS FX para un pitch natural; si es
+        // null, el pitch se hace por resample (BASS_ATTRIB_FREQ) cuando aplica.
+        private void StartSfxStream(string soundName, int col, int row, float pitchMultiplier, int sweepToCol, float? fxSemitones = null)
         {
             if (!_bassReady) return;
             byte[] audioBytes = LoadAudioBytes(soundName);
@@ -1085,7 +1109,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             {
                 float pan = SpatialAudio.PanColumn(col);
                 float depth = (row < 0) ? 0.0f : SpatialAudio.DepthForRow(row);
-                SpatialSfxSource source = new SpatialSfxSource(this, audioBytes, pinned, pan, depth, row, BinauralEnabled);
+                SpatialSfxSource source = new SpatialSfxSource(this, audioBytes, pinned, col, pan, depth, row, BinauralEnabled, fxSemitones);
                 int handle = source.OutputHandle;
                 if (handle == 0)
                 {
@@ -1094,7 +1118,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 }
 
                 BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, (float)SfxVol / 100.0f);
-                if (Math.Abs(pitchMultiplier - 1.0f) > 0.01f)
+                if (Math.Abs(pitchMultiplier - 1.0f) > 0.01f && !fxSemitones.HasValue)
                 {
                     float currentFreq = 44100.0f;
                     if (BASS_ChannelGetAttribute(handle, BASS_ATTRIB_FREQ, ref currentFreq))
@@ -1135,6 +1159,20 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
 
             CleanFinishedSfxChannels();
             StartSfxStream(soundName, -1, -1, pitchMultiplier, -1);
+        }
+
+        // Reproduce el golpe de gema en cascada con pitch natural usando las
+        // variantes pre-renderizadas con rubberband (gem_hit_pN): conservan el
+        // timbre original (sin el lowpass que introduce BASS FX al hacer
+        // time-stretch) y suben un semitono por nivel de cascada (acotado a 1 octava).
+        public void PlayGemHitSweep(int fromX, int toX, int row, float semitones)
+        {
+            if (SfxVol <= 0) return;
+            CleanFinishedSfxChannels();
+
+            int s = (int)Math.Round(semitones);
+            if (s < 0) s = 0; else if (s > 12) s = 12;
+            PlaySoundSpatialSweep("gem_hit_p" + s.ToString(), fromX, toX, row, 1.0f);
         }
 
         public void PlayMusic(string musicFileName)
@@ -1508,36 +1546,9 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         // NO se usa pitch: solo se moldea el tono del SFX.
         private void ApplyRowEq(int handle, int row)
         {
-            try
-            {
-                int fx = BASS_ChannelSetFX(handle, BASS_FX_DX8_PARAMEQ, 0);
-                if (fx == 0) return;
-
-                BassDx8Parameq eq = new BassDx8Parameq();
-                if (row >= 0 && row <= 2)
-                {
-                    eq.fCenter = 8000f;
-                    eq.fBandwidth = 1.2f;
-                    eq.fGain = 3f;
-                }
-                else if (row >= 5)
-                {
-                    int steps = row - 4; // 1 .. (filas-5)
-                    eq.fCenter = 4000f;
-                    eq.fBandwidth = 1.5f;
-                    eq.fGain = -3f * steps;
-                    if (eq.fGain < -15f) eq.fGain = -15f;
-                }
-                else
-                {
-                    eq.fCenter = 8000f;
-                    eq.fBandwidth = 1.0f;
-                    eq.fGain = 0f;
-                }
-
-                SetFxParams(fx, eq);
-            }
-            catch { }
+            // Sin EQ de fila: el GridSpatializer ya da profundidad por atenuacion
+            // de distancia. No modificamos el timbre de los sonidos originales.
+            return;
         }
 
         // Reverb ambiental sutil ("vacío espacial") + compresión/limitación para
@@ -1552,23 +1563,10 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 {
                     BassDx8Reverb rev = new BassDx8Reverb();
                     rev.fInGain = 0f;
-                    rev.fReverbMix = -22f;   // muy sutil
-                    rev.fReverbTime = 1200f;
-                    rev.fHighFreqRTRatio = 0.4f;
+                    rev.fReverbMix = -32f;   // cola difusa corta y brillante (sala)
+                    rev.fReverbTime = 600f;
+                    rev.fHighFreqRTRatio = 0.7f;
                     SetFxParams(rv, rev);
-                }
-
-                int cp = BASS_ChannelSetFX(handle, BASS_FX_DX8_COMPRESSOR, 2);
-                if (cp != 0)
-                {
-                    BassDx8Compressor co = new BassDx8Compressor();
-                    co.fGain = 0f;
-                    co.fAttack = 20f;
-                    co.fRelease = 200f;
-                    co.fThreshold = -10f;
-                    co.fRatio = 6f;
-                    co.fPredelay = 0f;
-                    SetFxParams(cp, co);
                 }
             }
             catch { }
@@ -1756,11 +1754,9 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             try { ApplyMusicAtmosphere(musicHandle); } catch { }
         }
 
-        // Reverb ambiental sutil para la musica-ambiente (sin compresor, para no
-        // matar la dinamica de la pista). Solo cuando el audio binaural esta activo.
-        // Config: tiempo de decaimiento largo (3000ms) y mezcla suave (-12 dB) para
-        // empujar la música hacia el fondo del escenario acústico, creando la sensación
-        // de "vacío espacial".
+        // Reverb de cola para la musica-ambiente: la MISMA sala que los SFX
+        // (corta y brillante), para que musica y gemas compartan un unico
+        // espacio acustico. Sin compresor, para no matar la dinamica.
         private void ApplyMusicAtmosphere(int musicHandle)
         {
             if (!BinauralEnabled) return;
@@ -1771,9 +1767,9 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                 {
                     BassDx8Reverb rev = new BassDx8Reverb();
                     rev.fInGain = 0f;
-                    rev.fReverbMix = -12f;   // -12 dB de mezcla sutil
-                    rev.fReverbTime = 3000f; // decaimiento largo
-                    rev.fHighFreqRTRatio = 0.45f;
+                    rev.fReverbMix = -20f;   // cola de la misma sala que los SFX
+                    rev.fReverbTime = 1200f;
+                    rev.fHighFreqRTRatio = 0.65f;
                     SetFxParams(rv, rev);
                 }
             }
@@ -2120,8 +2116,27 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         private static extern bool BASS_StreamFree(int handle);
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
+        private static extern int BASS_ChannelGetData(int handle, [In, Out] float[] buffer, int length);
+
+        [DllImport("bass.dll", CharSet = CharSet.Auto)]
+        private static extern int BASS_StreamCreate(int freq, int chans, uint flags, IntPtr proc, IntPtr user);
+
+        [DllImport("bass.dll", CharSet = CharSet.Auto)]
+        private static extern int BASS_StreamPutData(int handle, IntPtr buffer, int length);
+
+        private const uint BASS_STREAM_DECODE = 0x20000;
+
+        [DllImport("bass.dll", CharSet = CharSet.Auto)]
         private static extern bool BASS_ChannelStop(int handle);
 
+        [DllImport("bass.dll", CharSet = CharSet.Auto)]
+        private static extern bool BASS_ChannelSetAttribute(int handle, int attrib, float value);
+
+        [DllImport("bass_fx.dll", CharSet = CharSet.Auto)]
+        private static extern int BASS_FX_TempoCreate(int chan, int flags);
+
+        private const int BASS_FX_FREESOURCE = 0x10000;
+        private const int BASS_ATTRIB_TEMPO_PITCH = 0x10001;
         private const uint BASS_SAMPLE_FLOAT = 0x100;
 
         // Máximo de frames por bloque de callback: ~186 ms a 44.1 kHz.
@@ -2148,6 +2163,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         private readonly SoundEngine _engine;
         private readonly bool _binaural;
         private readonly GCHandle _pin;      // OGG en RAM: vive con la fuente
+        private GCHandle _wavPin;            // WAV estéreo en RAM (mono->estéreo): vive con la fuente
         private readonly GCHandle _selfPin;  // token para el callback de BASS
         private readonly DspProc _dsp;
         private readonly int _inChans;
@@ -2155,13 +2171,30 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
         private readonly float[] _monoBuf;   // downmix mono (dual-mono sin pérdida)
         private readonly float[] _stereoBuf; // salida intercalada del renderer
 
-        public SpatialSfxSource(SoundEngine engine, byte[] oggBytes, GCHandle pin, float pan, float depth, int row, bool binaural)
+        public SpatialSfxSource(SoundEngine engine, byte[] oggBytes, GCHandle pin, int col, float pan, float depth, int row, bool binaural, float? fxSemitones = null)
         {
             _engine = engine;
             _binaural = binaural;
             _pin = pin;
-            OutputHandle = BASS_StreamCreateFile(true, pin.AddrOfPinnedObject(), 0, oggBytes.Length, BASS_SAMPLE_FLOAT);
+            // El renderer necesita un buffer de salida ESTEREO para poder panezar.
+            // Los OGG del juego pueden ser mono (p.ej. gem_hit): los subimos a
+            // estéreo duplicando el canal, asi el DSP no corrompe la mitad del
+            // buffer (que era el defecto que hacia sonar las gemas "de piedra").
+            OutputHandle = BuildStereoStream(pin.AddrOfPinnedObject(), oggBytes.Length, out _wavPin);
             if (OutputHandle == 0) throw new InvalidOperationException("BASS stream fallo");
+
+            // Pitch natural con BASS FX (sin resample): si el add-on esta
+            // disponible y se pidio semitonos, envolvemos el decode en un
+            // stream de tempo y fijamos el pitch. Si falla, sonamos secos.
+            if (fxSemitones.HasValue && _engine.BassFxAvailable)
+            {
+                int fx = BASS_FX_TempoCreate(OutputHandle, BASS_FX_FREESOURCE);
+                if (fx != 0)
+                {
+                    BASS_ChannelSetAttribute(fx, BASS_ATTRIB_TEMPO_PITCH, fxSemitones.Value);
+                    OutputHandle = fx;
+                }
+            }
 
             BassChannelInfo info;
             if (!BASS_ChannelGetInfo(OutputHandle, out info))
@@ -2175,7 +2208,7 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             // El DSP ve el buffer a la tasa nativa del fichero (sin
             // resampleo): el renderer se configura con esa tasa para que su
             // matemática de ITD/aire sea correcta también en los OGG a 22.05 kHz.
-            Spatializer = new GridSpatializer { SampleRate = info.freq, Pan = pan, Depth = depth };
+            Spatializer = new GridSpatializer { SampleRate = info.freq, Pan = pan, Depth = depth, Col = col, Row = row };
 
             _inBuf = new float[SpatialSfxBlockFrames * 2];
             _monoBuf = new float[SpatialSfxBlockFrames];
@@ -2203,6 +2236,14 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             }
         }
 
+        // Stream directo desde el OGG (el camino que siempre suena). El DSP se
+        // encarga de dejar el mono centrado y sin silencio; los estéreo se panearan.
+        private static int BuildStereoStream(IntPtr oggPtr, int oggLen, out GCHandle wavPin)
+        {
+            wavPin = default(GCHandle);
+            return BASS_StreamCreateFile(true, oggPtr, 0, oggLen, BASS_SAMPLE_FLOAT);
+        }
+
         // Callback del hilo de audio de BASS: sustituye el buffer estéreo por
         // la salida del renderer. El buffer llega a la tasa nativa del fichero
         // (44.1 kHz o 22.05 kHz, igual que la del renderer), en float y
@@ -2221,13 +2262,20 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
                     _monoBuf[i] = (_inBuf[i * 2] + _inBuf[i * 2 + 1]) * 0.5f;
                 }
                 Spatializer.Process(_monoBuf, frames, _stereoBuf);
+                Marshal.Copy(_stereoBuf, 0, buffer, frames * 2);
             }
             else
             {
-                Spatializer.Process(_inBuf, frames, _stereoBuf);
+                // Stream mono (fallback): el buffer es mono. Procesamos el mono
+                // y escribimos el centro (L==R) de vuelta en el buffer mono, sin
+                // dejar la mitad en silencio. BASS sube mono->estéreo al dispositivo.
+                int monoFrames = length / 4;
+                if (monoFrames > SpatialSfxBlockFrames) monoFrames = SpatialSfxBlockFrames;
+                for (int i = 0; i < monoFrames; i++) _monoBuf[i] = _inBuf[i];
+                Spatializer.Process(_monoBuf, monoFrames, _stereoBuf);
+                for (int i = 0; i < monoFrames; i++) _monoBuf[i] = _stereoBuf[i * 2];
+                Marshal.Copy(_monoBuf, 0, buffer, monoFrames);
             }
-
-            Marshal.Copy(_stereoBuf, 0, buffer, frames * 2);
         }
 
         public void Dispose()
@@ -2241,6 +2289,10 @@ private void StartSfxStream(string soundName, int col, float pitchMultiplier)
             if (_pin.IsAllocated)
             {
                 try { _pin.Free(); } catch { }
+            }
+            if (_wavPin.IsAllocated)
+            {
+                try { _wavPin.Free(); } catch { }
             }
             if (_selfPin.IsAllocated)
             {

@@ -1212,7 +1212,7 @@ namespace Bejeweled3Accessible.Tests
                     Directory.CreateDirectory(sDir);
                     Directory.CreateDirectory(mDir);
                     File.WriteAllBytes(Path.Combine(sDir, "select.ogg"), soundBytes);
-                    File.WriteAllBytes(Path.Combine(mDir, "01 - Intro.mp3"), musicBytes);
+                    File.WriteAllBytes(Path.Combine(mDir, "24 - Coastal.mp3"), musicBytes);
 
                     string pacPath = Path.Combine(tempDir, "audio.pac");
                     PacPacker.PackDirectoriesToSinglePac(tempDir, pacPath, "sounds", "music");
@@ -1226,7 +1226,7 @@ namespace Bejeweled3Accessible.Tests
                     Assert.True(BytesEqual(soundBytes, pac.GetFileBytes("select.ogg")), "Nombre archivo");
                     Assert.True(BytesEqual(soundBytes, pac.GetFileBytes("select")), "Sin extension");
                     Assert.True(BytesEqual(soundBytes, pac.GetFileBytes("SELECT")), "Mayusculas");
-                    Assert.True(BytesEqual(musicBytes, pac.GetFileBytes("01 - Intro.mp3")), "Musica");
+                    Assert.True(BytesEqual(musicBytes, pac.GetFileBytes("24 - Coastal.mp3")), "Musica (pista ambiental, no redundante)");
                 }
                 finally
                 {
@@ -1308,9 +1308,11 @@ namespace Bejeweled3Accessible.Tests
                 Assert.True(soundsDir != null, "Carpeta sounds localizable (con ogg)");
 
                 string[] onDisk = Directory.GetFiles(soundsDir, "*.ogg")
-                    .Select(f => Path.GetFileNameWithoutExtension(f)).ToArray();
-                Assert.Equal(189, onDisk.Length, "189 ogg en sounds raiz (sin anidar)");
-                Assert.Equal(189, AudioMap.SoundCount, "SoundCount coincide");
+                    .Select(f => Path.GetFileNameWithoutExtension(f))
+                    .Where(n => !n.StartsWith("gem_hit_p"))
+                    .ToArray();
+                Assert.Equal(190, onDisk.Length, "190 ogg en sounds raiz (sin anidar, excluidas variantes gem_hit_p*)");
+                Assert.Equal(190, AudioMap.SoundCount, "SoundCount coincide");
 
                 var missingOnDisk = new List<string>();
                 foreach (string key in AudioMap.AllSoundKeys)
@@ -2182,7 +2184,7 @@ namespace Bejeweled3Accessible.Tests
                 Console.WriteLine("  direct+DSP: frames=" + refCap.TotalFrames + " (" + (refCap.TotalFrames / 44100.0).ToString("F3") + " s) RMS L=" + refCap.RmsL.ToString("F4") + " R=" + refCap.RmsR.ToString("F4") + " brillo=" + HighFreqRatio(refCap.Samples, 2).ToString("F3"));
 
                 // 2) Pipeline espacial REAL (SpatialSfxSource) + DSP capturador.
-                SpatialSfxSource src = new SpatialSfxSource(sound, data, pin, 0.5f, 0.0f, -1, true);
+                SpatialSfxSource src = new SpatialSfxSource(sound, data, pin, -1, 0.5f, 0.0f, -1, true);
                 BassProbe.DspCapture binCap = new BassProbe.DspCapture();
                 BassProbe.BASS_ChannelSetDSP(src.OutputHandle, binCap.Proc, IntPtr.Zero, 0);
                 BassProbe.BASS_ChannelPlay(src.OutputHandle, true);

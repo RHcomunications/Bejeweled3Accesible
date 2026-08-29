@@ -72,6 +72,83 @@ namespace Bejeweled3Accessible.UI
 
         private int _lightningTimeLeft = 60;
         private int _lightningMultiplier = 1;
+
+        // Duracion real (ms) de cada sonido de combo, medida de los ogg originales.
+        // Sirve para tocar los combos en sucesion (que termine uno antes del otro),
+        // no solapados como un barrido.
+        private static readonly System.Collections.Generic.Dictionary<string, int> _comboDurations =
+            new System.Collections.Generic.Dictionary<string, int>
+        {
+            { AudioMap.Combo1, 839 },
+            { AudioMap.Combo2, 839 },
+            { AudioMap.Combo3, 1678 },
+            { AudioMap.Combo4, 1630 },
+            { AudioMap.Combo5, 1583 },
+            { AudioMap.Combo6, 1538 },
+            { AudioMap.Combo7, 1494 },
+            { AudioMap.ZenCombo2, 863 },
+        };
+
+        private static int ComboDurationMs(string name)
+        {
+            int ms;
+            if (_comboDurations.TryGetValue(name, out ms)) return ms;
+            return 1500;
+        }
+
+        // Sonidos de explosion/creacion de gemas especiales de la jugada. Se
+        // llama DESPUES de la cadena de combos (ver cadena de cascada) para que
+        // el combo que provoca la explosion suene primero. La capa que invoca
+        // ya lo envuelve en try/catch; aqui no debe lanzar.
+        private void PlaySwapExplosions(CascadeResult res, int col, int row)
+        {
+            if (res.SupernovaCreated > 0)
+            {
+                _sound.PlaySound(AudioMap.FireworkLaunch);
+                _sound.PlaySound(AudioMap.FireworkThump);
+                _sound.PlaySound(AudioMap.FireworkCrackle);
+                _sound.PlaySound(AudioMap.LasergemCreated);
+                _sound.PlaySound(AudioMap.ElectroExplode);
+                _sound.DuckMusicVolume(0.3f, 500);
+                _sound.RestoreMusicVolume(500);
+                AwardBadge("BadgeSuperstar", BadgeTier.Platinum);
+            }
+            else if (res.HypercubeCreated > 0)
+            {
+                _sound.PlayHypercubeSweep(AudioMap.HypercubeCreate, col, row);
+                _sound.PlaySound(AudioMap.Hyperspace);
+            }
+            else if (res.StarCreated > 0)
+            {
+                _sound.PlayStarGemLaser(AudioMap.LasergemCreated, col, row);
+                _sound.PlaySound(AudioMap.ElectroExplode);
+            }
+            else if (res.FlameCreated > 0)
+            {
+                _sound.PlaySound(AudioMap.PowergemCreated);
+                _sound.PlaySound(AudioMap.Flamebonus);
+                _sound.PlaySound(AudioMap.Flamespeed1);
+            }
+
+            // Special gem explosions (Flame 3x3, Star beam, Supernova, Coin bonus)
+            // Match impact sounds are panned to the move position (HRTF)
+            if (res.TotalGemsDestroyed >= 10)
+            {
+                _sound.PlaySoundSpatial(AudioMap.ElectroPath, col, row);
+                _sound.PlaySoundSpatial(AudioMap.ElectroPath2, col, row);
+                _sound.PlaySoundSpatial(AudioMap.CoinCreated, col, row);
+                _sound.PlaySoundSpatial(AudioMap.Coinappear, col, row);
+            }
+            else if (res.TotalGemsDestroyed >= 4)
+            {
+                _sound.PlaySoundSpatial(AudioMap.SmallExplode, col, row);
+                _sound.PlaySoundSpatial(AudioMap.GemShatters, col, row);
+            }
+            else
+            {
+                _sound.PlaySoundSpatial(AudioMap.GemHit, col, row);
+            }
+        }
         private int _lightningTankSeconds = 0;
         private bool _lastHurrahActive = false;
         private int _lastHurrahScore = 0;
@@ -428,11 +505,8 @@ namespace Bejeweled3Accessible.UI
             }
             else if (_currentModeKey == "ModeLightning")
             {
-                // Reloj del multiplicador de tiempo: tickea cada segundo mientras
-                // hay un multiplicador activo (>1x), como en el Relampago original.
-                if (_lightningMultiplier > 1)
-                    _sound.PlaySound(AudioMap.Tick);
-
+                // Reloj del multiplicador de tiempo: ya NO tickea segundo a segundo
+                // (el tick leve es solo al mover/emparejar gemas de tiempo).
                 _lightningTimeLeft--;
                 if (_lightningTimeLeft == 30)
                 {
@@ -1969,40 +2043,127 @@ namespace Bejeweled3Accessible.UI
 
                     bool levelUpVoicePlayed = false;
 
-                    // Reaccion en cadena (efecto "lagrima" + combos por nivel de cascada):
-                    // cada nivel de la cadena reproduce las gotas de gemhit que caen y su
-                    // combo, espaciados 130ms, como en el Relampago original.
+                    // Reaccion en cadena: cada nivel reproduce su combo (con tono) y
+                    // luego el gem hit sonando mientras caen las gemas de ese nivel,
+                    // espaciados con stepIntervalMs como en el Relampago original.
                     int levels = Math.Max(1, Math.Min(res.CascadeDepth, 7));
                     int teardropCount = Math.Min(res.TotalGemsDestroyed, 16);
                     if (teardropCount <= 0) teardropCount = 1;
-                    int gemIndex = 0;
-                    for (int lvl = 1; lvl <= levels; lvl++)
+                    // Cadencia de la cadena: cada paso suena como un evento claro y
+                    // espaciado (no machine-gun). Primero el combo y despues el gem hit
+                    // (tono constante) mientras caen las gemas, para no eclipsar nada.
+                    // El intervalo de paso se fija en stepIntervalMs para que la
+                    // sucesion suene constante aunque un nivel destruya varias gemas.
+                    // Espacio (ms) entre el final de un combo y el inicio del siguiente,
+                    // para que suenen en cadena y no solapados como un barrido.
+                    int stepIntervalMs = 160;
+                    // Por cada nivel de la cadena: primero el combo (con tono; en
+                    // Relampago sube por nivel) y luego el gem hit sonando MIENTRAS
+                    // caen las gemas de ese nivel. El gem hit es de tono CONSTANTE
+                    // (no sube como los combos): es el sonido de las gemas cayendo,
+                    // una por cada gema que baja tras la combinacion.
+                    // Una gem fall por gema que cae (acorde al numero de gemas), con un
+                    // tope para no convertirse en rafaga. La variante gem_fall es corta
+                    // (~120ms), asi se reproduce una por gema sin solaparse ni retrasar.
+                    int hitsPerLevel = Math.Max(1, Math.Min(3, teardropCount / levels));
+                    // Cadena de audio en segundo plano: los combos suenan a partir del
+                    // nivel 2 (la primera jugada no es combo) y las caidas por gema,
+                    // SIN bloquear el juego. El audio se reproduce en el hilo de la UI
+                    // (BeginInvoke) para no crashear BASS. Asi suena en cadena y el
+                    // gameplay responde de inmediato.
+                    int chainLevels = levels;
+                    int chainHits = hitsPerLevel;
+                    int chainGap = stepIntervalMs;
+                    int cx = _cursorX, cy = _cursorY;
+                    string chainMode = _currentModeKey;
+#pragma warning disable CS4014
+                    Task.Run(async () =>
                     {
-                        // Gema(s) que caen en este nivel de la cadena
-                        int gemsThisLevel = (teardropCount + levels - 1) / levels;
-                        if (gemIndex + gemsThisLevel > teardropCount) gemsThisLevel = teardropCount - gemIndex;
-                        if (gemsThisLevel < 1 && lvl == 1) gemsThisLevel = 1;
-                        for (int g = 0; g < gemsThisLevel && gemIndex < teardropCount; g++, gemIndex++)
+                        try
                         {
-                            float p = (float)Math.Pow(2.0, ((_cascadeChain - 1) + gemIndex) / 12.0);
-                            _sound.PlaySoundSpatialSweep(AudioMap.GemHit, fromX, _cursorX, _cursorY, p);
-                            await Task.Delay(100);
+                            int delaySoFar = 0;
+                            for (int lvl = 1; lvl <= chainLevels; lvl++)
+                            {
+                                await Task.Delay(delaySoFar);
+
+                                // Combo de este nivel de cadena (solo del 2 en adelante).
+                                // En Relampago sube de tono por nivel; en los demas modos
+                                // los archivos combo_2..combo_7 ya suben de por si.
+                                string comboSoundName = null;
+                                float comboPitch = 1f;
+                                if (lvl >= 2)
+                                {
+                                    if (chainMode == "ModeZen" && lvl <= 2)
+                                        comboSoundName = AudioMap.ZenCombo2;
+                                    else
+                                        comboSoundName = AudioMap.ComboPrefix + lvl;
+                                    comboPitch = (float)Math.Pow(2.0, (chainMode == "ModeLightning" ? (lvl - 1) : 0) / 12.0);
+                                    string name = comboSoundName;
+                                    float pitch = comboPitch;
+                                    if (this.IsHandleCreated)
+                                        this.BeginInvoke((MethodInvoker)delegate
+                                        {
+                                            try
+                                            {
+                                                if (chainMode == "ModeLightning")
+                                                    _sound.PlaySoundPitch(name, pitch);
+                                                else
+                                                    _sound.PlaySound(name);
+                                            }
+                                            catch { }
+                                        });
+                                }
+
+                                // Caidas de gemas por gema (capa aparte), en el hilo UI.
+                                for (int g = 0; g < chainHits; g++)
+                                {
+                                    if (this.IsHandleCreated)
+                                        this.BeginInvoke((MethodInvoker)delegate
+                                        {
+                                            try { _sound.PlaySoundSpatial(AudioMap.GemFall, cx, cy); }
+                                            catch { }
+                                        });
+                                    await Task.Delay(80);
+                                }
+
+                                // Sucesion: espera a que termine el combo (mas corto si
+                                // sube de tono en Relampago) y luego un espacio, para que
+                                // suene en cadena y no como barrido.
+                                if (lvl >= 2)
+                                {
+                                    int comboMs = ComboDurationMs(comboSoundName);
+                                    if (chainMode == "ModeLightning") comboMs = (int)(comboMs / comboPitch);
+                                    delaySoFar = comboMs + chainGap;
+                                }
+                                else
+                                {
+                                    delaySoFar = chainGap;
+                                }
+                            }
+
+                            // Explosion de la jugada: suena DESPUES de los combos
+                            // (el combo que la provoca va primero), no antes, y
+                            // envuelta para que un fallo de audio no crashee.
+                            try
+                            {
+                                if (this.IsHandleCreated)
+                                    this.BeginInvoke((MethodInvoker)delegate
+                                    {
+                                        try { PlaySwapExplosions(res, cx, cy); }
+                                        catch { }
+                                    });
+                            }
+                            catch { }
                         }
+                        catch { }
+                    });
+#pragma warning restore CS4014
 
-                        // Combo de este nivel de cadena (sube de tono en Relampago)
-                        string comboSoundName;
-                        if (_currentModeKey == "ModeZen" && lvl <= 2)
-                            comboSoundName = (lvl <= 1) ? AudioMap.Combo1 : AudioMap.ZenCombo2;
-                        else
-                            comboSoundName = AudioMap.ComboPrefix + lvl;
-                        float comboPitch = (float)Math.Pow(2.0, (_currentModeKey == "ModeLightning" ? (lvl - 1) : 0) / 12.0);
-                        if (_currentModeKey == "ModeLightning")
-                            _sound.PlaySoundPitch(comboSoundName, comboPitch);
-                        else
-                            _sound.PlaySound(comboSoundName);
-
-                        await Task.Delay(130);
-                    }
+                    // Tick leve al emparejar gemas de tiempo (no con el multiplicador,
+                    // que ya no tickea segundo a segundo). Es el unico momento en que
+                    // debe oirse este sonido.
+                    if (res.TimeGemsMatched > 0)
+                        _sound.PlaySound(AudioMap.Tick);
 
                     // Revalidate: the user may have paused / reset / restarted while
                     // the swap was resolving asynchronously, so abandon stale state.
@@ -2019,7 +2180,7 @@ namespace Bejeweled3Accessible.UI
                     {
                         int sCol = splashCols[k % splashCols.Length];
                         int sRow = (k < splashCols.Length) ? 0 : ((k / splashCols.Length) % 8);
-                        _teardrops.Add(new TeardropSplash { Col = sCol, Row = sRow, StartMs = nowMs + k * 100 });
+                        _teardrops.Add(new TeardropSplash { Col = sCol, Row = sRow, StartMs = nowMs + k * 35 });
                     }
                     if (_teardrops.Count > 200) _teardrops.RemoveRange(0, _teardrops.Count - 200);
 
@@ -2333,6 +2494,11 @@ namespace Bejeweled3Accessible.UI
                                     meltedThisMove++;
                                 }
                                 _sound.PlaySound(AudioMap.IceStormColumnCombo);
+                                // Mismo esquema que las cadenas: el combo de columna y
+                                // luego el gem fall (variante corta) de la caida, sin
+                                // espera larga para no retrasar el juego.
+                                _sound.PlaySoundSpatial(AudioMap.GemFall, col, _cursorY);
+                                await Task.Delay(80);
                             }
                         }
                         // Ice Breaker badge: 5/8/12/15 column combos in one move
@@ -2578,52 +2744,9 @@ namespace Bejeweled3Accessible.UI
 
                     if (res.ExtraTimeSeconds > 0) _lightningTankSeconds += res.ExtraTimeSeconds;
 
-                    if (res.SupernovaCreated > 0)
-                    {
-                        _sound.PlaySound(AudioMap.FireworkLaunch);
-                        _sound.PlaySound(AudioMap.FireworkThump);
-                        _sound.PlaySound(AudioMap.FireworkCrackle);
-                        _sound.PlaySound(AudioMap.LasergemCreated);
-                        _sound.PlaySound(AudioMap.ElectroExplode);
-                        _sound.DuckMusicVolume(0.3f, 500);
-                        _sound.RestoreMusicVolume(500);
-                        AwardBadge("BadgeSuperstar", BadgeTier.Platinum);
-                    }
-                    else if (res.HypercubeCreated > 0)
-                    {
-                        _sound.PlayHypercubeSweep(AudioMap.HypercubeCreate, _cursorX, _cursorY);
-                        _sound.PlaySound(AudioMap.Hyperspace);
-                    }
-                    else if (res.StarCreated > 0)
-                    {
-                        _sound.PlayStarGemLaser(AudioMap.LasergemCreated, _cursorX, _cursorY);
-                        _sound.PlaySound(AudioMap.ElectroExplode);
-                    }
-                    else if (res.FlameCreated > 0)
-                    {
-                        _sound.PlaySound(AudioMap.PowergemCreated);
-                        _sound.PlaySound(AudioMap.Flamebonus);
-                        _sound.PlaySound(AudioMap.Flamespeed1);
-                    }
-
-                    // Special gem explosions (Flame 3x3, Star beam, Supernova, Coin bonus)
-                    // Match impact sounds are panned to the move position (HRTF)
-                    if (res.TotalGemsDestroyed >= 10)
-                    {
-                        _sound.PlaySoundSpatial(AudioMap.ElectroPath, _cursorX, _cursorY);
-                        _sound.PlaySoundSpatial(AudioMap.ElectroPath2, _cursorX, _cursorY);
-                        _sound.PlaySoundSpatial(AudioMap.CoinCreated, _cursorX, _cursorY);
-                        _sound.PlaySoundSpatial(AudioMap.Coinappear, _cursorX, _cursorY);
-                    }
-                    else if (res.TotalGemsDestroyed >= 4)
-                    {
-                        _sound.PlaySoundSpatial(AudioMap.SmallExplode, _cursorX, _cursorY);
-                        _sound.PlaySoundSpatial(AudioMap.GemShatters, _cursorX, _cursorY);
-                    }
-                    else
-                    {
-                        _sound.PlaySoundSpatial(AudioMap.GemHit, _cursorX, _cursorY);
-                    }
+                    // (La explosion/creacion de gemas especiales de la jugada suena
+                    // DESPUES de la cadena de combos, en PlaySwapExplosions, para que
+                    // el combo que la provoca vaya primero. Ver bloque de cascada.)
 
                     // Announce voice praise based on total gems destroyed or cascade depth across ALL modes.
                     // Never on a level-up match: "Level Complete!" and then "Good!" makes no sense.

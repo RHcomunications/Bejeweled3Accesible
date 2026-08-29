@@ -36,6 +36,23 @@ namespace Bejeweled3Accessible.Update
             catch { }
         }
 
+        // Canal de actualizacion segun la configuracion de compilacion:
+        // Debug = "dev" (se prueba en la maquina del desarrollador: el build de
+        // desarrollo), Release = "stable" (lo que llega al publico). El build
+        // Debug publica/consulta tags "dev-<version>" (prerelease); el Release
+        // publica/consulta tags "v<version>".
+        public static bool IsDevBuild
+        {
+            get
+            {
+#if DEBUG
+                return true;
+#else
+                return false;
+#endif
+            }
+        }
+
         // Full version of the running assembly, e.g. "2026.8.9.1".
         public static string CurrentVersionString
         {
@@ -57,6 +74,7 @@ namespace Bejeweled3Accessible.Update
             if (string.IsNullOrEmpty(tag)) return null;
             string v = tag.Trim();
             if (v.StartsWith("android-", StringComparison.OrdinalIgnoreCase)) v = v.Substring(8).Trim();
+            if (v.StartsWith("dev-", StringComparison.OrdinalIgnoreCase)) v = v.Substring(4).Trim();
             if (v.StartsWith("v", StringComparison.OrdinalIgnoreCase)) v = v.Substring(1);
             Version parsed;
             if (Version.TryParse(v, out parsed)) return parsed;
@@ -114,6 +132,8 @@ namespace Bejeweled3Accessible.Update
         // check leaves a diagnostic line in %TEMP%\B3A_update_check.log.
         public static ReleaseInfo GetLatestRelease(int timeoutMs = 10000)
         {
+            // El canal dev (builds Debug) consulta su propia serie de tags.
+            if (IsDevBuild) return GetLatestDevRelease(timeoutMs);
             ReleaseInfo info = new ReleaseInfo();
             try
             {
@@ -214,6 +234,7 @@ namespace Bejeweled3Accessible.Update
                         string tag = json.Substring(q1 + 1, q2 - q1 - 1);
                         i = q2 + 1;
                         if (tag.StartsWith("android", StringComparison.OrdinalIgnoreCase)) continue;
+                        if (tag.StartsWith("dev-", StringComparison.OrdinalIgnoreCase)) continue;
                         Version v = ParseTagVersion(tag);
                         if (v != null && (bestVer == null || v > bestVer))
                         {
@@ -224,6 +245,51 @@ namespace Bejeweled3Accessible.Update
                 }
             }
             catch (Exception ex) { Log("enum releases fallo: " + ex.Message); }
+            return best;
+        }
+
+        // Canal "dev": enumera las releases y devuelve la de mayor version cuyo
+        // tag empiece por "dev-". Usa la API de listado porque /releases/latest
+        // no contempla prereleases (los dev se publican como prerelease).
+        private static ReleaseInfo GetLatestDevRelease(int timeoutMs)
+        {
+            ReleaseInfo best = new ReleaseInfo();
+            try
+            {
+                HttpWebRequest req = (HttpWebRequest)WebRequest.Create(
+                    "https://api.github.com/repos/" + GitHubRepo + "/releases?per_page=50");
+                req.Method = "GET";
+                req.Accept = "application/vnd.github+json";
+                req.Timeout = timeoutMs;
+                req.UserAgent = "Bejeweled3Accessible-Updater/" + CurrentVersionString;
+                using (HttpWebResponse resp = (HttpWebResponse)req.GetResponse())
+                using (StreamReader reader = new StreamReader(resp.GetResponseStream(), Encoding.UTF8))
+                {
+                    string json = reader.ReadToEnd();
+                    Version bestVer = null;
+                    int i = 0;
+                    while ((i = json.IndexOf("\"tag_name\"", i, StringComparison.Ordinal)) >= 0)
+                    {
+                        int colon = json.IndexOf(':', i);
+                        if (colon < 0) break;
+                        int q1 = json.IndexOf('"', colon + 1);
+                        if (q1 < 0) break;
+                        int q2 = json.IndexOf('"', q1 + 1);
+                        if (q2 < 0) break;
+                        string tag = json.Substring(q1 + 1, q2 - q1 - 1);
+                        i = q2 + 1;
+                        if (!tag.StartsWith("dev-", StringComparison.OrdinalIgnoreCase)) continue;
+                        Version v = ParseTagVersion(tag);
+                        if (v != null && (bestVer == null || v > bestVer))
+                        {
+                            bestVer = v;
+                            best.Tag = tag;
+                            best.Notes = ReadJsonString(json.Substring(i), "body");
+                        }
+                    }
+                }
+            }
+            catch (Exception ex) { Log("enum dev releases fallo: " + ex.Message); }
             return best;
         }
 

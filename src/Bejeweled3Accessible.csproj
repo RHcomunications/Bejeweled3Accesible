@@ -78,6 +78,9 @@
 <Content Include="..\bin\Debug\bass.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+<Content Include="..\bin\Debug\bass_fx.dll">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="..\bin\Debug\libopenmpt.dll">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
