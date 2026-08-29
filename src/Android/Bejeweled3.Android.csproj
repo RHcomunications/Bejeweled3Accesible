@@ -34,7 +34,6 @@
     <Compile Include="..\Audio\AudioMap.cs" Link="Audio\AudioMap.cs" />
     <Compile Include="..\Audio\MusicMap.cs" Link="Audio\MusicMap.cs" />
     <Compile Include="..\Audio\SpatialAudio.cs" Link="Audio\SpatialAudio.cs" />
-    <Compile Include="..\Audio\GridSpatializer.cs" Link="Audio\GridSpatializer.cs" />
     <Compile Include="..\Audio\PacCipher.cs" Link="Audio\PacCipher.cs" />
     <Compile Include="..\Audio\PacReader.cs" Link="Audio\PacReader.cs" />
   </ItemGroup>

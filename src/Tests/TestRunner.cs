@@ -1485,43 +1485,15 @@ namespace Bejeweled3Accessible.Tests
                 Assert.True(w1 > w0, "Fondo mas ancho");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("Spatial: GridSpatializer lateraliza L/R", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: PanColumn lateraliza L/R (paneo simple)", () =>
             {
-                int frames = 17640;
-                float[] mono = new float[frames];
-                for (int i = 0; i < frames; i++)
-                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0) * 0.5f;
-                GridSpatializer left = new GridSpatializer { SampleRate = 44100.0f, Pan = -1.0f, Depth = 0.0f };
-                GridSpatializer right = new GridSpatializer { SampleRate = 44100.0f, Pan = 1.0f, Depth = 0.0f };
-                GridSpatializer mid = new GridSpatializer { SampleRate = 44100.0f, Pan = 0.0f, Depth = 0.0f };
-                float[] sL = new float[frames * 2], sR = new float[frames * 2], sM = new float[frames * 2];
-                left.Process(mono, frames, sL);
-                right.Process(mono, frames, sR);
-                mid.Process(mono, frames, sM);
-                float lL = RmsChannel(sL, 0), rL = RmsChannel(sL, 1);
-                float lR = RmsChannel(sR, 0), rR = RmsChannel(sR, 1);
-                float lM = RmsChannel(sM, 0), rM = RmsChannel(sM, 1);
-                Assert.True(lL > 1.4f * rL, "Pan -1: izquierda mas fuerte (" + lL.ToString("F3") + " vs " + rL.ToString("F3") + ")");
-                Assert.True(rR > 1.4f * lR, "Pan +1: derecha mas fuerte (" + rR.ToString("F3") + " vs " + lR.ToString("F3") + ")");
-                Assert.True(Math.Abs(lM - rM) < 0.05f * (lM + rM + 1e-6f), "Pan 0 centrado");
+                float left = SpatialAudio.PanColumn(0);
+                float right = SpatialAudio.PanColumn(7);
+                float mid = SpatialAudio.PanColumn(3);
+                Assert.True(left < 0f, "Columna 0 a la izquierda (" + left.ToString("F3") + ")");
+                Assert.True(right > 0f, "Columna 7 a la derecha (" + right.ToString("F3") + ")");
+                Assert.Near(0f, mid, 0.001f, "Columna central centrada");
             }));
-
-            tests.Add(Tuple.Create<string, Action>("Spatial: GridSpatializer la profundidad atenúa y oscurece", () =>
-            {
-                int frames = 17640;
-                float[] mono = new float[frames];
-                for (int i = 0; i < frames; i++)
-                    mono[i] = (float)(0.5 * Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0)
-                                   + 0.5 * Math.Sin(2.0 * Math.PI * 8000.0 * i / 44100.0));
-                GridSpatializer front = new GridSpatializer { SampleRate = 44100.0f, Pan = 0.0f, Depth = 0.0f };
-                GridSpatializer back = new GridSpatializer { SampleRate = 44100.0f, Pan = 0.0f, Depth = 1.0f };
-                float[] sF = new float[frames * 2], sB = new float[frames * 2];
-                front.Process(mono, frames, sF);
-                back.Process(mono, frames, sB);
-                float rmsF = RmsChannel(sF, 0), rmsB = RmsChannel(sB, 0);
-                    Assert.True(rmsB < rmsF, "Fondo mas bajo (" + rmsB.ToString("F3") + " vs " + rmsF.ToString("F3") + ")");
-                    Assert.True(HighFreqRatio(sB, 2, 0) < HighFreqRatio(sF, 2, 0) * 0.9f, "Fondo oscurece el agudo");
-                }));
 
             tests.Add(Tuple.Create<string, Action>("Sound: valores por defecto del motor", () =>
             {

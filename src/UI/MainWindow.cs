@@ -96,11 +96,34 @@ namespace Bejeweled3Accessible.UI
             return 1500;
         }
 
-        // Sonidos de explosion/creacion de gemas especiales de la jugada. Se
-        // llama DESPUES de la cadena de combos (ver cadena de cascada) para que
-        // el combo que provoca la explosion suene primero. La capa que invoca
-        // ya lo envuelve en try/catch; aqui no debe lanzar.
-        private void PlaySwapExplosions(CascadeResult res, int col, int row)
+        // Impacto de ruptura (explosion) de un nivel de cascada, paneado a la
+        // posicion del movimiento. Suena JUNTO al combo de ese nivel (mismo
+        // evento: las gemas se rompen), asi la cadena de combos no se solapa
+        // con una rafaga de explosiones al final.
+        private void PlaySwapImpact(int totalGems, int col, int row)
+        {
+            if (totalGems >= 10)
+            {
+                _sound.PlaySoundSpatial(AudioMap.ElectroPath, col, row);
+                _sound.PlaySoundSpatial(AudioMap.ElectroPath2, col, row);
+                _sound.PlaySoundSpatial(AudioMap.CoinCreated, col, row);
+                _sound.PlaySoundSpatial(AudioMap.Coinappear, col, row);
+            }
+            else if (totalGems >= 4)
+            {
+                _sound.PlaySoundSpatial(AudioMap.SmallExplode, col, row);
+                _sound.PlaySoundSpatial(AudioMap.GemShatters, col, row);
+            }
+            else
+            {
+                _sound.PlaySoundSpatial(AudioMap.GemHit, col, row);
+            }
+        }
+
+        // Creacion de gemas especiales producto de la jugada (supernova,
+        // hipercubo, estrella, flama). Suena en el ultimo nivel de la cadena,
+        // junto a la explosion de impacto (es el mismo evento climax).
+        private void PlaySwapSpecialCreation(CascadeResult res, int col, int row)
         {
             if (res.SupernovaCreated > 0)
             {
@@ -128,25 +151,6 @@ namespace Bejeweled3Accessible.UI
                 _sound.PlaySound(AudioMap.PowergemCreated);
                 _sound.PlaySound(AudioMap.Flamebonus);
                 _sound.PlaySound(AudioMap.Flamespeed1);
-            }
-
-            // Special gem explosions (Flame 3x3, Star beam, Supernova, Coin bonus)
-            // Match impact sounds are panned to the move position (HRTF)
-            if (res.TotalGemsDestroyed >= 10)
-            {
-                _sound.PlaySoundSpatial(AudioMap.ElectroPath, col, row);
-                _sound.PlaySoundSpatial(AudioMap.ElectroPath2, col, row);
-                _sound.PlaySoundSpatial(AudioMap.CoinCreated, col, row);
-                _sound.PlaySoundSpatial(AudioMap.Coinappear, col, row);
-            }
-            else if (res.TotalGemsDestroyed >= 4)
-            {
-                _sound.PlaySoundSpatial(AudioMap.SmallExplode, col, row);
-                _sound.PlaySoundSpatial(AudioMap.GemShatters, col, row);
-            }
-            else
-            {
-                _sound.PlaySoundSpatial(AudioMap.GemHit, col, row);
             }
         }
         private int _lightningTankSeconds = 0;
@@ -694,6 +698,10 @@ namespace Bejeweled3Accessible.UI
         // menu with the current version and the new release notes.
         private void CheckForUpdatesAsync()
         {
+            // El canal dev (compilacion Debug) no comprueba actualizaciones: el
+            // usuario ya tiene la ultima version reconstruyendo bin\Debug.
+            if (Updater.IsDevBuild) return;
+
             Updater.ReleaseInfo release = null;
             try { release = Updater.GetLatestRelease(); } catch { }
             bool newer = release != null && release.IsValid && Updater.IsNewerThanCurrent(release.Tag);
@@ -2115,6 +2123,23 @@ namespace Bejeweled3Accessible.UI
                                         });
                                 }
 
+                                // Explosion de impacto de ESTE nivel: suena CON el combo
+                                // (es el mismo evento, las gemas se rompen), de modo que la
+                                // cadena de combos y las explosiones no se solapan. En el
+                                // ultimo nivel (climax) suena la explosion grande y, si aplica,
+                                // la creacion de la gema especial, todo junto al combo final.
+                                int impactGems = (lvl == chainLevels) ? res.TotalGemsDestroyed : Math.Min(res.TotalGemsDestroyed, 3);
+                                if (this.IsHandleCreated)
+                                    this.BeginInvoke((MethodInvoker)delegate
+                                    {
+                                        try
+                                        {
+                                            PlaySwapImpact(impactGems, cx, cy);
+                                            if (lvl == chainLevels) PlaySwapSpecialCreation(res, cx, cy);
+                                        }
+                                        catch { }
+                                    });
+
                                 // Caidas de gemas por gema (capa aparte), en el hilo UI.
                                 for (int g = 0; g < chainHits; g++)
                                 {
@@ -2134,20 +2159,6 @@ namespace Bejeweled3Accessible.UI
                                 // cadena tardaba varios segundos por nivel.
                                 delaySoFar = chainStepMs;
                             }
-
-                            // Explosion de la jugada: suena DESPUES de los combos
-                            // (el combo que la provoca va primero), no antes, y
-                            // envuelta para que un fallo de audio no crashee.
-                            try
-                            {
-                                if (this.IsHandleCreated)
-                                    this.BeginInvoke((MethodInvoker)delegate
-                                    {
-                                        try { PlaySwapExplosions(res, cx, cy); }
-                                        catch { }
-                                    });
-                            }
-                            catch { }
                         }
                         catch { }
                     });
