@@ -2057,6 +2057,7 @@ namespace Bejeweled3Accessible.UI
                     // Espacio (ms) entre el final de un combo y el inicio del siguiente,
                     // para que suenen en cadena y no solapados como un barrido.
                     int stepIntervalMs = 160;
+                    int chainStepMs = 200; // cadencia fija y viva de la reaccion en cadena (rapida, no espera el combo)
                     // Por cada nivel de la cadena: primero el combo (con tono; en
                     // Relampago sube por nivel) y luego el gem hit sonando MIENTRAS
                     // caen las gemas de ese nivel. El gem hit es de tono CONSTANTE
@@ -2126,19 +2127,12 @@ namespace Bejeweled3Accessible.UI
                                     await Task.Delay(80);
                                 }
 
-                                // Sucesion: espera a que termine el combo (mas corto si
-                                // sube de tono en Relampago) y luego un espacio, para que
-                                // suene en cadena y no como barrido.
-                                if (lvl >= 2)
-                                {
-                                    int comboMs = ComboDurationMs(comboSoundName);
-                                    if (chainMode == "ModeLightning") comboMs = (int)(comboMs / comboPitch);
-                                    delaySoFar = comboMs + chainGap;
-                                }
-                                else
-                                {
-                                    delaySoFar = chainGap;
-                                }
+                                // Cadencia fija y viva: la reaccion en cadena avanza cada
+                                // chainStepMs SIN esperar a que termine el combo, asi suena
+                                // rapida y en cascada (los combos se solapan ligeramente,
+                                // como el original). Antes se esperaba comboMs+gap y la
+                                // cadena tardaba varios segundos por nivel.
+                                delaySoFar = chainStepMs;
                             }
 
                             // Explosion de la jugada: suena DESPUES de los combos
