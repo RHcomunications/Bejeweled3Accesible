@@ -202,6 +202,7 @@ namespace Bejeweled3Accessible.UI
         private int _gemAnimTick = 0;
 
         // Mouse interaction support: click-to-select, click-adjacent-to-swap, and drag-and-drop
+        private bool _mouseEnabled = true;
         private int _selectedGemX = -1, _selectedGemY = -1;
         private int _dragStartX = -1, _dragStartY = -1;
         private Point _dragStartPixel = Point.Empty;
@@ -276,6 +277,7 @@ namespace Bejeweled3Accessible.UI
             _sound.SfxVol = _options.SoundVolume;
             _sound.VoiceVol = _options.VoiceVolume;
             _sound.BinauralEnabled = _options.BinauralEnabled;
+            _mouseEnabled = _options.MouseEnabled;
             Localization.CurrentLanguage = _options.SelectedLanguage;
 
             Text = Localization.Get("AppTitle");
@@ -341,6 +343,7 @@ namespace Bejeweled3Accessible.UI
             _options.SoundVolume = _sound.SfxVol;
             _options.VoiceVolume = _sound.VoiceVol;
             _options.BinauralEnabled = _sound.BinauralEnabled;
+            _options.MouseEnabled = _mouseEnabled;
             _options.SelectedLanguage = Localization.CurrentLanguage;
             _options.ZenAmbient = (int)_zenMgr.SelectedAmbient;
             _options.ZenMantras = _zenMgr.MantrasEnabled;
@@ -1050,6 +1053,7 @@ namespace Bejeweled3Accessible.UI
                 Localization.Get("OptSoundVol", _sound.SfxVol),
                 Localization.Get("OptVoiceVol", _sound.VoiceVol),
                 Localization.Get("OptBinaural", _sound.BinauralEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")),
+                Localization.Get("OptMouse", _mouseEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")),
                 Localization.Get("OptBack")
             };
         }
@@ -1164,6 +1168,12 @@ namespace Bejeweled3Accessible.UI
                     _sound.BinauralEnabled = !_sound.BinauralEnabled;
                     _sound.PlaySound(AudioMap.Select);
                     _speech.Speak(Localization.Get("OptBinaural", _sound.BinauralEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")), true);
+                }
+                else if (_optionsIdx == 4)
+                {
+                    _mouseEnabled = !_mouseEnabled;
+                    _sound.PlaySound(AudioMap.Select);
+                    _speech.Speak(Localization.Get("OptMouse", _mouseEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")), true);
                 }
                 SaveOptionsState();
             }
@@ -3634,6 +3644,7 @@ case Engine.QuestType.TimeBomb:
 
         private void MainWindow_MouseDown(object sender, MouseEventArgs e)
         {
+            if (!_mouseEnabled) return;
             if (e.Button != MouseButtons.Left) return;
 
             // En pantalla de carga, un clic en cualquier momento avanza al menú principal
@@ -3699,7 +3710,9 @@ case Engine.QuestType.TimeBomb:
 
         private void MainWindow_MouseMove(object sender, MouseEventArgs e)
         {
-            // Arrastre en el tablero (Drag & Drop)
+            if (!_mouseEnabled) return;
+
+            // Arrastre en el tablero (Drag & Drop) solo cuando se mantiene presionado el botón izquierdo
             if (e.Button == MouseButtons.Left && _screen == GameScreen.Playing && _dragStartX >= 0)
             {
                 int dxPx = e.X - _dragStartPixel.X;
@@ -3726,30 +3739,7 @@ case Engine.QuestType.TimeBomb:
                 return;
             }
 
-            // Eco del ratón en el tablero (anunciar casilla al pasar el ratón)
-            if (e.Button == MouseButtons.None && _screen == GameScreen.Playing)
-            {
-                int boardStartX = 200;
-                int boardStartY = 80;
-                int tileSize = 60;
-
-                int cellX = (e.X - boardStartX) / tileSize;
-                int cellY = (e.Y - boardStartY) / tileSize;
-
-                if (cellX >= 0 && cellX < Board.Cols && cellY >= 0 && cellY < Board.Rows)
-                {
-                    if (cellX != _cursorX || cellY != _cursorY)
-                    {
-                        _cursorX = cellX;
-                        _cursorY = cellY;
-                        _sound.PlaySoundSpatial(AudioMap.Select, _cursorX, _cursorY);
-                        AnnounceCurrentCell();
-                    }
-                }
-                return;
-            }
-
-            // Eco del ratón en los menús (actualizar y verbalizar opción señalada)
+            // En los menús (fuera del tablero), permitir eco del ratón sólo si el ratón está habilitado
             if (e.Button == MouseButtons.None && _screen != GameScreen.Loading && _screen != GameScreen.Playing && _screen != GameScreen.ProfileInput)
             {
                 int menuStartY = 220;

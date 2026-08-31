@@ -1104,6 +1104,7 @@ namespace Bejeweled3Accessible.Tests
                 Assert.Equal(100, opt.SoundVolume, "Sonido");
                 Assert.Equal(100, opt.VoiceVolume, "Voz");
                 Assert.Equal(Language.Spanish, opt.SelectedLanguage, "Idioma");
+                Assert.True(opt.MouseEnabled, "MouseEnabled default");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Options: persistencia roundtrip sin tocar AppData", () =>
@@ -1116,11 +1117,13 @@ namespace Bejeweled3Accessible.Tests
                     opt.MusicVolume = 35;
                     opt.SoundVolume = 55;
                     opt.SelectedLanguage = Language.English;
+                    opt.MouseEnabled = false;
                     opt.Save();
                     GameOptions loaded = GameOptions.Load();
                     Assert.Equal(35, loaded.MusicVolume, "Musica persistida");
                     Assert.Equal(55, loaded.SoundVolume, "Sonido persistido");
                     Assert.Equal(Language.English, loaded.SelectedLanguage, "Idioma persistido");
+                    Assert.False(loaded.MouseEnabled, "MouseEnabled persistido false");
                 }
                 finally
                 {

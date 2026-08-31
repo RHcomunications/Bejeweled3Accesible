@@ -15,6 +15,7 @@ namespace Bejeweled3Accessible.Engine
         public bool ZenMantras { get; set; }
         public bool ZenBreath { get; set; }
         public bool BinauralEnabled { get; set; }
+        public bool MouseEnabled { get; set; }
 
         public GameOptions()
         {
@@ -26,6 +27,7 @@ namespace Bejeweled3Accessible.Engine
             ZenMantras = true;
             ZenBreath = true;
             BinauralEnabled = true;
+            MouseEnabled = true;
         }
 
         public static string OverrideDataDirectory { get; set; }
