@@ -2073,16 +2073,58 @@ namespace Bejeweled3Accessible.UI
                     int teardropCount = Math.Min(res.TotalGemsDestroyed, 16);
                     if (teardropCount <= 0) teardropCount = 1;
 
-                    // Cadencia de la cadena: cada paso suena como un evento claro y
-                    // espaciado acorde al juego original (PopCap). Primero el combo
-                    // (con tono armónico) y la explosión/impacto, e inmediatamente
-                    // las caídas gem_fall dejando que el acorde resuene con claridad
-                    // antes de que comience el siguiente nivel de cascada.
                     int hitsPerLevel = Math.Max(1, Math.Min(3, teardropCount / levels));
                     int chainLevels = levels;
                     int chainHits = hitsPerLevel;
                     int cx = _cursorX, cy = _cursorY;
                     string chainMode = _currentModeKey;
+
+                    // Official scoring per mode: Classic scales with the level,
+                    // Lightning applies the 5x multiplier to everything except
+                    // the Hypercube creation bonus (a flat 500 per cube) and
+                    // adds a speed bonus that grows +100 per chained match from
+                    // 200 up to 1000 points.
+                    int lightningSpeedBonus = 0;
+                    if (_currentModeKey == "ModeLightning")
+                    {
+                        lightningSpeedBonus = Math.Min(1000, 200 + (_cascadeChain - 1) * 100);
+                    }
+
+                    // Pre-calculate points for each cascade level
+                    int[] stepAddedScores = new int[chainLevels];
+                    for (int s = 0; s < chainLevels; s++)
+                    {
+                        int stepBase = (s < res.StepPoints.Count) ? res.StepPoints[s] : (res.BasePoints / chainLevels);
+                        int stepHyper = (s < res.StepHypercubeCreationPoints.Count) ? res.StepHypercubeCreationPoints[s] : 0;
+                        int sScore;
+                        if (_currentModeKey == "ModeLightning")
+                        {
+                            sScore = (stepBase - stepHyper) * (_lightningMultiplier * 5) + stepHyper;
+                            if (s == 0) sScore += lightningSpeedBonus;
+                        }
+                        else if (_currentModeKey == "ModeClassic")
+                        {
+                            sScore = stepBase * _level;
+                        }
+                        else
+                        {
+                            sScore = stepBase;
+                        }
+
+                        if (s == 0 && res.AnnihilatorUsed)
+                        {
+                            sScore += 2500;
+                        }
+                        stepAddedScores[s] = sScore;
+                    }
+
+                    if (res.AnnihilatorUsed)
+                    {
+                        _sound.PlaySound(AudioMap.Preblast);
+                        _sound.PlaySoundSpatial(AudioMap.BombExplode, fromX, _cursorY);
+                        _sound.PlaySound(AudioMap.Hyperspace);
+                    }
+
 #pragma warning disable 4014
                     Task.Run(async () =>
                     {
@@ -2090,6 +2132,93 @@ namespace Bejeweled3Accessible.UI
                         {
                             for (int lvl = 1; lvl <= chainLevels; lvl++)
                             {
+                                int stepPts = stepAddedScores[lvl - 1];
+
+                                // Sumar puntuación en tiempo real con cada nivel de combo
+                                if (this.IsHandleCreated)
+                                    this.BeginInvoke((MethodInvoker)delegate
+                                    {
+                                        try
+                                        {
+                                            if (_screen != screenAtSwap || !ReferenceEquals(_board, boardAtSwap) || _currentModeKey != modeAtSwap) return;
+                                            
+                                            _score += stepPts;
+
+                                            if (_currentModeKey == "ModeLightning" && _lastHurrahActive)
+                                            {
+                                                _lastHurrahScore += stepPts;
+                                                if (_lastHurrahScore > _progress.BestFrenzyScore)
+                                                    _progress.BestFrenzyScore = _lastHurrahScore;
+                                            }
+
+                                            int rankBefore = RankSystem.GetRankLevel(_progress.TotalScore);
+                                            _progress.TotalScore += stepPts;
+                                            int rankAfter = RankSystem.GetRankLevel(_progress.TotalScore);
+
+                                            if (rankAfter > rankBefore)
+                                            {
+                                                _sound.PlaySound(AudioMap.Rankup);
+                                                _speech.Speak(Localization.Get("RankUpAnnouncement", RankSystem.GetRankTitle(_progress.TotalScore)), true);
+                                                _profileMgr.Save();
+                                            }
+
+                                            if (_currentModeKey == "ModeClassic" || _currentModeKey == "ModeZen")
+                                            {
+                                                _levelProgressPoints += stepPts;
+                                                int targetPoints = GetLevelTargetPoints(_level);
+                                                if (_levelProgressPoints >= targetPoints)
+                                                {
+                                                    _levelProgressPoints -= targetPoints;
+                                                    _level++;
+                                                    int newLevel = _level;
+                                                    _sound.PlaySound(AudioMap.VoiceLevelcomplete);
+
+                                                    if (_currentModeKey == "ModeClassic")
+                                                    {
+                                                        int stage = ((_level - 1) % 4) + 1;
+                                                        _sound.PlayMusic(MusicMap.FileName(MusicMap.ClassicParts[stage - 1]));
+                                                        if (newLevel > _progress.ClassicLevel)
+                                                        {
+                                                            if (_progress.ClassicLevel < 5 && newLevel >= 5)
+                                                            {
+                                                                _sound.PlaySound(AudioMap.Secretunlocked);
+                                                                _speech.Speak(Localization.Get("UnlockPoker"), true);
+                                                            }
+                                                            _progress.ClassicLevel = newLevel;
+                                                        }
+                                                    }
+                                                    else if (_currentModeKey == "ModeZen")
+                                                    {
+                                                        if (!(_zenMgr.AmbientEnabled && _zenMgr.SelectedAmbient != AmbientType.None))
+                                                        {
+                                                            _sound.PlayMusic(Engine.ZenManager.GetZenTrackForLevel(_level));
+                                                        }
+                                                        if (newLevel > _progress.ZenLevel)
+                                                        {
+                                                            if (_progress.ZenLevel < 5 && newLevel >= 5)
+                                                            {
+                                                                _sound.PlaySound(AudioMap.Secretunlocked);
+                                                                _speech.Speak(Localization.Get("UnlockButterflies"), true);
+                                                            }
+                                                            _progress.ZenLevel = newLevel;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            else if (_currentModeKey == "ModeIceStorm")
+                                            {
+                                                int newLevel = (_score / 5000) + 1;
+                                                if (newLevel > _level)
+                                                {
+                                                    _level = newLevel;
+                                                    _iceRiseInterval = Math.Max(1, 6 - _level);
+                                                    _sound.PlaySound(AudioMap.VoiceLevelcomplete);
+                                                }
+                                            }
+                                        }
+                                        catch { }
+                                    });
+
                                 // Combo de este nivel de cadena (solo del 2 en adelante).
                                 // En Relámpago sube de tono por nivel; en los demás modos
                                 // los archivos combo_2..combo_7 ya suben armónicamente.
@@ -2182,64 +2311,6 @@ namespace Bejeweled3Accessible.UI
                     }
                     if (_teardrops.Count > 200) _teardrops.RemoveRange(0, _teardrops.Count - 200);
 
-                    // Official scoring per mode: Classic scales with the level,
-                    // Lightning applies the 5x multiplier to everything except
-                    // the Hypercube creation bonus (a flat 500 per cube) and
-                    // adds a speed bonus that grows +100 per chained match from
-                    // 200 up to 1000 points.
-                    int lightningSpeedBonus = 0;
-                    int addedScore;
-                    if (_currentModeKey == "ModeLightning")
-                    {
-                        lightningSpeedBonus = Math.Min(1000, 200 + (_cascadeChain - 1) * 100);
-                        addedScore = (res.BasePoints - res.HypercubeCreationPoints) * (_lightningMultiplier * 5)
-                                   + res.HypercubeCreationPoints
-                                   + lightningSpeedBonus;
-                    }
-                    else if (_currentModeKey == "ModeClassic")
-                    {
-                        addedScore = res.BasePoints * _level;
-                    }
-                    else
-                    {
-                        addedScore = res.BasePoints;
-                    }
-
-                    // Annihilator: swapping two hypercubes wipes the whole board.
-                    // Authentic payoff — a massive detonation rumble and a hefty
-                    // bonus on top of the per-gem score.
-                    if (res.AnnihilatorUsed)
-                    {
-                        addedScore += 2500;
-                        _sound.PlaySound(AudioMap.Preblast);
-                        _sound.PlaySoundSpatial(AudioMap.BombExplode, fromX, _cursorY);
-                        _sound.PlaySound(AudioMap.Hyperspace);
-                    }
-
-                    _score += addedScore;
-
-                    // Final Frenzy badge: the score piled up during the Last
-                    // Hurrah (the time tank's final charge) is tracked per game,
-                    // keeping the best frenzy score ever reached.
-                    if (_currentModeKey == "ModeLightning" && _lastHurrahActive)
-                    {
-                        _lastHurrahScore += addedScore;
-                        if (_lastHurrahScore > _progress.BestFrenzyScore)
-                            _progress.BestFrenzyScore = _lastHurrahScore;
-                    }
-
-                    int rankBefore = RankSystem.GetRankLevel(_progress.TotalScore);
-                    _progress.TotalScore += addedScore;
-                    int rankAfter = RankSystem.GetRankLevel(_progress.TotalScore);
-
-                    // Announce rank promotions with the authentic rank-up jingle and a
-                    // spoken description of the rank just earned.
-                    if (rankAfter > rankBefore)
-                    {
-                        _sound.PlaySound(AudioMap.Rankup);
-                        _speech.Speak(Localization.Get("RankUpAnnouncement", RankSystem.GetRankTitle(_progress.TotalScore)), true);
-                        _profileMgr.Save();
-                    }
                     _progress.TotalGemsCleared += res.TotalGemsDestroyed;
                     _progress.TotalFlameGemsDestroyed += res.FlameDestroyed;
                     _progress.TotalStarGemsDestroyed += res.StarDestroyed;
@@ -2255,79 +2326,6 @@ namespace Bejeweled3Accessible.UI
                         if (res.CascadeDepth >= 4 || res.TotalGemsDestroyed >= 10)
                         {
                             _sound.PlaySound(AudioMap.VoiceBlazingspeed);
-                        }
-                    }
-                    else if (_currentModeKey == "ModeClassic")
-                    {
-                        _levelProgressPoints += addedScore;
-                        int targetPoints = GetLevelTargetPoints(_level);
-                        if (_levelProgressPoints >= targetPoints)
-                        {
-                            _levelProgressPoints -= targetPoints;
-                            _level++;
-                            int newLevel = _level;
-                            _sound.PlaySound(AudioMap.VoiceLevelcomplete);
-                            levelUpVoicePlayed = true;
-
-                            // Dynamic stage music progression in Classic Mode (Parts 1 to 4)
-                            int stage = ((_level - 1) % 4) + 1;
-                            _sound.PlayMusic(MusicMap.FileName(MusicMap.ClassicParts[stage - 1]));
-
-                            if (newLevel > _progress.ClassicLevel)
-                            {
-                                if (_progress.ClassicLevel < 5 && newLevel >= 5)
-                                {
-                                    _sound.PlaySound(AudioMap.Secretunlocked);
-                                    _speech.Speak(Localization.Get("UnlockPoker"), true);
-                                }
-                                _progress.ClassicLevel = newLevel;
-                            }
-                        }
-                    }
-                    else if (_currentModeKey == "ModeZen")
-                    {
-                        _levelProgressPoints += addedScore;
-                        int targetPoints = GetLevelTargetPoints(_level);
-                        if (_levelProgressPoints >= targetPoints)
-                        {
-                            _levelProgressPoints -= targetPoints;
-                            _level++;
-                            int newLevel = _level;
-                            _sound.PlaySound(AudioMap.VoiceLevelcomplete);
-                            levelUpVoicePlayed = true;
-
-                            if (_zenMgr.AmbientEnabled && _zenMgr.SelectedAmbient != AmbientType.None)
-                            {
-                                // Keep ambient track playing
-                            }
-                            else
-                            {
-                                // Dynamic stage music progression in Zen Mode (Parts 1 to 4)
-                                _sound.PlayMusic(Engine.ZenManager.GetZenTrackForLevel(_level));
-                            }
-
-                            if (newLevel > _progress.ZenLevel)
-                            {
-                                if (_progress.ZenLevel < 5 && newLevel >= 5)
-                                {
-                                    _sound.PlaySound(AudioMap.Secretunlocked);
-                                    _speech.Speak(Localization.Get("UnlockButterflies"), true);
-                                }
-                                _progress.ZenLevel = newLevel;
-                            }
-                        }
-                    }
-                    else if (_currentModeKey == "ModeIceStorm")
-                    {
-                        // Authentic Ice Storm: the cold front rises faster as the
-                        // level increases, exactly like the level-up pacing.
-                        int newLevel = (_score / 5000) + 1;
-                        if (newLevel > _level)
-                        {
-                            _level = newLevel;
-                            _iceRiseInterval = Math.Max(1, 6 - _level);
-                            _sound.PlaySound(AudioMap.VoiceLevelcomplete);
-                            levelUpVoicePlayed = true;
                         }
                     }
                     bool isPokerActive = _currentModeKey == "ModePoker" || (_currentModeKey == "ModeQuest" && _activeQuest != null && _activeQuest.Type == Engine.QuestType.Poker);
