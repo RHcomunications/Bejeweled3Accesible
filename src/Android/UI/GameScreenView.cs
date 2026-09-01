@@ -301,11 +301,13 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         private string[] GetOptionsMenuItems()
         {
+            string voiceLangName = (_sound != null && _sound.VoiceLanguage == Language.Spanish) ? "Español" : "English";
             return new string[]
             {
                 Localization.Get("OptSoundVol", _sound != null ? _sound.SfxVol : 100),
                 Localization.Get("OptMusicVol", _sound != null ? _sound.MusicVol : 80),
                 Localization.Get("OptVoiceVol", _sound != null ? _sound.VoiceVol : 100),
+                Localization.Get("OptVoiceLang", voiceLangName),
                 Localization.Get("OptBinaural", (_sound != null && _sound.BinauralEnabled) ? Localization.Get("StateOn") : Localization.Get("StateOff")),
                 Localization.Get("OptBack")
             };
@@ -1224,7 +1226,16 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     _options.Save();
                     _talkBack?.Speak(Localization.Get("OptVoiceVol", _sound.VoiceVol), true);
                 }
-                else if (idx == 3) // Audio Binaural
+                else if (idx == 3) // Idioma de Voz del Anunciador
+                {
+                    _options.VoiceLanguage = (_options.VoiceLanguage == Language.Spanish) ? Language.English : Language.Spanish;
+                    if (_sound != null) _sound.VoiceLanguage = _options.VoiceLanguage;
+                    _sound?.PlaySound(AudioMap.VoiceAwesome);
+                    _options.Save();
+                    string vName = (_options.VoiceLanguage == Language.Spanish) ? "Español" : "English";
+                    _talkBack?.Speak(Localization.Get("OptVoiceLang", vName), true);
+                }
+                else if (idx == 4) // Audio Binaural
                 {
                     _options.BinauralEnabled = !_options.BinauralEnabled;
                     _sound.BinauralEnabled = _options.BinauralEnabled;

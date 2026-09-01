@@ -80,6 +80,7 @@ namespace Bejeweled3Accessible.Engine
             { "OptMusicVol", new Tuple<string, string>("Volumen de Música: {0}%", "Music Volume: {0}%") },
             { "OptSoundVol", new Tuple<string, string>("Volumen de Sonido: {0}%", "Sound Volume: {0}%") },
             { "OptVoiceVol", new Tuple<string, string>("Volumen de Voz: {0}%", "Voice Volume: {0}%") },
+            { "OptVoiceLang", new Tuple<string, string>("Voz del Anunciador: {0}", "Announcer Voice: {0}") },
             { "OptBinaural", new Tuple<string, string>("Audio Binaural: {0}", "Binaural Audio: {0}") },
             { "OptMouse", new Tuple<string, string>("Control con Ratón: {0}", "Mouse Control: {0}") },
             { "StateOn", new Tuple<string, string>("Activado", "On") },

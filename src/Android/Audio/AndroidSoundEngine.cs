@@ -35,6 +35,7 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         public int MusicVol { get; set; } = 80;
         public int SfxVol { get; set; } = 100;
         public int VoiceVol { get; set; } = 100;
+        public Engine.Language VoiceLanguage { get; set; } = Engine.Language.Spanish;
         public bool BinauralEnabled { get; set; } = true;
 
         public void UpdateMusicVolume()
@@ -161,26 +162,37 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         {
             if (string.IsNullOrWhiteSpace(key)) return -1;
 
+            string targetKey = key;
+            if (key.StartsWith("voice_", StringComparison.OrdinalIgnoreCase))
+            {
+                string suffix = (VoiceLanguage == Engine.Language.Spanish) ? "_es" : "_en";
+                string localizedKey = key + suffix;
+                if (_assetSoundFiles.ContainsKey(localizedKey))
+                {
+                    targetKey = localizedKey;
+                }
+            }
+
             lock (_soundMap)
             {
-                if (_soundMap.TryGetValue(key, out int id))
+                if (_soundMap.TryGetValue(targetKey, out int id))
                 {
                     return id;
                 }
 
-                if (_assetSoundFiles.TryGetValue(key, out string file))
+                if (_assetSoundFiles.TryGetValue(targetKey, out string file))
                 {
                     try
                     {
                         AssetFileDescriptor afd = _context.Assets.OpenFd("sounds/" + file);
                         int soundId = _soundPool.Load(afd, 1);
-                        _soundMap[key] = soundId;
+                        _soundMap[targetKey] = soundId;
                         _soundMap[Path.GetFileNameWithoutExtension(file)] = soundId;
                         return soundId;
                     }
                     catch (Exception ex)
                     {
-                        Android.Util.Log.Error("BejeweledAudio", "Error cargando sonido " + key + ": " + ex.Message);
+                        Android.Util.Log.Error("BejeweledAudio", "Error cargando sonido " + targetKey + ": " + ex.Message);
                     }
                 }
             }

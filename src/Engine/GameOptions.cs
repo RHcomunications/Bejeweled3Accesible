@@ -11,6 +11,7 @@ namespace Bejeweled3Accessible.Engine
         public int SoundVolume { get; set; }
         public int VoiceVolume { get; set; }
         public Language SelectedLanguage { get; set; }
+        public Language VoiceLanguage { get; set; }
         public int ZenAmbient { get; set; }
         public bool ZenMantras { get; set; }
         public bool ZenBreath { get; set; }
@@ -23,6 +24,7 @@ namespace Bejeweled3Accessible.Engine
             SoundVolume = 100;
             VoiceVolume = 100;
             SelectedLanguage = Language.Spanish;
+            VoiceLanguage = Language.Spanish;
             ZenAmbient = (int)AmbientType.None;
             ZenMantras = true;
             ZenBreath = true;

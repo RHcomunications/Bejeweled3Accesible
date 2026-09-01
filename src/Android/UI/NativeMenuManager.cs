@@ -44,6 +44,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 _sound.MusicVol = _options.MusicVolume;
                 _sound.SfxVol = _options.SoundVolume;
                 _sound.VoiceVol = _options.VoiceVolume;
+                _sound.VoiceLanguage = _options.VoiceLanguage;
                 _sound.BinauralEnabled = _options.BinauralEnabled;
             }
 
@@ -426,6 +427,16 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 if (_options.VoiceVolume == 0 && _sound.VoiceVol == 100) _options.VoiceVolume = 10;
                 _sound.VoiceVol = _options.VoiceVolume;
                 _sound.PlaySound(AudioMap.VoiceAwesome);
+                _options.Save();
+                ShowOptionsScreen(fromPause);
+            }));
+
+            string voiceLangName = (_sound != null && _sound.VoiceLanguage == Language.Spanish) ? "Español" : "English";
+            container.AddView(CreateMenuButton(Localization.Get("OptVoiceLang", voiceLangName), "", () =>
+            {
+                _options.VoiceLanguage = (_options.VoiceLanguage == Language.Spanish) ? Language.English : Language.Spanish;
+                if (_sound != null) _sound.VoiceLanguage = _options.VoiceLanguage;
+                _sound?.PlaySound(AudioMap.VoiceAwesome);
                 _options.Save();
                 ShowOptionsScreen(fromPause);
             }));

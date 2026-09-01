@@ -155,6 +155,9 @@ namespace Bejeweled3Accessible.Audio
         // secos y centrados como el audio clásico del juego.
         public bool BinauralEnabled { get; set; }
 
+        // Idioma de las locuciones del locutor/anunciador arcade (Español o Inglés).
+        public Engine.Language VoiceLanguage { get; set; }
+
         private readonly string _soundDir;
         private readonly string _musicDir;
         private readonly string _logDir;
@@ -741,13 +744,14 @@ namespace Bejeweled3Accessible.Audio
             get { lock (_duckLock) { return _duckCurrent; } }
         }
 
-        // Measured duration of a locution in milliseconds, cached per name.
+        // Measured duration of a locution in milliseconds, cached per name and voice language.
         public int GetVoiceDurationMs(string soundName)
         {
+            string cacheKey = soundName + "_" + VoiceLanguage.ToString();
             int cached;
             lock (_voiceDurationCache)
             {
-                if (_voiceDurationCache.TryGetValue(soundName, out cached))
+                if (_voiceDurationCache.TryGetValue(cacheKey, out cached))
                 {
                     return cached;
                 }
@@ -781,7 +785,7 @@ namespace Bejeweled3Accessible.Audio
 
             lock (_voiceDurationCache)
             {
-                _voiceDurationCache[soundName] = durMs;
+                _voiceDurationCache[cacheKey] = durMs;
             }
             return durMs;
         }
@@ -817,7 +821,22 @@ namespace Bejeweled3Accessible.Audio
         private byte[] LoadAudioBytes(string soundName)
         {
             byte[] audioBytes = null;
-            if (_audioPac != null) audioBytes = _audioPac.GetFileBytes(soundName + ".ogg");
+
+            // Si es una voz del anunciador, intentar primero con la variante de idioma configurada (_es o _en)
+            if (soundName.StartsWith("voice_", StringComparison.OrdinalIgnoreCase))
+            {
+                string suffix = (VoiceLanguage == Engine.Language.Spanish) ? "_es" : "_en";
+                string localizedName = soundName + suffix;
+
+                if (_audioPac != null) audioBytes = _audioPac.GetFileBytes(localizedName + ".ogg");
+                if (audioBytes == null)
+                {
+                    string oggPath = Path.Combine(_soundDir, localizedName + ".ogg");
+                    if (File.Exists(oggPath)) audioBytes = File.ReadAllBytes(oggPath);
+                }
+            }
+
+            if (audioBytes == null && _audioPac != null) audioBytes = _audioPac.GetFileBytes(soundName + ".ogg");
             if (audioBytes == null)
             {
                 string oggPath = Path.Combine(_soundDir, soundName + ".ogg");

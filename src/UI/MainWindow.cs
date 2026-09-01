@@ -276,6 +276,7 @@ namespace Bejeweled3Accessible.UI
             _sound.MusicVol = _options.MusicVolume;
             _sound.SfxVol = _options.SoundVolume;
             _sound.VoiceVol = _options.VoiceVolume;
+            _sound.VoiceLanguage = _options.VoiceLanguage;
             _sound.BinauralEnabled = _options.BinauralEnabled;
             _mouseEnabled = _options.MouseEnabled;
             Localization.CurrentLanguage = _options.SelectedLanguage;
@@ -342,6 +343,7 @@ namespace Bejeweled3Accessible.UI
             _options.MusicVolume = _sound.MusicVol;
             _options.SoundVolume = _sound.SfxVol;
             _options.VoiceVolume = _sound.VoiceVol;
+            _options.VoiceLanguage = _sound.VoiceLanguage;
             _options.BinauralEnabled = _sound.BinauralEnabled;
             _options.MouseEnabled = _mouseEnabled;
             _options.SelectedLanguage = Localization.CurrentLanguage;
@@ -1047,11 +1049,13 @@ namespace Bejeweled3Accessible.UI
 
         private string[] GetOptionsMenuItems()
         {
+            string voiceLangName = (_sound.VoiceLanguage == Language.Spanish) ? "Español" : "English";
             return new string[]
             {
                 Localization.Get("OptMusicVol", _sound.MusicVol),
                 Localization.Get("OptSoundVol", _sound.SfxVol),
                 Localization.Get("OptVoiceVol", _sound.VoiceVol),
+                Localization.Get("OptVoiceLang", voiceLangName),
                 Localization.Get("OptBinaural", _sound.BinauralEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")),
                 Localization.Get("OptMouse", _mouseEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")),
                 Localization.Get("OptBack")
@@ -1165,11 +1169,18 @@ namespace Bejeweled3Accessible.UI
                 }
                 else if (_optionsIdx == 3)
                 {
+                    _sound.VoiceLanguage = (_sound.VoiceLanguage == Language.Spanish) ? Language.English : Language.Spanish;
+                    string vName = (_sound.VoiceLanguage == Language.Spanish) ? "Español" : "English";
+                    _sound.PlaySound(AudioMap.VoiceAwesome);
+                    _speech.Speak(Localization.Get("OptVoiceLang", vName), true);
+                }
+                else if (_optionsIdx == 4)
+                {
                     _sound.BinauralEnabled = !_sound.BinauralEnabled;
                     _sound.PlaySound(AudioMap.Select);
                     _speech.Speak(Localization.Get("OptBinaural", _sound.BinauralEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")), true);
                 }
-                else if (_optionsIdx == 4)
+                else if (_optionsIdx == 5)
                 {
                     _mouseEnabled = !_mouseEnabled;
                     _sound.PlaySound(AudioMap.Select);
