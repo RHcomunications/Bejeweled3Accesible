@@ -371,10 +371,44 @@ namespace Bejeweled3Accessible.Engine
             { "QuestActiveStatus", new Tuple<string, string>("Misión activa: {0}. Puntuación: {1}.", "Active Mission: {0}. Score: {1}.") }
         };
 
+        public static bool UseAndroidStrings { get; set; }
+
+        private static readonly Dictionary<string, Tuple<string, string>> _androidDict = new Dictionary<string, Tuple<string, string>>
+        {
+            { "LoadingPrompt", new Tuple<string, string>("Toca la pantalla para continuar", "Tap the screen to continue") },
+            { "EnterNamePrompt", new Tuple<string, string>("Por favor introduce tu nombre de usuario y toca Aceptar:", "Please enter your username and tap OK:") },
+            { "MenuChangeUser", new Tuple<string, string>("Toca para cambiar de usuario. Perfil actual: {0}", "Tap to change user. Current profile: {0}") },
+            { "MenuLanguage", new Tuple<string, string>("Idioma: Español. Toca para cambiar a Inglés", "Language: English. Tap to switch to Spanish") },
+            { "AudioSchoolTitle", new Tuple<string, string>("Escuela de Audio: paneo L/R y profundidad frente/fondo (desliza arriba/abajo para elegir, toca dos veces para escuchar, desliza atrás para volver)", "Audio School: L/R pan and front/back depth (swipe up/down to choose, double-tap to listen, swipe back to go back)") },
+            { "TutorialTitle", new Tuple<string, string>("Tutorial de Accesibilidad y Controles", "Accessibility & Controls Tutorial") },
+            { "TutorialStep1", new Tuple<string, string>("1. Movimiento en Tablero: Desliza para navegar entre las casillas A1 y H8. Cada gema suena a la izquierda o a la derecha según su columna y más lejos cuanto más atrás está en el tablero (audio espacial), y su color y tipo los anuncia el lector de pantalla.", "1. Board Movement: Swipe to navigate cells A1 to H8. Each gem sounds left/right by its column and farther back as it sits deeper (spatial audio), and its color and type are announced by the screen reader.") },
+            { "TutorialStep2", new Tuple<string, string>("2. Intercambio de Gemas: Desliza sobre una gema en la dirección en la que quieras moverla para intercambiarla con la adyacente.", "2. Swapping Gems: Swipe over a gem in the direction you want to move it to swap with the adjacent gem.") },
+            { "TutorialStep3", new Tuple<string, string>("3. Estado General: el estado del modo se anuncia al iniciar y al sumar puntos. Toca cualquier gema para que se repita su casilla y color y se describan sus movimientos válidos.", "3. General Status: the mode status is announced when the game starts and as you score. Tap any gem to repeat its cell and color and hear its valid moves.") },
+            { "TutorialStep4", new Tuple<string, string>("4. Estado Completo del Modo: en Búsqueda, el progreso exacto de tu misión se anuncia al iniciarla y al ganar puntos (mariposas, pepitas, oro, bombas, cascada, manos de póker, hielo o profundidad); en los demás modos, puntuación, tiempo, nivel, barajadas, cartas, calaveras, mariposas, hielo o metros excavados.", "4. Full Mode Status: in Quest, your exact mission progress is announced when it starts and as you score (butterflies, nuggets, gold, bombs, cascade, poker hands, ice or depth); in other modes, score, time, level, shuffles, cards, skulls, butterflies, ice or meters dug.") },
+            { "TutorialStep5", new Tuple<string, string>("5. Pistas y Ayuda: toca el botón de Pista (💡) para recibir una recomendación hablada del mejor movimiento disponible.", "5. Hints & Help: tap the Hint button (💡) for a spoken recommendation of the best available move.") },
+            { "TutorialStep7", new Tuple<string, string>("7. Menú de Pausa: toca el botón de Pausa para pausar la partida, ajustar volúmenes o salir.", "7. Pause Menu: tap the Pause button to pause the match, adjust volumes, or quit.") },
+            { "Welcome", new Tuple<string, string>("Bienvenido a Bejeweled 3 Accesible. Desliza para navegar por el menú.", "Welcome to Bejeweled 3 Accessible. Swipe to navigate the menu.") },
+            { "BadgeMenuHelp", new Tuple<string, string>("Toca dos veces para repetir una insignia. Desliza atrás para volver al menú.", "Double-tap to repeat a badge. Swipe back to go back.") },
+            { "UpdateFound", new Tuple<string, string>("Estás en la versión {0}. La nueva versión {1} está disponible. Novedades de esta versión: {2}. Toca Aceptar para descargar e instalar, o Cancelar para cancelar.", "You are on version {0}. A new version {1} is available. What's new in this version: {2}. Tap OK to download and install, or Cancel to cancel.") },
+            { "UpdateFoundNoNotes", new Tuple<string, string>("Estás en la versión {0}. La nueva versión {1} está disponible. Toca Aceptar para descargar e instalar, o Cancelar para cancelar.", "You are on version {0}. A new version {1} is available. Tap OK to download and install, or Cancel to cancel.") },
+        };
+
         public static string Get(string key, params object[] args)
         {
-            if (!_dict.ContainsKey(key)) return key;
-            string raw = (CurrentLanguage == Language.Spanish) ? _dict[key].Item1 : _dict[key].Item2;
+            Tuple<string, string> entry;
+            if (UseAndroidStrings && _androidDict.TryGetValue(key, out entry))
+            {
+                // usar override táctil de Android
+            }
+            else if (!_dict.ContainsKey(key))
+            {
+                return key;
+            }
+            else
+            {
+                entry = _dict[key];
+            }
+            string raw = (CurrentLanguage == Language.Spanish) ? entry.Item1 : entry.Item2;
             try
             {
                 if (args != null && args.Length > 0) return string.Format(System.Globalization.CultureInfo.InvariantCulture, raw, args);

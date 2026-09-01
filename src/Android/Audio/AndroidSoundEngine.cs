@@ -241,37 +241,7 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
             float master = isVoice ? (VoiceVol / 100f) : (SfxVol / 100f);
             float scaledBase = baseVol * master;
 
-            // Binaural completo, idéntico a GridSpatializer de Windows: decodificamos
-            // el OGG a PCM mono, aplicamos paneo equal-power + aire (low-pass por
-            // profundidad) + anchura estereo y reproducimos por AudioTrack. Si la
-            // decodificación falla en este dispositivo, caemos al modelo .10 (SoundPool).
-            if (BinauralEnabled && !isVoice)
-            {
-                MonoSamples pcm = GetMonoSamples(key);
-                if (pcm != null)
-                {
-                    try
-                    {
-                        var grid = new GridSpatializer();
-                        grid.SampleRate = pcm.SampleRate;
-                        grid.Pan = pan;
-                        grid.Depth = depth;
-                        grid.Volume = scaledBase;
-                        float[] mono = pcm.Data;
-                        if (rate != 1.0f) mono = ResampleMono(mono, rate);
-                        float[] stereo = new float[mono.Length * 2];
-                        grid.Process(mono, mono.Length, stereo);
-                        PlayStereoFrames(stereo, pcm.SampleRate);
-                        return;
-                    }
-                    catch (Exception ex)
-                    {
-                        Android.Util.Log.Error("BejeweledAudio", "Binaural fallo, fallback SoundPool: " + ex.Message);
-                    }
-                }
-            }
-
-            // Fallback: paneo equal-power + atenuacion por profundidad (.10) via SoundPool.
+            // Paneo equal-power + atenuacion por profundidad via SoundPool.
             int soundId = EnsureSoundLoaded(key);
             if (soundId > 0)
             {
