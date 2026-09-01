@@ -23,7 +23,7 @@ namespace Bejeweled3Accessible.Engine
 #if DEBUG
             { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión DEBUG 0.0.0 (Desarrollo).", "Loading Bejeweled 3... Version DEBUG 0.0.0 (Development).") },
 #else
-            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.08.30.2.", "Loading Bejeweled 3... Version 2026.08.30.2.") },
+            { "LoadingTitle", new Tuple<string, string>("Cargando Bejeweled 3... Versión 2026.08.31.0.", "Loading Bejeweled 3... Version 2026.08.31.0.") },
 #endif
             { "LoadingPrompt", new Tuple<string, string>("Presiona cualquier tecla para continuar", "Press any key to continue") },
 
@@ -38,7 +38,7 @@ namespace Bejeweled3Accessible.Engine
 #if DEBUG
             { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión DEBUG 0.0.0 (Desarrollo)", "Bejeweled 3 Accessible - Version DEBUG 0.0.0 (Development)") },
 #else
-            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.08.30.2", "Bejeweled 3 Accessible - Version 2026.08.30.2") },
+            { "AppTitle", new Tuple<string, string>("Bejeweled 3 Accesible - Versión 2026.08.31.0", "Bejeweled 3 Accessible - Version 2026.08.31.0") },
 #endif
             { "MenuPlay", new Tuple<string, string>("Jugar Bejeweled 3", "Play Bejeweled 3") },
             { "MenuChangeUser", new Tuple<string, string>("Haz clic aquí para cambiar de usuario. Perfil actual: {0}", "Click here to change user. Current profile: {0}") },

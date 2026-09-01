@@ -3268,9 +3268,12 @@ case Engine.QuestType.TimeBomb:
             try
             {
                 _lightningTimer.Stop();
+                _lightningTimer.Dispose();
                 _loadingTimer.Stop();
+                _loadingTimer.Dispose();
                 _renderTimer.Stop();
-                if (_zenMgr != null) _zenMgr.StopZenSession();
+                _renderTimer.Dispose();
+                if (_zenMgr != null) { _zenMgr.StopZenSession(); _zenMgr.Dispose(); }
                 SaveOptionsState();
                 if (_profileMgr.CurrentProfile != null) _profileMgr.Save();
                 if (_sound != null)

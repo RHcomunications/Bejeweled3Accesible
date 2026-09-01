@@ -1649,8 +1649,14 @@ namespace Bejeweled3Accessible.Audio
             public System.Threading.Timer Timer;
         }
 
+        private readonly List<SpatialSweepState> _activeSpatialSweeps = new List<SpatialSweepState>();
+
         private void StartSweep(SpatialSweepState state)
         {
+            lock (_activeSpatialSweeps)
+            {
+                _activeSpatialSweeps.Add(state);
+            }
             state.Timer = new System.Threading.Timer(SweepTick, state, 0, 25);
         }
 
@@ -1663,6 +1669,10 @@ namespace Bejeweled3Accessible.Audio
                 double t = elapsed / s.DurationMs;
                 if (t >= 1.0)
                 {
+                    lock (_activeSpatialSweeps)
+                    {
+                        _activeSpatialSweeps.Remove(s);
+                    }
                     if (s.Timer != null) { try { s.Timer.Dispose(); } catch { } s.Timer = null; }
                     try { BASS_ChannelStop(s.Handle); } catch { }
                     try { BASS_StreamFree(s.Handle); } catch { }
@@ -1934,6 +1944,13 @@ namespace Bejeweled3Accessible.Audio
                 try { duckTimer.Dispose(); } catch { }
             }
 
+            if (_musicDuckTimer != null)
+            {
+                try { _musicDuckTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite); } catch { }
+                try { _musicDuckTimer.Dispose(); } catch { }
+                _musicDuckTimer = null;
+            }
+
             if (_musicMonitorTimer != null)
             {
                 try { _musicMonitorTimer.Change(System.Threading.Timeout.Infinite, System.Threading.Timeout.Infinite); } catch { }
@@ -1988,6 +2005,18 @@ namespace Bejeweled3Accessible.Audio
                 _panSweepTimer = null;
             }
             lock (_panSweepLock) { _panSweeps.Clear(); }
+
+            lock (_activeSpatialSweeps)
+            {
+                foreach (var s in _activeSpatialSweeps)
+                {
+                    if (s.Timer != null) { try { s.Timer.Dispose(); } catch { } s.Timer = null; }
+                    try { BASS_ChannelStop(s.Handle); } catch { }
+                    try { BASS_StreamFree(s.Handle); } catch { }
+                    if (s.Pinned.IsAllocated) try { s.Pinned.Free(); } catch { }
+                }
+                _activeSpatialSweeps.Clear();
+            }
 
             try
             {
