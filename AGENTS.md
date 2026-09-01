@@ -32,7 +32,10 @@ Instrucciones para asistentes de código que trabajen en este repositorio.
 - **Después de publicar una release, limpiar `C:\Users\artik\AppData\Local\Temp\opencode`** (zips de descarga, staging y capturas intermedias) para no dejar espacio ocupado en el disco.
 - La versión se sube en 3 sitios a la vez: `src\Properties\AssemblyInfo.cs`, los textos `LoadingTitle` y `AppTitle` de `src\Engine\Localization.cs`, y la línea de versión + changelog de `README.html`.
 
-## Convenciones de código
-
 - Español en mensajes de commit; scripts PowerShell con salida en español.
 - Los archivos fuente están en UTF-8.
+
+## 🏁 Estado de Ramas y Hoja de Ruta
+- **Rama Windows (`main`)**: **OFICIALMENTE TERMINADA Y CONSOLIDADA (v2026.08.31.0)**. Todas las auditorías de accesibilidad, jugabilidad, GDI, memoria no administrada, ciclo de vida de timers y empaquetado han concluido al 100%.
+- **Rama Android (`android`)**: **LUZ VERDE PARA DESARROLLO Y CONTINUACIÓN**. El foco de los contribuidores y agentes se traslada ahora al port de Android (.NET 9 Android) para trasladar las mejoras de jugabilidad, balance de audio y paridad alcanzadas en Windows.
+
