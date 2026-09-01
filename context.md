@@ -2,7 +2,7 @@
 
 **Proyecto:** Bejeweled 3 Accesible (Clon Fiel y Accesible de Bejeweled 3 para Jugadores Ciegos y con Baja Visión)  
 **Repositorio:** `RHcomunications/Bejeweled3Accesible`  
-**Versión Actual:** Windows: `v2026.09.01.0` | Android: `android-v2026.08.27.2`  
+**Versión Actual:** Windows: `v2026.09.01.1` | Android: `android-v2026.08.27.2`  
 **Tecnología Base:** 
 - **Windows (`main`):** C# (.NET Framework 4.5), Windows Forms, BASS Audio Engine (P/Invoke nativo), libopenmpt (decodificador de módulos .mo3), SAPI 5 / NVDA Controller Client.
 - **Android (`android`):** C# (.NET 9 Android / MAUI), Android Accessibility Framework (`AccessibilityManager`, `AnnounceForAccessibility`), `SoundPool` para efectos de ultra baja latencia y `MediaPlayer` para la banda sonora original completa en MP3.
@@ -187,11 +187,15 @@ bejeweled3_accessible/
       - *Contexto:* Las versiones comerciales oficiales de PopCap Games solo contaban con locuciones en inglés. Se requería dotar al juego de un set completo y auténtico de locuciones en español con calidad de doblaje arcade.
       - *Solución:* Se generaron y masterizaron las 18 locuciones oficiales en español (¡Asombroso!, ¡Excelente!, ¡Extraordinario!, ¡Espectacular!, ¡Increíble!, ¡Velocidad Relámpago!, ¡Nivel completado!, ¡Desafío completado!, ¡Prepárate!, ¡Ya!, ¡Tiempo agotado!, Fin de la partida, Bienvenido a Bejeweled, etc.) a 44.1 kHz, aplicando refuerzo de graves profundo (100-300 Hz), presencia cristalina (3 kHz), saturación analógica cálida y reflejos espaciales estéreo tipo slapback (25 ms) idénticos al tratamiento de sonido de PopCap Games. Los audios se integraron y empaquetaron en `audio.pac` con ducking dinámico fluido sobre la música.
 
+  16. **Hotfix: Remasterización de Locuciones en Español con FFmpeg e Integración de Selector Dual (v2026.09.01.1, 2026-09-01)**:
+      - *Contexto:* Para que la voz en español suene indistinguible en pegada, sonoridad y brillo de las pistas oficiales en inglés de PopCap, se requería aplicar una cadena avanzada de filtros con FFmpeg (ecualización multibanda precisa, compresión rápida `compand`, eco espacial `aecho` y normalización integrada EBU R128 a -8.3 LUFS exacta) y proveer al jugador un selector dual independiente en Opciones para alternar entre locución en español o en inglés a voluntad.
+      - *Implementación:* Se integró la opción `Voz del Anunciador: Español / English` (`VoiceLanguage`) en `GameOptions.cs`, `SoundEngine.cs`, `AndroidSoundEngine.cs`, `MainWindow.cs` y vistas de Android, con persistencia en `options.xml`, previsualización inmediata y resolución dinámica en `audio.pac`.
+
 ---
 
 ## 🏆 7. Estado del Proyecto y Releases
 
-- **Windows (`main`)**: Release oficial **`v2026.09.01.0`** (Integración completa de locuciones en español masterizadas con acústica PopCap Arcade y empaquetado optimizado en `audio.pac`). Suite de tests unitarios 100% en verde (129/129).
+- **Windows (`main`)**: Release oficial **`v2026.09.01.1`** (Hotfix: Remasterización de locuciones en español con FFmpeg e integración de selector dual de anunciador). Suite de tests unitarios 100% en verde (129/129).
 - **Android (`android`)**: **LUZ VERDE PARA CONTINUACIÓN Y DESARROLLO**. Se reactiva el foco de los contribuidores en el port oficial .NET 9 Android con TalkBack nativo, trasladando la madurez, nuevo banco de voces y ajustes de sonido/jugabilidad consolidados en Windows hacia el cliente móvil. Release base actual: `android-v2026.08.27.2`.
 - **Cómo distinguir al distribuir**: tag `v…` + asset `.zip` = Windows; tag `android-v…` + asset `.apk` = Android. El auto-actualizador de cada plataforma entrega el correcto sin que el usuario elija.
 - **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); en Windows build Debug+Release + suite completa (129/129) y zip con exe/PDB Release + `bass.dll` + `bass_fx.dll` (x64) + `bass_fx32.dll` (x86) + `nvdaControllerClient32.dll` + `libopenmpt.dll` + 4 `openmpt-*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (generado por `--pack-audio`, ~14 MB) + `sounds\images\` completa (sin `sounds/*.ogg` ni `music/`). **Regla crítica del nombre del zip:** `Bejeweled3Accesible-<version>.zip` SIN ceros a la izquierda (p.ej. `2026.9.1.0`), porque `Version.ToString()` no rellena; si lleva ceros (`2026.09.01.0`) el updater arma otra URL y da 404. **NUNCA usar `/t:Rebuild`** (ver anecdotario 11). En Android el APK se compila en GitHub Actions (ver anecdotario 7); `gh release create` + `gh release upload`; limpiar `Temp\opencode`.
