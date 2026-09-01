@@ -52,6 +52,15 @@ namespace Bejeweled3Accessible.Audio
         private bool _ended = false;
         private bool _sectionAdvanced = false;
 
+        // Serializa todo el acceso nativo a libopenmpt (lectura del callback de
+        // BASS, seek, consulta y destroy) para que Dispose no destruya el modulo
+        // mientras el hilo de audio de BASS lo esta decodificando (use-after-free
+        // -> crash del proceso). El callback corre en el hilo de audio de BASS y
+        // FinishMusicSwitch (al cambiar de pista en una subida de nivel) corre en
+        // un hilo de timer: sin esto, ambos tocan _mod a la vez y el juego se cierra.
+        private readonly object _lock = new object();
+        private bool _disposed = false;
+
         // Token opaco con el que el callback de BASS recupera este objeto
         // (se pasa como `user` a BASS_StreamCreate). Se libera en Dispose.
         public IntPtr UserToken
@@ -87,12 +96,12 @@ namespace Bejeweled3Accessible.Audio
 
         public bool IsValid
         {
-            get { return _mod != IntPtr.Zero; }
+            get { lock (_lock) { return _mod != IntPtr.Zero; } }
         }
 
         public int CurrentOrder
         {
-            get { return _mod == IntPtr.Zero ? -1 : openmpt_module_get_current_order(_mod); }
+            get { lock (_lock) { return _mod == IntPtr.Zero ? -1 : openmpt_module_get_current_order(_mod); } }
         }
 
         // Salta al inicio de la cancion (`order`, del mapa real) y recuerda la
@@ -100,12 +109,15 @@ namespace Bejeweled3Accessible.Audio
         // al juego cuando la reproduccion continua sale de la seccion.
         public void SeekTo(int order, int nextOrder)
         {
-            if (_mod == IntPtr.Zero) return;
-            _startOrder = order;
-            _nextOrder = nextOrder;
-            _ended = false;
-            _sectionAdvanced = false;
-            openmpt_module_set_position_order_row(_mod, order, 0);
+            lock (_lock)
+            {
+                if (_mod == IntPtr.Zero) return;
+                _startOrder = order;
+                _nextOrder = nextOrder;
+                _ended = false;
+                _sectionAdvanced = false;
+                openmpt_module_set_position_order_row(_mod, order, 0);
+            }
         }
 
         // Lee hasta maxFrames frames estéreo e intercala L/R escribiendo
@@ -113,33 +125,38 @@ namespace Bejeweled3Accessible.Audio
         // Devuelve los frames escritos. Si el modulo llega a su final (la
         // suite completa de 62 minutos), vuelve al inicio de la cancion y
         // avisa con `replayed=true` para que el motor encadene el evento.
+        // Todo el acceso nativo esta serializado por _lock: si Dispose destruye
+        // el modulo en otro hilo, este callback espera y luego ve _mod==Zero.
         public int ReadInterleaved(IntPtr dest, int maxFrames, out bool replayed)
         {
             replayed = false;
-            if (_mod == IntPtr.Zero) return 0;
-
-            int max = Math.Min(maxFrames, MaxFrames);
-            uint got = openmpt_module_read_float_stereo(_mod, SampleRate, (uint)max, _left, _right);
-            if (got == 0)
+            lock (_lock)
             {
-                if (!_ended)
+                if (_disposed || _mod == IntPtr.Zero) return 0;
+
+                int max = Math.Min(maxFrames, MaxFrames);
+                uint got = openmpt_module_read_float_stereo(_mod, SampleRate, (uint)max, _left, _right);
+                if (got == 0)
                 {
-                    _ended = true;
-                    openmpt_module_set_position_order_row(_mod, _startOrder, 0);
-                    got = openmpt_module_read_float_stereo(_mod, SampleRate, (uint)max, _left, _right);
-                    replayed = true;
+                    if (!_ended)
+                    {
+                        _ended = true;
+                        openmpt_module_set_position_order_row(_mod, _startOrder, 0);
+                        got = openmpt_module_read_float_stereo(_mod, SampleRate, (uint)max, _left, _right);
+                        replayed = true;
+                    }
+                    if (got == 0) return 0;
                 }
-                if (got == 0) return 0;
-            }
-            _ended = false;
+                _ended = false;
 
-            for (int i = 0; i < got; i++)
-            {
-                _interleaved[i * 2] = _left[i];
-                _interleaved[i * 2 + 1] = _right[i];
+                for (int i = 0; i < got; i++)
+                {
+                    _interleaved[i * 2] = _left[i];
+                    _interleaved[i * 2 + 1] = _right[i];
+                }
+                System.Runtime.InteropServices.Marshal.Copy(_interleaved, 0, dest, (int)got * 2);
+                return (int)got;
             }
-            System.Runtime.InteropServices.Marshal.Copy(_interleaved, 0, dest, (int)got * 2);
-            return (int)got;
         }
 
         // Avance de seccion: cuando la reproduccion continua cruza el offset de
@@ -148,21 +165,29 @@ namespace Bejeweled3Accessible.Audio
         // carga avance sola, como hace el original con sus eventos Switch.
         public bool UpdateSectionAdvance()
         {
-            if (_mod == IntPtr.Zero || _sectionAdvanced || _nextOrder < 0) return false;
-            if (openmpt_module_get_current_order(_mod) >= _nextOrder)
+            lock (_lock)
             {
-                _sectionAdvanced = true;
-                return true;
+                if (_mod == IntPtr.Zero || _sectionAdvanced || _nextOrder < 0) return false;
+                if (openmpt_module_get_current_order(_mod) >= _nextOrder)
+                {
+                    _sectionAdvanced = true;
+                    return true;
+                }
+                return false;
             }
-            return false;
         }
 
         public void Dispose()
         {
-            if (_mod != IntPtr.Zero)
+            lock (_lock)
             {
-                try { openmpt_module_destroy(_mod); } catch { }
-                _mod = IntPtr.Zero;
+                if (_disposed) return;
+                _disposed = true;
+                if (_mod != IntPtr.Zero)
+                {
+                    try { openmpt_module_destroy(_mod); } catch { }
+                    _mod = IntPtr.Zero;
+                }
             }
             if (_pin.IsAllocated)
             {

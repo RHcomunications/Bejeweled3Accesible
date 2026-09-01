@@ -81,6 +81,13 @@ namespace Bejeweled3Accessible
 
             if (repackOnly) return;
 
+            // Manejador global: ninguna excepcion debe cerrar el juego en silencio.
+            // En el hilo de UI (WinForms) la capturamos y el juego sigue vivo tras
+            // avisar; en cualquier otro hilo registramos el motivo antes de morir.
+            Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
+            Application.ThreadException += (s, ev) => ReportFatal("UI", ev.Exception);
+            AppDomain.CurrentDomain.UnhandledException += (s, ev) => ReportFatal("Dominio", ev.ExceptionObject as Exception);
+
             Application.Run(new MainWindow());
         }
 
@@ -125,6 +132,32 @@ namespace Bejeweled3Accessible
                     ShowWindow(found, SW_RESTORE);
                 SetForegroundWindow(found);
             }
+        }
+
+        // Registra cualquier excepcion fatal en un log y la muestra al usuario,
+        // para que el juego no desaparezca sin explicacion (facilita el diagnostico).
+        private static void ReportFatal(string source, Exception ex)
+        {
+            try
+            {
+                string log = Path.Combine(Path.GetTempPath(), "B3A_crash.log");
+                System.Text.StringBuilder sb = new System.Text.StringBuilder();
+                sb.AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  [" + source + "]");
+                sb.AppendLine(ex != null ? ex.ToString() : "(sin excepcion)");
+                sb.AppendLine(new string('-', 60));
+                File.AppendAllText(log, sb.ToString());
+            }
+            catch { }
+            try
+            {
+                MessageBox.Show(
+                    "Se produjo un error inesperado (registrado en B3A_crash.log):\r\n\r\n" +
+                    (ex != null ? ex.GetType().Name + ": " + ex.Message : "(sin detalles)"),
+                    "Bejeweled 3 Accesible",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Warning);
+            }
+            catch { }
         }
 
         private const int SW_RESTORE = 9;

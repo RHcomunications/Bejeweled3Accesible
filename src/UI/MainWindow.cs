@@ -43,6 +43,7 @@ namespace Bejeweled3Accessible.UI
         private bool _loadingComplete = false;
 
         private int _menuIdx = 0;
+        private int _gameModeIdx = 0;
         private int _optionsIdx = 0;
         private int _pauseIdx = 0;
         private int _badgeIdx = 0;
@@ -72,6 +73,87 @@ namespace Bejeweled3Accessible.UI
 
         private int _lightningTimeLeft = 60;
         private int _lightningMultiplier = 1;
+
+        // Duracion real (ms) de cada sonido de combo, medida de los ogg originales.
+        // Sirve para tocar los combos en sucesion (que termine uno antes del otro),
+        // no solapados como un barrido.
+        private static readonly System.Collections.Generic.Dictionary<string, int> _comboDurations =
+            new System.Collections.Generic.Dictionary<string, int>
+        {
+            { AudioMap.Combo1, 839 },
+            { AudioMap.Combo2, 839 },
+            { AudioMap.Combo3, 1678 },
+            { AudioMap.Combo4, 1630 },
+            { AudioMap.Combo5, 1583 },
+            { AudioMap.Combo6, 1538 },
+            { AudioMap.Combo7, 1494 },
+            { AudioMap.ZenCombo2, 863 },
+        };
+
+        private static int ComboDurationMs(string name)
+        {
+            int ms;
+            if (_comboDurations.TryGetValue(name, out ms)) return ms;
+            return 1500;
+        }
+
+        // Impacto de ruptura (explosion) de un nivel de cascada, paneado a la
+        // posicion del movimiento. Suena JUNTO al combo de ese nivel (mismo
+        // evento: las gemas se rompen), asi la cadena de combos no se solapa
+        // con una rafaga de explosiones al final.
+        private void PlaySwapImpact(int totalGems, int col, int row)
+        {
+            if (totalGems >= 10)
+            {
+                _sound.PlaySoundSpatial(AudioMap.ElectroPath, col, row);
+                _sound.PlaySoundSpatial(AudioMap.ElectroPath2, col, row);
+                _sound.PlaySoundSpatial(AudioMap.CoinCreated, col, row);
+                _sound.PlaySoundSpatial(AudioMap.Coinappear, col, row);
+            }
+            else if (totalGems >= 4)
+            {
+                _sound.PlaySoundSpatial(AudioMap.SmallExplode, col, row);
+                _sound.PlaySoundSpatial(AudioMap.GemShatters, col, row);
+            }
+            else
+            {
+                _sound.PlaySoundSpatial(AudioMap.GemHit, col, row);
+            }
+        }
+
+        // Creacion de gemas especiales producto de la jugada (supernova,
+        // hipercubo, estrella, flama). Suena en el ultimo nivel de la cadena,
+        // junto a la explosion de impacto (es el mismo evento climax).
+        private void PlaySwapSpecialCreation(CascadeResult res, int col, int row)
+        {
+            if (res.SupernovaCreated > 0)
+            {
+                _sound.PlaySound(AudioMap.FireworkLaunch);
+                _sound.PlaySound(AudioMap.FireworkThump);
+                _sound.PlaySound(AudioMap.FireworkCrackle);
+                _sound.PlaySound(AudioMap.LasergemCreated);
+                _sound.PlaySound(AudioMap.ElectroExplode);
+                _sound.DuckMusicVolume(0.3f, 500);
+                _sound.RestoreMusicVolume(500);
+                AwardBadge("BadgeSuperstar", BadgeTier.Platinum);
+            }
+            else if (res.HypercubeCreated > 0)
+            {
+                _sound.PlayHypercubeSweep(AudioMap.HypercubeCreate, col, row);
+                _sound.PlaySound(AudioMap.Hyperspace);
+            }
+            else if (res.StarCreated > 0)
+            {
+                _sound.PlayStarGemLaser(AudioMap.LasergemCreated, col, row);
+                _sound.PlaySound(AudioMap.ElectroExplode);
+            }
+            else if (res.FlameCreated > 0)
+            {
+                _sound.PlaySound(AudioMap.PowergemCreated);
+                _sound.PlaySound(AudioMap.Flamebonus);
+                _sound.PlaySound(AudioMap.Flamespeed1);
+            }
+        }
         private int _lightningTankSeconds = 0;
         private bool _lastHurrahActive = false;
         private int _lastHurrahScore = 0;
@@ -120,6 +202,7 @@ namespace Bejeweled3Accessible.UI
         private int _gemAnimTick = 0;
 
         // Mouse interaction support: click-to-select, click-adjacent-to-swap, and drag-and-drop
+        private bool _mouseEnabled = true;
         private int _selectedGemX = -1, _selectedGemY = -1;
         private int _dragStartX = -1, _dragStartY = -1;
         private Point _dragStartPixel = Point.Empty;
@@ -133,7 +216,7 @@ namespace Bejeweled3Accessible.UI
         private string[] GetMainMenuItems()
         {
             string profName = _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.ProfileName : "";
-            return new string[]
+            List<string> items = new List<string>
             {
                 Localization.Get("MenuPlay"),
                 Localization.Get("MenuBadges"),
@@ -142,10 +225,13 @@ namespace Bejeweled3Accessible.UI
                 Localization.Get("MenuChangeUser", profName),
                 Localization.Get("MenuLanguage"),
                 Localization.Get("MenuOptions"),
-                Localization.Get("MenuAudioSchool"),
-                Localization.Get("MenuUpdateCheck"),
-                Localization.Get("MenuExit")
+                Localization.Get("MenuAudioSchool")
             };
+#if !DEBUG
+            items.Add(Localization.Get("MenuUpdateCheck"));
+#endif
+            items.Add(Localization.Get("MenuExit"));
+            return items.ToArray();
         }
 
 
@@ -191,6 +277,7 @@ namespace Bejeweled3Accessible.UI
             _sound.SfxVol = _options.SoundVolume;
             _sound.VoiceVol = _options.VoiceVolume;
             _sound.BinauralEnabled = _options.BinauralEnabled;
+            _mouseEnabled = _options.MouseEnabled;
             Localization.CurrentLanguage = _options.SelectedLanguage;
 
             Text = Localization.Get("AppTitle");
@@ -212,10 +299,12 @@ namespace Bejeweled3Accessible.UI
             _loadingTimer.Tick += LoadingTimer_Tick;
             _loadingTimer.Start();
 
+#if !DEBUG
             // Background update check: announces once if a newer release exists,
-            // without blocking the startup or opening any browser.
+            // without blocking the startup or opening any browser (only in Release).
             try { System.Threading.ThreadPool.QueueUserWorkItem(delegate { CheckForUpdatesAsync(); }); }
             catch { }
+#endif
 
             KeyDown += MainWindow_KeyDown;
             KeyPress += MainWindow_KeyPress;
@@ -254,6 +343,7 @@ namespace Bejeweled3Accessible.UI
             _options.SoundVolume = _sound.SfxVol;
             _options.VoiceVolume = _sound.VoiceVol;
             _options.BinauralEnabled = _sound.BinauralEnabled;
+            _options.MouseEnabled = _mouseEnabled;
             _options.SelectedLanguage = Localization.CurrentLanguage;
             _options.ZenAmbient = (int)_zenMgr.SelectedAmbient;
             _options.ZenMantras = _zenMgr.MantrasEnabled;
@@ -428,11 +518,8 @@ namespace Bejeweled3Accessible.UI
             }
             else if (_currentModeKey == "ModeLightning")
             {
-                // Reloj del multiplicador de tiempo: tickea cada segundo mientras hay
-                // un multiplicador activo (>1x), como en el Relámpago original.
-                if (_lightningMultiplier > 1)
-                    _sound.PlaySound(AudioMap.Tick);
-
+                // Reloj del multiplicador de tiempo: ya NO tickea segundo a segundo
+                // (el tick leve es solo al mover/emparejar gemas de tiempo).
                 _lightningTimeLeft--;
                 if (_lightningTimeLeft == 30)
                 {
@@ -620,6 +707,10 @@ namespace Bejeweled3Accessible.UI
         // menu with the current version and the new release notes.
         private void CheckForUpdatesAsync()
         {
+            // El canal dev (compilacion Debug) no comprueba actualizaciones: el
+            // usuario ya tiene la ultima version reconstruyendo bin\Debug.
+            if (Updater.IsDevBuild) return;
+
             Updater.ReleaseInfo release = null;
             try { release = Updater.GetLatestRelease(); } catch { }
             bool newer = release != null && release.IsValid && Updater.IsNewerThanCurrent(release.Tag);
@@ -843,7 +934,7 @@ namespace Bejeweled3Accessible.UI
                 if (_menuIdx == 0) // Play
                 {
                     _screen = GameScreen.GameSelect;
-                    _menuIdx = 0;
+                    _gameModeIdx = 0;
                     _speech.Speak(Localization.Get("SelectMode") + Localization.Get(GetGameModeKeys()[0]), true);
                 }
                 else if (_menuIdx == 1) // Badges
@@ -895,6 +986,7 @@ namespace Bejeweled3Accessible.UI
                     _sound.PlaySound(AudioMap.ButtonPress);
                     _speech.Speak(Localization.Get("AudioSchoolTitle") + ". " + GetAudioSchoolItems()[0], true);
                 }
+#if !DEBUG
                 else if (_menuIdx == 8) // Update check
                 {
                     if (!_updateChecked)
@@ -911,7 +1003,8 @@ namespace Bejeweled3Accessible.UI
                         _updatePromptActive = true;
                     }
                 }
-                else if (_menuIdx == 9) // Exit
+#endif
+                else if (_menuIdx == items.Length - 1) // Exit (always last item)
                 {
                     _sound.PlaySound(AudioMap.VoiceGoodbye);
                     _speech.Speak(Localization.CurrentLanguage == Language.Spanish ? "¡Adiós!" : "Goodbye!", true);
@@ -960,6 +1053,7 @@ namespace Bejeweled3Accessible.UI
                 Localization.Get("OptSoundVol", _sound.SfxVol),
                 Localization.Get("OptVoiceVol", _sound.VoiceVol),
                 Localization.Get("OptBinaural", _sound.BinauralEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")),
+                Localization.Get("OptMouse", _mouseEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")),
                 Localization.Get("OptBack")
             };
         }
@@ -1074,6 +1168,12 @@ namespace Bejeweled3Accessible.UI
                     _sound.BinauralEnabled = !_sound.BinauralEnabled;
                     _sound.PlaySound(AudioMap.Select);
                     _speech.Speak(Localization.Get("OptBinaural", _sound.BinauralEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")), true);
+                }
+                else if (_optionsIdx == 4)
+                {
+                    _mouseEnabled = !_mouseEnabled;
+                    _sound.PlaySound(AudioMap.Select);
+                    _speech.Speak(Localization.Get("OptMouse", _mouseEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")), true);
                 }
                 SaveOptionsState();
             }
@@ -1334,19 +1434,19 @@ namespace Bejeweled3Accessible.UI
             string[] keys = GetGameModeKeys();
             if (e.KeyCode == Keys.Down)
             {
-                _menuIdx = (_menuIdx + 1) % keys.Length;
+                _gameModeIdx = (_gameModeIdx + 1) % keys.Length;
                 _sound.PlaySound(AudioMap.ButtonMouseover);
-                _speech.Speak(Localization.Get(keys[_menuIdx]), true);
+                _speech.Speak(Localization.Get(keys[_gameModeIdx]), true);
             }
             else if (e.KeyCode == Keys.Up)
             {
-                _menuIdx = (_menuIdx - 1 + keys.Length) % keys.Length;
+                _gameModeIdx = (_gameModeIdx - 1 + keys.Length) % keys.Length;
                 _sound.PlaySound(AudioMap.ButtonMouseover);
-                _speech.Speak(Localization.Get(keys[_menuIdx]), true);
+                _speech.Speak(Localization.Get(keys[_gameModeIdx]), true);
             }
             else if (e.KeyCode == Keys.Enter)
             {
-                string selectedKey = keys[_menuIdx];
+                string selectedKey = keys[_gameModeIdx];
                 if (selectedKey.EndsWith("Locked"))
                 {
                     _sound.PlaySound(AudioMap.Badmove);
@@ -1364,6 +1464,7 @@ namespace Bejeweled3Accessible.UI
                 {
                     _screen = GameScreen.QuestRelicScreen;
                     _relicIdx = 0;
+                    _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestTheme));
                     _speech.Speak(Localization.Get("QuestSelectTitle") + ". " + GetQuestRelicItems()[0], true);
                     return;
                 }
@@ -1411,7 +1512,8 @@ namespace Bejeweled3Accessible.UI
                 {
                     _sound.PlaySound(AudioMap.ButtonPress);
                     _screen = GameScreen.GameSelect;
-                    _speech.Speak(Localization.Get("SelectMode") + Localization.Get(GetGameModeKeys()[0]), true);
+                    _sound.PlayMusic(MusicMap.FileName(MusicMap.MainTheme));
+                    _speech.Speak(Localization.Get("SelectMode") + Localization.Get(GetGameModeKeys()[_gameModeIdx]), true);
                 }
                 else
                 {
@@ -1426,7 +1528,8 @@ namespace Bejeweled3Accessible.UI
             {
                 _sound.PlaySound(AudioMap.ButtonPress);
                 _screen = GameScreen.GameSelect;
-                _speech.Speak(Localization.Get("SelectMode") + Localization.Get(GetGameModeKeys()[0]), true);
+                _sound.PlayMusic(MusicMap.FileName(MusicMap.MainTheme));
+                _speech.Speak(Localization.Get("SelectMode") + Localization.Get(GetGameModeKeys()[_gameModeIdx]), true);
             }
         }
 
@@ -1466,6 +1569,7 @@ namespace Bejeweled3Accessible.UI
                 {
                     _sound.PlaySound(AudioMap.QuestMenuButton1);
                     _screen = GameScreen.QuestRelicScreen;
+                    _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestTheme));
                     _speech.Speak(GetQuestRelicItems()[_relicIdx], true);
                 }
                 else
@@ -1483,6 +1587,7 @@ namespace Bejeweled3Accessible.UI
             {
                 _sound.PlaySound(AudioMap.ButtonPress);
                 _screen = GameScreen.QuestRelicScreen;
+                _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestTheme));
                 _speech.Speak(GetQuestRelicItems()[_relicIdx], true);
             }
         }
@@ -1764,6 +1869,7 @@ namespace Bejeweled3Accessible.UI
             else if (e.KeyCode == Keys.Up && _cursorY > 0) { _cursorY--; _sound.PlaySoundSpatial(AudioMap.Select, _cursorX, _cursorY); AnnounceCurrentCell(); }
             else if (e.KeyCode == Keys.Down && _cursorY < Board.Rows - 1) { _cursorY++; _sound.PlaySoundSpatial(AudioMap.Select, _cursorX, _cursorY); AnnounceCurrentCell(); }
 
+#if DEBUG
             else if (e.Shift && e.KeyCode == Keys.H)
             {
                 _board.SetGem(_cursorX, _cursorY, new Gem(GemColor.Red, SpecialType.Hypercube));
@@ -1790,6 +1896,7 @@ namespace Bejeweled3Accessible.UI
                 _cascadeChain = 0;
                 _speech.Speak(Localization.Get("PauseReset") + ". " + Localization.Get("ClassicStarted"), true);
             }
+#endif
             else if (e.KeyCode == Keys.R)
             {
                 if (_currentModeKey == "ModeLightning")
@@ -1969,18 +2076,237 @@ namespace Bejeweled3Accessible.UI
 
                     bool levelUpVoicePlayed = false;
 
-                    // Efecto "lágrima": cada gema que cae/regenera repite el gemhit,
-                    // subiendo un semitono por cada caída (~100ms por gema). En Lightning
-                    // la altura arranca desde la cadena actual y sube por cada gema.
+                    // Reaccion en cadena: cada nivel reproduce su combo (con tono) y
+                    // luego el gem hit sonando mientras caen las gemas de ese nivel,
+                    // espaciados con stepIntervalMs como en el Relampago original.
+                    int levels = Math.Max(1, Math.Min(res.CascadeDepth, 7));
                     int teardropCount = Math.Min(res.TotalGemsDestroyed, 16);
-                    for (int k = 0; k < teardropCount; k++)
+                    if (teardropCount <= 0) teardropCount = 1;
+
+                    int hitsPerLevel = Math.Max(1, Math.Min(3, teardropCount / levels));
+                    int chainLevels = levels;
+                    int chainHits = hitsPerLevel;
+                    int cx = _cursorX, cy = _cursorY;
+                    string chainMode = _currentModeKey;
+
+                    // Official scoring per mode: Classic scales with the level,
+                    // Lightning applies the 5x multiplier to everything except
+                    // the Hypercube creation bonus (a flat 500 per cube) and
+                    // adds a speed bonus that grows +100 per chained match from
+                    // 200 up to 1000 points.
+                    int lightningSpeedBonus = 0;
+                    if (_currentModeKey == "ModeLightning")
                     {
-                        float pitchMult = (float)Math.Pow(2.0, ((_currentModeKey == "ModeLightning" ? _cascadeChain : 1) + k - 1) / 12.0);
-                        if (k == 0)
-                            _sound.PlaySoundSpatialSweep(AudioMap.GemHit, fromX, _cursorX, _cursorY, pitchMult);
+                        lightningSpeedBonus = Math.Min(1000, 200 + (_cascadeChain - 1) * 100);
+                    }
+
+                    // Pre-calculate points for each cascade level
+                    int[] stepAddedScores = new int[chainLevels];
+                    for (int s = 0; s < chainLevels; s++)
+                    {
+                        int stepBase = (s < res.StepPoints.Count) ? res.StepPoints[s] : (res.BasePoints / chainLevels);
+                        int stepHyper = (s < res.StepHypercubeCreationPoints.Count) ? res.StepHypercubeCreationPoints[s] : 0;
+                        int sScore;
+                        if (_currentModeKey == "ModeLightning")
+                        {
+                            sScore = (stepBase - stepHyper) * (_lightningMultiplier * 5) + stepHyper;
+                            if (s == 0) sScore += lightningSpeedBonus;
+                        }
+                        else if (_currentModeKey == "ModeClassic")
+                        {
+                            sScore = stepBase * _level;
+                        }
                         else
-                            _sound.PlaySoundSpatial(AudioMap.GemHit, _cursorX, _cursorY, pitchMult);
-                        await Task.Delay(100);
+                        {
+                            sScore = stepBase;
+                        }
+
+                        if (s == 0 && res.AnnihilatorUsed)
+                        {
+                            sScore += 2500;
+                        }
+                        stepAddedScores[s] = sScore;
+                    }
+
+                    if (res.AnnihilatorUsed)
+                    {
+                        _sound.PlaySound(AudioMap.Preblast);
+                        _sound.PlaySoundSpatial(AudioMap.BombExplode, fromX, _cursorY);
+                        _sound.PlaySound(AudioMap.Hyperspace);
+                    }
+
+#pragma warning disable 4014
+                    Task.Run(async () =>
+                    {
+                        try
+                        {
+                            for (int lvl = 1; lvl <= chainLevels; lvl++)
+                            {
+                                int stepPts = stepAddedScores[lvl - 1];
+
+                                // Sumar puntuación en tiempo real con cada nivel de combo
+                                if (this.IsHandleCreated)
+                                    this.BeginInvoke((MethodInvoker)delegate
+                                    {
+                                        try
+                                        {
+                                            if (_screen != screenAtSwap || !ReferenceEquals(_board, boardAtSwap) || _currentModeKey != modeAtSwap) return;
+                                            
+                                            _score += stepPts;
+
+                                            if (_currentModeKey == "ModeLightning" && _lastHurrahActive)
+                                            {
+                                                _lastHurrahScore += stepPts;
+                                                if (_lastHurrahScore > _progress.BestFrenzyScore)
+                                                    _progress.BestFrenzyScore = _lastHurrahScore;
+                                            }
+
+                                            int rankBefore = RankSystem.GetRankLevel(_progress.TotalScore);
+                                            _progress.TotalScore += stepPts;
+                                            int rankAfter = RankSystem.GetRankLevel(_progress.TotalScore);
+
+                                            if (rankAfter > rankBefore)
+                                            {
+                                                _sound.PlaySound(AudioMap.Rankup);
+                                                _speech.Speak(Localization.Get("RankUpAnnouncement", RankSystem.GetRankTitle(_progress.TotalScore)), true);
+                                                _profileMgr.Save();
+                                            }
+
+                                            if (_currentModeKey == "ModeClassic" || _currentModeKey == "ModeZen")
+                                            {
+                                                _levelProgressPoints += stepPts;
+                                                int targetPoints = GetLevelTargetPoints(_level);
+                                                if (_levelProgressPoints >= targetPoints)
+                                                {
+                                                    _levelProgressPoints -= targetPoints;
+                                                    _level++;
+                                                    int newLevel = _level;
+                                                    _sound.PlaySound(AudioMap.VoiceLevelcomplete);
+
+                                                    if (_currentModeKey == "ModeClassic")
+                                                    {
+                                                        int stage = ((_level - 1) % 4) + 1;
+                                                        _sound.PlayMusic(MusicMap.FileName(MusicMap.ClassicParts[stage - 1]));
+                                                        if (newLevel > _progress.ClassicLevel)
+                                                        {
+                                                            if (_progress.ClassicLevel < 5 && newLevel >= 5)
+                                                            {
+                                                                _sound.PlaySound(AudioMap.Secretunlocked);
+                                                                _speech.Speak(Localization.Get("UnlockPoker"), true);
+                                                            }
+                                                            _progress.ClassicLevel = newLevel;
+                                                        }
+                                                    }
+                                                    else if (_currentModeKey == "ModeZen")
+                                                    {
+                                                        if (!(_zenMgr.AmbientEnabled && _zenMgr.SelectedAmbient != AmbientType.None))
+                                                        {
+                                                            _sound.PlayMusic(Engine.ZenManager.GetZenTrackForLevel(_level));
+                                                        }
+                                                        if (newLevel > _progress.ZenLevel)
+                                                        {
+                                                            if (_progress.ZenLevel < 5 && newLevel >= 5)
+                                                            {
+                                                                _sound.PlaySound(AudioMap.Secretunlocked);
+                                                                _speech.Speak(Localization.Get("UnlockButterflies"), true);
+                                                            }
+                                                            _progress.ZenLevel = newLevel;
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                            else if (_currentModeKey == "ModeIceStorm")
+                                            {
+                                                int newLevel = (_score / 5000) + 1;
+                                                if (newLevel > _level)
+                                                {
+                                                    _level = newLevel;
+                                                    _iceRiseInterval = Math.Max(1, 6 - _level);
+                                                    _sound.PlaySound(AudioMap.VoiceLevelcomplete);
+                                                }
+                                            }
+                                        }
+                                        catch { }
+                                    });
+
+                                // Combo de este nivel de cadena (solo del 2 en adelante).
+                                // En Relámpago sube de tono por nivel; en los demás modos
+                                // los archivos combo_2..combo_7 ya suben armónicamente.
+                                string comboSoundName = null;
+                                float comboPitch = 1f;
+                                if (lvl >= 2)
+                                {
+                                    if (chainMode == "ModeZen" && lvl <= 2)
+                                        comboSoundName = AudioMap.ZenCombo2;
+                                    else
+                                        comboSoundName = AudioMap.ComboPrefix + lvl;
+                                    comboPitch = (float)Math.Pow(2.0, (chainMode == "ModeLightning" ? (lvl - 1) : 0) / 12.0);
+                                    string name = comboSoundName;
+                                    float pitch = comboPitch;
+                                    if (this.IsHandleCreated)
+                                        this.BeginInvoke((MethodInvoker)delegate
+                                        {
+                                            try
+                                            {
+                                                if (chainMode == "ModeLightning")
+                                                    _sound.PlaySoundPitch(name, pitch);
+                                                else
+                                                    _sound.PlaySound(name);
+                                            }
+                                            catch { }
+                                        });
+                                }
+
+                                // Explosión de impacto de ESTE nivel: suena CON el combo
+                                // (es el mismo evento, las gemas se rompen), de modo que la
+                                // cadena de combos y las explosiones no se solapan. En el
+                                // último nivel (clímax) suena la explosión grande y la
+                                // creación de gema especial si aplica.
+                                int impactGems = (lvl == chainLevels) ? res.TotalGemsDestroyed : Math.Min(res.TotalGemsDestroyed, 3);
+                                if (this.IsHandleCreated)
+                                    this.BeginInvoke((MethodInvoker)delegate
+                                    {
+                                        try
+                                        {
+                                            PlaySwapImpact(impactGems, cx, cy);
+                                            if (lvl == chainLevels) PlaySwapSpecialCreation(res, cx, cy);
+                                        }
+                                        catch { }
+                                    });
+
+                                // Caídas de gemas por gravedad (sonido de gem_fall espacial).
+                                for (int g = 0; g < chainHits; g++)
+                                {
+                                    if (this.IsHandleCreated)
+                                        this.BeginInvoke((MethodInvoker)delegate
+                                        {
+                                            try { _sound.PlaySoundSpatial(AudioMap.GemFall, cx, cy); }
+                                            catch { }
+                                        });
+                                    await Task.Delay(90);
+                                }
+
+                                // Cadencia natural de PopCap: pausa musical de 280 ms tras las
+                                // caídas antes del siguiente nivel de cascada para una clara
+                                // sucesión de acordes.
+                                await Task.Delay(280);
+                            }
+                        }
+                        catch { }
+                    });
+#pragma warning restore 4014
+
+                    // Tick leve al emparejar gemas de tiempo (no con el multiplicador,
+                    // que ya no tickea segundo a segundo). Es el unico momento en que
+                    // debe oirse este sonido.
+                    if (res.TimeGemsMatched > 0)
+                        _sound.PlaySound(AudioMap.Tick);
+
+                    // Revalidate: the user may have paused / reset / restarted while
+                    // the swap was resolving asynchronously, so abandon stale state.
+                    if (_screen != screenAtSwap || !ReferenceEquals(_board, boardAtSwap) || _currentModeKey != modeAtSwap)
+                    {
+                        return;
                     }
 
                     // Visual "lágrima": salpicaduras en las celdas por donde entran las gemas
@@ -1991,90 +2317,10 @@ namespace Bejeweled3Accessible.UI
                     {
                         int sCol = splashCols[k % splashCols.Length];
                         int sRow = (k < splashCols.Length) ? 0 : ((k / splashCols.Length) % 8);
-                        _teardrops.Add(new TeardropSplash { Col = sCol, Row = sRow, StartMs = nowMs + k * 100 });
+                        _teardrops.Add(new TeardropSplash { Col = sCol, Row = sRow, StartMs = nowMs + k * 35 });
                     }
                     if (_teardrops.Count > 200) _teardrops.RemoveRange(0, _teardrops.Count - 200);
 
-                    // Revalidate: the user may have paused / reset / restarted while
-                    // the swap was resolving asynchronously, so abandon stale state.
-                    if (_screen != screenAtSwap || !ReferenceEquals(_board, boardAtSwap) || _currentModeKey != modeAtSwap)
-                    {
-                        return;
-                    }
-
-                    string comboSoundName;
-                    if (_currentModeKey == "ModeZen" && _cascadeChain <= 2)
-                    {
-                        comboSoundName = (_cascadeChain <= 1) ? AudioMap.Combo1 : AudioMap.ZenCombo2;
-                    }
-                    else
-                    {
-                        comboSoundName = AudioMap.ComboPrefix + _cascadeChain;
-                    }
-                    // En Lightning los combos suben de tono por cada nivel de cadena.
-                    if (_currentModeKey == "ModeLightning")
-                        _sound.PlaySoundPitch(comboSoundName, (float)Math.Pow(2.0, (_cascadeChain - 1) / 12.0));
-                    else
-                        _sound.PlaySound(comboSoundName);
-
-                    // Official scoring per mode: Classic scales with the level,
-                    // Lightning applies the 5x multiplier to everything except
-                    // the Hypercube creation bonus (a flat 500 per cube) and
-                    // adds a speed bonus that grows +100 per chained match from
-                    // 200 up to 1000 points.
-                    int lightningSpeedBonus = 0;
-                    int addedScore;
-                    if (_currentModeKey == "ModeLightning")
-                    {
-                        lightningSpeedBonus = Math.Min(1000, 200 + (_cascadeChain - 1) * 100);
-                        addedScore = (res.BasePoints - res.HypercubeCreationPoints) * (_lightningMultiplier * 5)
-                                   + res.HypercubeCreationPoints
-                                   + lightningSpeedBonus;
-                    }
-                    else if (_currentModeKey == "ModeClassic")
-                    {
-                        addedScore = res.BasePoints * _level;
-                    }
-                    else
-                    {
-                        addedScore = res.BasePoints;
-                    }
-
-                    // Annihilator: swapping two hypercubes wipes the whole board.
-                    // Authentic payoff — a massive detonation rumble and a hefty
-                    // bonus on top of the per-gem score.
-                    if (res.AnnihilatorUsed)
-                    {
-                        addedScore += 2500;
-                        _sound.PlaySound(AudioMap.Preblast);
-                        _sound.PlaySoundSpatial(AudioMap.BombExplode, fromX, _cursorY);
-                        _sound.PlaySound(AudioMap.Hyperspace);
-                    }
-
-                    _score += addedScore;
-
-                    // Final Frenzy badge: the score piled up during the Last
-                    // Hurrah (the time tank's final charge) is tracked per game,
-                    // keeping the best frenzy score ever reached.
-                    if (_currentModeKey == "ModeLightning" && _lastHurrahActive)
-                    {
-                        _lastHurrahScore += addedScore;
-                        if (_lastHurrahScore > _progress.BestFrenzyScore)
-                            _progress.BestFrenzyScore = _lastHurrahScore;
-                    }
-
-                    int rankBefore = RankSystem.GetRankLevel(_progress.TotalScore);
-                    _progress.TotalScore += addedScore;
-                    int rankAfter = RankSystem.GetRankLevel(_progress.TotalScore);
-
-                    // Announce rank promotions with the authentic rank-up jingle and a
-                    // spoken description of the rank just earned.
-                    if (rankAfter > rankBefore)
-                    {
-                        _sound.PlaySound(AudioMap.Rankup);
-                        _speech.Speak(Localization.Get("RankUpAnnouncement", RankSystem.GetRankTitle(_progress.TotalScore)), true);
-                        _profileMgr.Save();
-                    }
                     _progress.TotalGemsCleared += res.TotalGemsDestroyed;
                     _progress.TotalFlameGemsDestroyed += res.FlameDestroyed;
                     _progress.TotalStarGemsDestroyed += res.StarDestroyed;
@@ -2090,79 +2336,6 @@ namespace Bejeweled3Accessible.UI
                         if (res.CascadeDepth >= 4 || res.TotalGemsDestroyed >= 10)
                         {
                             _sound.PlaySound(AudioMap.VoiceBlazingspeed);
-                        }
-                    }
-                    else if (_currentModeKey == "ModeClassic")
-                    {
-                        _levelProgressPoints += addedScore;
-                        int targetPoints = GetLevelTargetPoints(_level);
-                        if (_levelProgressPoints >= targetPoints)
-                        {
-                            _levelProgressPoints -= targetPoints;
-                            _level++;
-                            int newLevel = _level;
-                            _sound.PlaySound(AudioMap.VoiceLevelcomplete);
-                            levelUpVoicePlayed = true;
-
-                            // Dynamic stage music progression in Classic Mode (Parts 1 to 4)
-                            int stage = ((_level - 1) % 4) + 1;
-                            _sound.PlayMusic(MusicMap.FileName(MusicMap.ClassicParts[stage - 1]));
-
-                            if (newLevel > _progress.ClassicLevel)
-                            {
-                                if (_progress.ClassicLevel < 5 && newLevel >= 5)
-                                {
-                                    _sound.PlaySound(AudioMap.Secretunlocked);
-                                    _speech.Speak(Localization.Get("UnlockPoker"), true);
-                                }
-                                _progress.ClassicLevel = newLevel;
-                            }
-                        }
-                    }
-                    else if (_currentModeKey == "ModeZen")
-                    {
-                        _levelProgressPoints += addedScore;
-                        int targetPoints = GetLevelTargetPoints(_level);
-                        if (_levelProgressPoints >= targetPoints)
-                        {
-                            _levelProgressPoints -= targetPoints;
-                            _level++;
-                            int newLevel = _level;
-                            _sound.PlaySound(AudioMap.VoiceLevelcomplete);
-                            levelUpVoicePlayed = true;
-
-                            if (_zenMgr.AmbientEnabled && _zenMgr.SelectedAmbient != AmbientType.None)
-                            {
-                                // Keep ambient track playing
-                            }
-                            else
-                            {
-                                // Dynamic stage music progression in Zen Mode (Parts 1 to 4)
-                                _sound.PlayMusic(Engine.ZenManager.GetZenTrackForLevel(_level));
-                            }
-
-                            if (newLevel > _progress.ZenLevel)
-                            {
-                                if (_progress.ZenLevel < 5 && newLevel >= 5)
-                                {
-                                    _sound.PlaySound(AudioMap.Secretunlocked);
-                                    _speech.Speak(Localization.Get("UnlockButterflies"), true);
-                                }
-                                _progress.ZenLevel = newLevel;
-                            }
-                        }
-                    }
-                    else if (_currentModeKey == "ModeIceStorm")
-                    {
-                        // Authentic Ice Storm: the cold front rises faster as the
-                        // level increases, exactly like the level-up pacing.
-                        int newLevel = (_score / 5000) + 1;
-                        if (newLevel > _level)
-                        {
-                            _level = newLevel;
-                            _iceRiseInterval = Math.Max(1, 6 - _level);
-                            _sound.PlaySound(AudioMap.VoiceLevelcomplete);
-                            levelUpVoicePlayed = true;
                         }
                     }
                     bool isPokerActive = _currentModeKey == "ModePoker" || (_currentModeKey == "ModeQuest" && _activeQuest != null && _activeQuest.Type == Engine.QuestType.Poker);
@@ -2251,8 +2424,8 @@ namespace Bejeweled3Accessible.UI
                             if (relicDone == 4 && relicDoneBefore < 4)
                             {
                                 _progress.QuestRelicCount++;
-                                _profileMgr.Save();
                             }
+                            _profileMgr.Save();
 
                             // Heroes Welcome: the elite badge for restoring
                             // all five relicaries (100% of Quest).
@@ -2275,6 +2448,7 @@ namespace Bejeweled3Accessible.UI
 
                             _screen = GameScreen.QuestRelicScreen;
                             _relicIdx = _activeQuest.RelicIndex;
+                            _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestTheme));
 
                             // Authentic unlock: only the very first relicary
                             // (relic count going 0 -> 1) opens Diamond Mine.
@@ -2327,6 +2501,11 @@ namespace Bejeweled3Accessible.UI
                                     meltedThisMove++;
                                 }
                                 _sound.PlaySound(AudioMap.IceStormColumnCombo);
+                                // Mismo esquema que las cadenas: el combo de columna y
+                                // luego el gem fall (variante corta) de la caida, sin
+                                // espera larga para no retrasar el juego.
+                                _sound.PlaySoundSpatial(AudioMap.GemFall, col, _cursorY);
+                                await Task.Delay(80);
                             }
                         }
                         // Ice Breaker badge: 5/8/12/15 column combos in one move
@@ -2492,15 +2671,37 @@ namespace Bejeweled3Accessible.UI
                                 _pokerCards.Clear();
                                 _pokerHandBonus = 0;
 
-                                // Skull Eliminator: scoring strongly charges the bar.
-                                // At 3 charges one skull is busted off the table.
-                                _pokerSkullCharge++;
-                                if (_pokerSkullCharge >= 3 && _pokerSkulls > 0)
+                                // Skull Eliminator (juego original): cada mano buena
+                                // llena la barra segun su valor; al 100% elimina una
+                                // calavera. El Color (Flush) la elimina al instante.
+                                if (hand == PokerHandType.Flush)
                                 {
-                                    _pokerSkulls--;
-                                    _pokerSkullCharge = 0;
-                                    _sound.PlaySound(AudioMap.SkullBuster);
-                                    _speech.Speak(Localization.Get("PokerSkullEliminated", _pokerSkulls), true);
+                                    if (_pokerSkulls > 0)
+                                    {
+                                        _pokerSkulls--;
+                                        _pokerSkullCharge = 0;
+                                        _sound.PlaySound(AudioMap.SkullBuster);
+                                        _speech.Speak(Localization.Get("PokerSkullEliminated", _pokerSkulls), true);
+                                    }
+                                }
+                                else
+                                {
+                                    int fill = PokerHandEvaluator.GetSkullEliminatorFill(hand);
+                                    if (_pokerSkulls > 0)
+                                    {
+                                        _pokerSkullCharge += fill;
+                                        if (_pokerSkullCharge >= PokerHandEvaluator.SkullEliminatorMax)
+                                        {
+                                            _pokerSkullCharge -= PokerHandEvaluator.SkullEliminatorMax;
+                                            _pokerSkulls--;
+                                            _sound.PlaySound(AudioMap.SkullBuster);
+                                            _speech.Speak(Localization.Get("PokerSkullEliminated", _pokerSkulls), true);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        _pokerSkullCharge = 0;
+                                    }
                                 }
                             }
                         }
@@ -2550,52 +2751,9 @@ namespace Bejeweled3Accessible.UI
 
                     if (res.ExtraTimeSeconds > 0) _lightningTankSeconds += res.ExtraTimeSeconds;
 
-                    if (res.SupernovaCreated > 0)
-                    {
-                        _sound.PlaySound(AudioMap.FireworkLaunch);
-                        _sound.PlaySound(AudioMap.FireworkThump);
-                        _sound.PlaySound(AudioMap.FireworkCrackle);
-                        _sound.PlaySound(AudioMap.LasergemCreated);
-                        _sound.PlaySound(AudioMap.ElectroExplode);
-                        _sound.DuckMusicVolume(0.3f, 500);
-                        _sound.RestoreMusicVolume(500);
-                        AwardBadge("BadgeSuperstar", BadgeTier.Platinum);
-                    }
-                    else if (res.HypercubeCreated > 0)
-                    {
-                        _sound.PlayHypercubeSweep(AudioMap.HypercubeCreate, _cursorX, _cursorY);
-                        _sound.PlaySound(AudioMap.Hyperspace);
-                    }
-                    else if (res.StarCreated > 0)
-                    {
-                        _sound.PlayStarGemLaser(AudioMap.LasergemCreated, _cursorX, _cursorY);
-                        _sound.PlaySound(AudioMap.ElectroExplode);
-                    }
-                    else if (res.FlameCreated > 0)
-                    {
-                        _sound.PlaySound(AudioMap.PowergemCreated);
-                        _sound.PlaySound(AudioMap.Flamebonus);
-                        _sound.PlaySound(AudioMap.Flamespeed1);
-                    }
-
-                    // Special gem explosions (Flame 3x3, Star beam, Supernova, Coin bonus)
-                    // Match impact sounds are panned to the move position (HRTF)
-                    if (res.TotalGemsDestroyed >= 10)
-                    {
-                        _sound.PlaySoundSpatial(AudioMap.ElectroPath, _cursorX, _cursorY);
-                        _sound.PlaySoundSpatial(AudioMap.ElectroPath2, _cursorX, _cursorY);
-                        _sound.PlaySoundSpatial(AudioMap.CoinCreated, _cursorX, _cursorY);
-                        _sound.PlaySoundSpatial(AudioMap.Coinappear, _cursorX, _cursorY);
-                    }
-                    else if (res.TotalGemsDestroyed >= 4)
-                    {
-                        _sound.PlaySoundSpatial(AudioMap.SmallExplode, _cursorX, _cursorY);
-                        _sound.PlaySoundSpatial(AudioMap.GemShatters, _cursorX, _cursorY);
-                    }
-                    else
-                    {
-                        _sound.PlaySoundSpatial(AudioMap.GemHit, _cursorX, _cursorY);
-                    }
+                    // (La explosion/creacion de gemas especiales de la jugada suena
+                    // DESPUES de la cadena de combos, en PlaySwapExplosions, para que
+                    // el combo que la provoca vaya primero. Ver bloque de cascada.)
 
                     // Announce voice praise based on total gems destroyed or cascade depth across ALL modes.
                     // Never on a level-up match: "Level Complete!" and then "Good!" makes no sense.
@@ -2974,15 +3132,8 @@ case Engine.QuestType.TimeBomb:
 
             if (_screen == GameScreen.Loading) DrawLoading(g);
             else if (_screen == GameScreen.ProfileInput) DrawProfileInput(g);
-            else if (_screen == GameScreen.MainMenu || _screen == GameScreen.GameSelect || _screen == GameScreen.Options || _screen == GameScreen.BadgesScreen || _screen == GameScreen.RecordsScreen || _screen == GameScreen.TutorialScreen || _screen == GameScreen.QuestRelicScreen || _screen == GameScreen.QuestChallengeScreen || _screen == GameScreen.ProfileSelectScreen || _screen == GameScreen.ZenOptionsScreen || _screen == GameScreen.PauseMenu) DrawMenu(g);
+            else if (_screen == GameScreen.MainMenu || _screen == GameScreen.GameSelect || _screen == GameScreen.Options || _screen == GameScreen.BadgesScreen || _screen == GameScreen.RecordsScreen || _screen == GameScreen.TutorialScreen || _screen == GameScreen.QuestRelicScreen || _screen == GameScreen.QuestChallengeScreen || _screen == GameScreen.ProfileSelectScreen || _screen == GameScreen.ZenOptionsScreen || _screen == GameScreen.PauseMenu || _screen == GameScreen.GameOver || _screen == GameScreen.AudioSchool) DrawMenu(g);
             else if (_screen == GameScreen.Playing) DrawBoard(g);
-            else if (_screen == GameScreen.GameOver)
-            {
-                using (Font font = new Font("Segoe UI", 24, FontStyle.Bold))
-                {
-                    g.DrawString(Localization.Get("GameOver", _score), font, Brushes.Gold, 200, 280);
-                }
-            }
         }
 
         private void DrawProfileInput(Graphics g)
@@ -3033,7 +3184,10 @@ case Engine.QuestType.TimeBomb:
             using (Font titleFont = new Font("Segoe UI", 30, FontStyle.Bold))
             using (Font menuFont = new Font("Segoe UI", 20))
             {
-                g.DrawString(Localization.Get("AppTitle"), titleFont, Brushes.Cyan, 180, 80);
+                string headerTitle = (_screen == GameScreen.GameOver)
+                    ? Localization.Get("GameOver", _score)
+                    : Localization.Get("AppTitle");
+                g.DrawString(headerTitle, titleFont, (_screen == GameScreen.GameOver ? Brushes.Gold : Brushes.Cyan), 180, 80);
 
                 string[] items;
                 int currentIdx = _menuIdx;
@@ -3087,11 +3241,17 @@ case Engine.QuestType.TimeBomb:
                     items = GetPauseMenuItems();
                     currentIdx = _pauseIdx;
                 }
+                else if (_screen == GameScreen.GameOver)
+                {
+                    items = GetGameOverItems();
+                    currentIdx = _gameOverIdx;
+                }
                 else
                 {
                     string[] keys = GetGameModeKeys();
                     items = new string[keys.Length];
                     for (int i = 0; i < keys.Length; i++) items[i] = Localization.Get(keys[i]);
+                    currentIdx = _gameModeIdx;
                 }
 
                 for (int i = 0; i < items.Length; i++)
@@ -3108,9 +3268,12 @@ case Engine.QuestType.TimeBomb:
             try
             {
                 _lightningTimer.Stop();
+                _lightningTimer.Dispose();
                 _loadingTimer.Stop();
+                _loadingTimer.Dispose();
                 _renderTimer.Stop();
-                if (_zenMgr != null) _zenMgr.StopZenSession();
+                _renderTimer.Dispose();
+                if (_zenMgr != null) { _zenMgr.StopZenSession(); _zenMgr.Dispose(); }
                 SaveOptionsState();
                 if (_profileMgr.CurrentProfile != null) _profileMgr.Save();
                 if (_sound != null)
@@ -3484,6 +3647,7 @@ case Engine.QuestType.TimeBomb:
 
         private void MainWindow_MouseDown(object sender, MouseEventArgs e)
         {
+            if (!_mouseEnabled) return;
             if (e.Button != MouseButtons.Left) return;
 
             // En pantalla de carga, un clic en cualquier momento avanza al menú principal
@@ -3549,7 +3713,9 @@ case Engine.QuestType.TimeBomb:
 
         private void MainWindow_MouseMove(object sender, MouseEventArgs e)
         {
-            // Arrastre en el tablero (Drag & Drop)
+            if (!_mouseEnabled) return;
+
+            // Arrastre en el tablero (Drag & Drop) solo cuando se mantiene presionado el botón izquierdo
             if (e.Button == MouseButtons.Left && _screen == GameScreen.Playing && _dragStartX >= 0)
             {
                 int dxPx = e.X - _dragStartPixel.X;
@@ -3576,31 +3742,8 @@ case Engine.QuestType.TimeBomb:
                 return;
             }
 
-            // Eco del ratón en el tablero (anunciar casilla al pasar el ratón)
-            if (e.Button == MouseButtons.None && _screen == GameScreen.Playing)
-            {
-                int boardStartX = 200;
-                int boardStartY = 80;
-                int tileSize = 60;
-
-                int cellX = (e.X - boardStartX) / tileSize;
-                int cellY = (e.Y - boardStartY) / tileSize;
-
-                if (cellX >= 0 && cellX < Board.Cols && cellY >= 0 && cellY < Board.Rows)
-                {
-                    if (cellX != _cursorX || cellY != _cursorY)
-                    {
-                        _cursorX = cellX;
-                        _cursorY = cellY;
-                        _sound.PlaySoundSpatial(AudioMap.Select, _cursorX, _cursorY);
-                        AnnounceCurrentCell();
-                    }
-                }
-                return;
-            }
-
-            // Eco del ratón en los menús (actualizar y verbalizar opción señalada)
-            if (e.Button == MouseButtons.None && _screen != GameScreen.Loading && _screen != GameScreen.Playing && _screen != GameScreen.GameOver && _screen != GameScreen.ProfileInput)
+            // En los menús (fuera del tablero), permitir eco del ratón sólo si el ratón está habilitado
+            if (e.Button == MouseButtons.None && _screen != GameScreen.Loading && _screen != GameScreen.Playing && _screen != GameScreen.ProfileInput)
             {
                 int menuStartY = 220;
                 int itemHeight = 45;
@@ -3640,6 +3783,7 @@ case Engine.QuestType.TimeBomb:
             if (_screen == GameScreen.ProfileSelectScreen) return GetProfileSelectItems();
             if (_screen == GameScreen.ZenOptionsScreen) return GetZenOptionsMenuItems();
             if (_screen == GameScreen.PauseMenu) return GetPauseMenuItems();
+            if (_screen == GameScreen.GameOver) return GetGameOverItems();
             if (_screen == GameScreen.AudioSchool) return GetAudioSchoolItems();
             return null;
         }
@@ -3651,7 +3795,7 @@ case Engine.QuestType.TimeBomb:
 
             bool changed = false;
             if (_screen == GameScreen.MainMenu && _menuIdx != idx) { _menuIdx = idx; changed = true; }
-            else if (_screen == GameScreen.GameSelect && _menuIdx != idx) { _menuIdx = idx; changed = true; }
+            else if (_screen == GameScreen.GameSelect && _gameModeIdx != idx) { _gameModeIdx = idx; changed = true; }
             else if (_screen == GameScreen.Options && _optionsIdx != idx) { _optionsIdx = idx; changed = true; }
             else if (_screen == GameScreen.BadgesScreen && _badgeIdx != idx) { _badgeIdx = idx; changed = true; }
             else if (_screen == GameScreen.RecordsScreen && _recordsIdx != idx) { _recordsIdx = idx; changed = true; }
@@ -3661,6 +3805,7 @@ case Engine.QuestType.TimeBomb:
             else if (_screen == GameScreen.ProfileSelectScreen && _profileSelectIdx != idx) { _profileSelectIdx = idx; changed = true; }
             else if (_screen == GameScreen.ZenOptionsScreen && _zenOptionsIdx != idx) { _zenOptionsIdx = idx; changed = true; }
             else if (_screen == GameScreen.PauseMenu && _pauseIdx != idx) { _pauseIdx = idx; changed = true; }
+            else if (_screen == GameScreen.GameOver && _gameOverIdx != idx) { _gameOverIdx = idx; changed = true; }
             else if (_screen == GameScreen.AudioSchool && _audioSchoolIdx != idx) { _audioSchoolIdx = idx; changed = true; }
 
             if (changed)
@@ -3685,7 +3830,7 @@ case Engine.QuestType.TimeBomb:
             {
                 KeyEventArgs enterKey = new KeyEventArgs(Keys.Enter);
                 if (_screen == GameScreen.MainMenu) { _menuIdx = clickedIdx; HandleMainMenuKeys(enterKey); }
-                else if (_screen == GameScreen.GameSelect) { _menuIdx = clickedIdx; HandleGameSelectKeys(enterKey); }
+                else if (_screen == GameScreen.GameSelect) { _gameModeIdx = clickedIdx; HandleGameSelectKeys(enterKey); }
                 else if (_screen == GameScreen.Options) { _optionsIdx = clickedIdx; HandleOptionsKeys(enterKey); }
                 else if (_screen == GameScreen.BadgesScreen) { _badgeIdx = clickedIdx; HandleBadgesKeys(enterKey); }
                 else if (_screen == GameScreen.RecordsScreen) { _recordsIdx = clickedIdx; HandleRecordsKeys(enterKey); }
@@ -3695,6 +3840,7 @@ case Engine.QuestType.TimeBomb:
                 else if (_screen == GameScreen.ProfileSelectScreen) { _profileSelectIdx = clickedIdx; HandleProfileSelectKeys(enterKey); }
                 else if (_screen == GameScreen.ZenOptionsScreen) { _zenOptionsIdx = clickedIdx; HandleZenOptionsKeys(enterKey); }
                 else if (_screen == GameScreen.PauseMenu) { _pauseIdx = clickedIdx; HandlePauseMenuKeys(enterKey); }
+                else if (_screen == GameScreen.GameOver) { _gameOverIdx = clickedIdx; HandleGameOverKeys(enterKey); }
                 else if (_screen == GameScreen.AudioSchool) { _audioSchoolIdx = clickedIdx; HandleAudioSchoolKeys(enterKey); }
             }
         }

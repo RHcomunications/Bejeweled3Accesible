@@ -39,6 +39,8 @@ namespace Bejeweled3Accessible.Engine
         public int StarDestroyed;
         public int HypercubeDestroyed;
         public bool AnnihilatorUsed;
+        public List<int> StepPoints = new List<int>();
+        public List<int> StepHypercubeCreationPoints = new List<int>();
         public List<int> MatchedColumns = new List<int>();
         public List<int> VerticalMatchedColumns = new List<int>();
         public int[] ColumnDestroyedCount = new int[8];
@@ -286,6 +288,17 @@ namespace Bejeweled3Accessible.Engine
                 List<Tuple<int, int, SpecialType, GemColor>> newSpecials = new List<Tuple<int, int, SpecialType, GemColor>>();
                 bool foundMatchThisPass = false;
                 int matchesBeforeThisPass = res.MatchesMade;
+                int flamesBefore = res.FlameCreated;
+                int starsBefore = res.StarCreated;
+                int hypersBefore = res.HypercubeCreated;
+                int supernovasBefore = res.SupernovaCreated;
+                int doubleMatchBefore = res.DoubleMatchBonus;
+                int flameDestroyedBefore = res.FlameDestroyed;
+                int flameBlastBefore = res.FlameBlastGems;
+                int starDestroyedBefore = res.StarDestroyed;
+                int starBlastBefore = res.StarBlastGems;
+                int supernovaDestroyedBefore = res.SupernovaDestroyed;
+                int supernovaBlastBefore = res.SupernovaBlastGems;
 
                 // Check horizontal matches
                 for (int y = 0; y < Rows; y++)
@@ -586,6 +599,31 @@ namespace Bejeweled3Accessible.Engine
                     }
                 }
 
+                // Track points earned strictly in this step/pass of the cascade
+                int stepMatches = res.MatchesMade - matchesBeforeThisPass;
+                int stepFlameCreated = res.FlameCreated - flamesBefore;
+                int stepStarCreated = res.StarCreated - starsBefore;
+                int stepHypercubeCreated = res.HypercubeCreated - hypersBefore;
+                int stepSupernovaCreated = res.SupernovaCreated - supernovasBefore;
+                int stepDoubleMatchBonus = res.DoubleMatchBonus - doubleMatchBefore;
+                int stepFlameDestroyed = res.FlameDestroyed - flameDestroyedBefore;
+                int stepFlameBlastGems = res.FlameBlastGems - flameBlastBefore;
+                int stepStarDestroyed = res.StarDestroyed - starDestroyedBefore;
+                int stepStarBlastGems = res.StarBlastGems - starBlastBefore;
+                int stepSupernovaDestroyed = res.SupernovaDestroyed - supernovaDestroyedBefore;
+                int stepSupernovaBlastGems = res.SupernovaBlastGems - supernovaBlastBefore;
+
+                int stepPoints = 50 * stepMatches
+                    + 100 * stepFlameCreated + 150 * stepStarCreated + 500 * stepHypercubeCreated + 1000 * stepSupernovaCreated
+                    + 50 * stepDoubleMatchBonus
+                    + 20 * stepFlameDestroyed + 20 * stepFlameBlastGems
+                    + 50 * stepStarDestroyed + 50 * stepStarBlastGems
+                    + 50 * stepSupernovaDestroyed + 50 * stepSupernovaBlastGems
+                    + (50 * depth); // Cascade level bonus (50 on level 1, 100 on level 2, ...)
+
+                res.StepPoints.Add(stepPoints);
+                res.StepHypercubeCreationPoints.Add(500 * stepHypercubeCreated);
+
                 // Place newly formed special gems
                 foreach (var sp in newSpecials)
                 {
@@ -594,6 +632,20 @@ namespace Bejeweled3Accessible.Engine
 
                 // Apply Gravity & Drop New Gems
                 ApplyGravity(isLightning, isButterflies, withBombs);
+            }
+
+            // If an annihilator or hypercube swap occurred before cascading passes, add its points to step 0
+            if (res.HypercubeDetonationPoints > 0 || res.AnnihilatorPoints > 0)
+            {
+                if (res.StepPoints.Count == 0)
+                {
+                    res.StepPoints.Add(res.HypercubeDetonationPoints + res.AnnihilatorPoints);
+                    res.StepHypercubeCreationPoints.Add(0);
+                }
+                else
+                {
+                    res.StepPoints[0] += res.HypercubeDetonationPoints + res.AnnihilatorPoints;
+                }
             }
 
             res.CascadeDepth = depth;

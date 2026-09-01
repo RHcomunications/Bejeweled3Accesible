@@ -6,7 +6,7 @@ namespace Bejeweled3Accessible.Audio
 {
     public static class AudioMap
     {
-        public const int SoundCount = 189;
+        public const int SoundCount = 190;
 
         // Prefijos para series numeradas: usar la concatenacion completa de la clave
         // (ej. AudioMap.SpeedMatchPrefix + nivel) para no confundir el fallback del motor.
@@ -43,6 +43,7 @@ namespace Bejeweled3Accessible.Audio
             "doubleset",
             "earthquake",
             "gem_hit",
+            "gem_fall",
             "gem_shatters",
             "menuspin",
             "pulleys",
@@ -245,6 +246,7 @@ namespace Bejeweled3Accessible.Audio
         public const string Doubleset = "doubleset";
         public const string Earthquake = "earthquake";
         public const string GemHit = "gem_hit";
+        public const string GemFall = "gem_fall";
         public const string GemShatters = "gem_shatters";
         public const string Menuspin = "menuspin";
         public const string Pulleys = "pulleys";

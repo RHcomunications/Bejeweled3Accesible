@@ -1104,6 +1104,7 @@ namespace Bejeweled3Accessible.Tests
                 Assert.Equal(100, opt.SoundVolume, "Sonido");
                 Assert.Equal(100, opt.VoiceVolume, "Voz");
                 Assert.Equal(Language.Spanish, opt.SelectedLanguage, "Idioma");
+                Assert.True(opt.MouseEnabled, "MouseEnabled default");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Options: persistencia roundtrip sin tocar AppData", () =>
@@ -1116,11 +1117,13 @@ namespace Bejeweled3Accessible.Tests
                     opt.MusicVolume = 35;
                     opt.SoundVolume = 55;
                     opt.SelectedLanguage = Language.English;
+                    opt.MouseEnabled = false;
                     opt.Save();
                     GameOptions loaded = GameOptions.Load();
                     Assert.Equal(35, loaded.MusicVolume, "Musica persistida");
                     Assert.Equal(55, loaded.SoundVolume, "Sonido persistido");
                     Assert.Equal(Language.English, loaded.SelectedLanguage, "Idioma persistido");
+                    Assert.False(loaded.MouseEnabled, "MouseEnabled persistido false");
                 }
                 finally
                 {
@@ -1212,7 +1215,7 @@ namespace Bejeweled3Accessible.Tests
                     Directory.CreateDirectory(sDir);
                     Directory.CreateDirectory(mDir);
                     File.WriteAllBytes(Path.Combine(sDir, "select.ogg"), soundBytes);
-                    File.WriteAllBytes(Path.Combine(mDir, "01 - Intro.mp3"), musicBytes);
+                    File.WriteAllBytes(Path.Combine(mDir, "24 - Coastal.mp3"), musicBytes);
 
                     string pacPath = Path.Combine(tempDir, "audio.pac");
                     PacPacker.PackDirectoriesToSinglePac(tempDir, pacPath, "sounds", "music");
@@ -1226,7 +1229,7 @@ namespace Bejeweled3Accessible.Tests
                     Assert.True(BytesEqual(soundBytes, pac.GetFileBytes("select.ogg")), "Nombre archivo");
                     Assert.True(BytesEqual(soundBytes, pac.GetFileBytes("select")), "Sin extension");
                     Assert.True(BytesEqual(soundBytes, pac.GetFileBytes("SELECT")), "Mayusculas");
-                    Assert.True(BytesEqual(musicBytes, pac.GetFileBytes("01 - Intro.mp3")), "Musica");
+                    Assert.True(BytesEqual(musicBytes, pac.GetFileBytes("24 - Coastal.mp3")), "Musica (pista ambiental, no redundante)");
                 }
                 finally
                 {
@@ -1308,9 +1311,11 @@ namespace Bejeweled3Accessible.Tests
                 Assert.True(soundsDir != null, "Carpeta sounds localizable (con ogg)");
 
                 string[] onDisk = Directory.GetFiles(soundsDir, "*.ogg")
-                    .Select(f => Path.GetFileNameWithoutExtension(f)).ToArray();
-                Assert.Equal(189, onDisk.Length, "189 ogg en sounds raiz (sin anidar)");
-                Assert.Equal(189, AudioMap.SoundCount, "SoundCount coincide");
+                    .Select(f => Path.GetFileNameWithoutExtension(f))
+                    .Where(n => !n.StartsWith("gem_hit_p"))
+                    .ToArray();
+                Assert.Equal(190, onDisk.Length, "190 ogg en sounds raiz (sin anidar, excluidas variantes gem_hit_p*)");
+                Assert.Equal(190, AudioMap.SoundCount, "SoundCount coincide");
 
                 var missingOnDisk = new List<string>();
                 foreach (string key in AudioMap.AllSoundKeys)
@@ -1483,43 +1488,21 @@ namespace Bejeweled3Accessible.Tests
                 Assert.True(w1 > w0, "Fondo mas ancho");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("Spatial: GridSpatializer lateraliza L/R", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: PanColumn lateraliza L/R (paneo simple)", () =>
             {
-                int frames = 17640;
-                float[] mono = new float[frames];
-                for (int i = 0; i < frames; i++)
-                    mono[i] = (float)Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0) * 0.5f;
-                GridSpatializer left = new GridSpatializer { SampleRate = 44100.0f, Pan = -1.0f, Depth = 0.0f };
-                GridSpatializer right = new GridSpatializer { SampleRate = 44100.0f, Pan = 1.0f, Depth = 0.0f };
-                GridSpatializer mid = new GridSpatializer { SampleRate = 44100.0f, Pan = 0.0f, Depth = 0.0f };
-                float[] sL = new float[frames * 2], sR = new float[frames * 2], sM = new float[frames * 2];
-                left.Process(mono, frames, sL);
-                right.Process(mono, frames, sR);
-                mid.Process(mono, frames, sM);
-                float lL = RmsChannel(sL, 0), rL = RmsChannel(sL, 1);
-                float lR = RmsChannel(sR, 0), rR = RmsChannel(sR, 1);
-                float lM = RmsChannel(sM, 0), rM = RmsChannel(sM, 1);
-                Assert.True(lL > 1.4f * rL, "Pan -1: izquierda mas fuerte (" + lL.ToString("F3") + " vs " + rL.ToString("F3") + ")");
-                Assert.True(rR > 1.4f * lR, "Pan +1: derecha mas fuerte (" + rR.ToString("F3") + " vs " + lR.ToString("F3") + ")");
-                Assert.True(Math.Abs(lM - rM) < 0.05f * (lM + rM + 1e-6f), "Pan 0 centrado");
+                float left = SpatialAudio.PanColumn(0);
+                float right = SpatialAudio.PanColumn(7);
+                float midL = SpatialAudio.PanColumn(3);
+                float midR = SpatialAudio.PanColumn(4);
+                Assert.True(left < 0f, "Columna 0 a la izquierda (" + left.ToString("F3") + ")");
+                Assert.True(right > 0f, "Columna 7 a la derecha (" + right.ToString("F3") + ")");
+                // Tablero de 8 columas: no hay columna central unica; las dos del
+                // medio (3 y 4) deben quedar cerca del centro (pan ~0) y en lados
+                // opuestos.
+                Assert.True(Math.Abs(midL) < 0.2f, "Columna 3 cerca del centro (" + midL.ToString("F3") + ")");
+                Assert.True(Math.Abs(midR) < 0.2f, "Columna 4 cerca del centro (" + midR.ToString("F3") + ")");
+                Assert.True(midL < 0f && midR > 0f, "Columnas centrales en lados opuestos");
             }));
-
-            tests.Add(Tuple.Create<string, Action>("Spatial: GridSpatializer la profundidad atenúa y oscurece", () =>
-            {
-                int frames = 17640;
-                float[] mono = new float[frames];
-                for (int i = 0; i < frames; i++)
-                    mono[i] = (float)(0.5 * Math.Sin(2.0 * Math.PI * 1000.0 * i / 44100.0)
-                                   + 0.5 * Math.Sin(2.0 * Math.PI * 8000.0 * i / 44100.0));
-                GridSpatializer front = new GridSpatializer { SampleRate = 44100.0f, Pan = 0.0f, Depth = 0.0f };
-                GridSpatializer back = new GridSpatializer { SampleRate = 44100.0f, Pan = 0.0f, Depth = 1.0f };
-                float[] sF = new float[frames * 2], sB = new float[frames * 2];
-                front.Process(mono, frames, sF);
-                back.Process(mono, frames, sB);
-                float rmsF = RmsChannel(sF, 0), rmsB = RmsChannel(sB, 0);
-                    Assert.True(rmsB < rmsF, "Fondo mas bajo (" + rmsB.ToString("F3") + " vs " + rmsF.ToString("F3") + ")");
-                    Assert.True(HighFreqRatio(sB, 2, 0) < HighFreqRatio(sF, 2, 0) * 0.9f, "Fondo oscurece el agudo");
-                }));
 
             tests.Add(Tuple.Create<string, Action>("Sound: valores por defecto del motor", () =>
             {
@@ -2182,7 +2165,7 @@ namespace Bejeweled3Accessible.Tests
                 Console.WriteLine("  direct+DSP: frames=" + refCap.TotalFrames + " (" + (refCap.TotalFrames / 44100.0).ToString("F3") + " s) RMS L=" + refCap.RmsL.ToString("F4") + " R=" + refCap.RmsR.ToString("F4") + " brillo=" + HighFreqRatio(refCap.Samples, 2).ToString("F3"));
 
                 // 2) Pipeline espacial REAL (SpatialSfxSource) + DSP capturador.
-                SpatialSfxSource src = new SpatialSfxSource(sound, data, pin, 0.5f, 0.0f, -1, true);
+                SpatialSfxSource src = new SpatialSfxSource(sound, data, pin, -1, 0.5f, 0.0f, -1, true);
                 BassProbe.DspCapture binCap = new BassProbe.DspCapture();
                 BassProbe.BASS_ChannelSetDSP(src.OutputHandle, binCap.Proc, IntPtr.Zero, 0);
                 BassProbe.BASS_ChannelPlay(src.OutputHandle, true);
