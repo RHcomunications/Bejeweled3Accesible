@@ -102,7 +102,14 @@ namespace Bejeweled3Accessible.AndroidApp.Accessibility
                         evt.PackageName = _context.PackageName;
                         evt.ClassName = _attachedView.Class.Name;
                         evt.Enabled = true;
-                        _attachedView.Parent?.RequestSendAccessibilityEvent(_attachedView, evt);
+                        if (_attachedView.Parent != null)
+                        {
+                            _attachedView.Parent.RequestSendAccessibilityEvent(_attachedView, evt);
+                        }
+                        else
+                        {
+                            _accessibilityManager?.SendAccessibilityEvent(evt);
+                        }
                     }
                     catch (Exception) { }
                 });
@@ -125,7 +132,14 @@ namespace Bejeweled3Accessible.AndroidApp.Accessibility
                         evt.ClassName = _attachedView.Class.Name;
                         evt.Enabled = true;
                         evt.SetSource(_attachedView, virtualViewId);
-                        _attachedView.Parent?.RequestSendAccessibilityEvent(_attachedView, evt);
+                        if (_attachedView.Parent != null)
+                        {
+                            _attachedView.Parent.RequestSendAccessibilityEvent(_attachedView, evt);
+                        }
+                        else
+                        {
+                            _accessibilityManager?.SendAccessibilityEvent(evt);
+                        }
                     }
                     catch (Exception) { }
                 });

@@ -1677,25 +1677,75 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 int touchX = (int)e.GetX();
                 int touchY = (int)e.GetY();
 
-                for (int y = 0; y < Board.Rows; y++)
+                if (_currentScreen == AndroidGameScreen.Playing)
                 {
-                    for (int x = 0; x < Board.Cols; x++)
+                    GetButtonBounds(GameAccessibilityNodeProvider.VIRTUAL_ID_HINT, out Rect hintRect, out _);
+                    GetButtonBounds(GameAccessibilityNodeProvider.VIRTUAL_ID_PAUSE, out Rect pauseRect, out _);
+
+                    if (hintRect.Contains(touchX, touchY))
                     {
-                        GetCellBounds(x, y, out Rect cellRect, out _);
-                        if (cellRect.Contains(touchX, touchY))
+                        if (_nodeProvider != null && _nodeProvider.FocusedVirtualViewId != GameAccessibilityNodeProvider.VIRTUAL_ID_HINT)
                         {
-                            if (_cursorX != x || _cursorY != y)
-                            {
-                                _cursorX = x;
-                                _cursorY = y;
-                                int virtualId = GameAccessibilityNodeProvider.VIRTUAL_BOARD_BASE + (x * Board.Rows + y);
-                                _nodeProvider?.SetFocusedVirtualView(virtualId);
-                                _talkBack?.NotifyVirtualViewFocused(virtualId);
-                                AnnounceCell(x, y);
-                                Invalidate();
-                            }
-                            return true;
+                            _nodeProvider.SetFocusedVirtualView(GameAccessibilityNodeProvider.VIRTUAL_ID_HINT);
+                            _talkBack?.NotifyVirtualViewFocused(GameAccessibilityNodeProvider.VIRTUAL_ID_HINT);
                         }
+                        return true;
+                    }
+
+                    if (pauseRect.Contains(touchX, touchY))
+                    {
+                        if (_nodeProvider != null && _nodeProvider.FocusedVirtualViewId != GameAccessibilityNodeProvider.VIRTUAL_ID_PAUSE)
+                        {
+                            _nodeProvider.SetFocusedVirtualView(GameAccessibilityNodeProvider.VIRTUAL_ID_PAUSE);
+                            _talkBack?.NotifyVirtualViewFocused(GameAccessibilityNodeProvider.VIRTUAL_ID_PAUSE);
+                        }
+                        return true;
+                    }
+
+                    for (int y = 0; y < Board.Rows; y++)
+                    {
+                        for (int x = 0; x < Board.Cols; x++)
+                        {
+                            GetCellBounds(x, y, out Rect cellRect, out _);
+                            if (cellRect.Contains(touchX, touchY))
+                            {
+                                int virtualId = GameAccessibilityNodeProvider.VIRTUAL_BOARD_BASE + (x * Board.Rows + y);
+                                if (_cursorX != x || _cursorY != y || (_nodeProvider != null && _nodeProvider.FocusedVirtualViewId != virtualId))
+                                {
+                                    _cursorX = x;
+                                    _cursorY = y;
+                                    _nodeProvider?.SetFocusedVirtualView(virtualId);
+                                    _talkBack?.NotifyVirtualViewFocused(virtualId);
+                                    Invalidate();
+                                }
+                                return true;
+                            }
+                        }
+                    }
+                }
+                else if (_currentScreen != AndroidGameScreen.Loading)
+                {
+                    string[] items = GetCurrentItems(out int activeIdx);
+                    float density = Resources?.DisplayMetrics?.Density ?? 1.0f;
+                    if (density < 1.0f) density = 1.0f;
+
+                    int startY = (int)(65f * density);
+                    int availableHeight = Height - startY - (int)(20f * density);
+                    int baseItemHeight = (int)(55f * density);
+                    int itemHeight = items.Length > 0 ? Math.Min(baseItemHeight, Math.Max((int)(40f * density), availableHeight / items.Length)) : baseItemHeight;
+
+                    int hoverIdx = (int)((touchY - startY) / itemHeight);
+                    if (hoverIdx >= 0 && hoverIdx < items.Length)
+                    {
+                        if (hoverIdx != activeIdx || (_nodeProvider != null && _nodeProvider.FocusedVirtualViewId != hoverIdx))
+                        {
+                            SetActiveIndex(hoverIdx);
+                            _sound?.PlaySound(AudioMap.ButtonMouseover);
+                            _nodeProvider?.SetFocusedVirtualView(hoverIdx);
+                            _talkBack?.NotifyVirtualViewFocused(hoverIdx);
+                            Invalidate();
+                        }
+                        return true;
                     }
                 }
             }
@@ -2154,9 +2204,11 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _selectedY = -1;
             _cursorX = toX;
             _cursorY = toY;
-            AnnounceCell(_cursorX, _cursorY);
+            int virtualId = GameAccessibilityNodeProvider.VIRTUAL_BOARD_BASE + (toX * Board.Rows + toY);
+            _nodeProvider?.SetFocusedVirtualView(virtualId);
             Invalidate();
             _talkBack?.NotifyStructureChanged();
+            _talkBack?.NotifyVirtualViewFocused(virtualId);
         }
 
         public void ExecuteMenuItemFocus(int idx)
@@ -2222,6 +2274,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         public const int ACTION_SWAP_RIGHT = 1005;
 
         private int _focusedVirtualViewId = View.NoId;
+        public int FocusedVirtualViewId => _focusedVirtualViewId;
 
         public GameAccessibilityNodeProvider(GameScreenView view)
         {
@@ -2239,8 +2292,19 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             {
                 var root = AccessibilityNodeInfo.Obtain(_view);
                 _view.OnInitializeAccessibilityNodeInfo(root);
+                root.PackageName = _view.Context.PackageName;
+                root.ClassName = "android.view.ViewGroup";
                 root.Focusable = false;
                 root.Clickable = false;
+
+                int width = Math.Max(1, _view.Width);
+                int height = Math.Max(1, _view.Height);
+                Rect viewRect = new Rect(0, 0, width, height);
+                root.SetBoundsInParent(viewRect);
+                int[] loc = new int[2];
+                _view.GetLocationOnScreen(loc);
+                Rect viewScreenRect = new Rect(loc[0], loc[1], loc[0] + width, loc[1] + height);
+                root.SetBoundsInScreen(viewScreenRect);
 
                 if (_view.CurrentScreen == AndroidGameScreen.Playing)
                 {
@@ -2319,7 +2383,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     Gem g = _view.BoardInstance?.GetGem(x, y);
                     string colLetter = ((char)('A' + x)).ToString();
                     int rowNum = y + 1;
-                    string gemName = g != null ? g.GetNameLocalized() : "Vacío";
+                    string gemName = g != null ? g.GetNameLocalized() : (es ? "Vacío" : "Empty");
 
                     var moves = HintFinder.GetValidMovesFrom(_view.BoardInstance, x, y);
                     string movesDesc = "";
@@ -2338,14 +2402,33 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
                     if (isSelected)
                     {
-                        node.Text = string.Format("{0}{1}, {2} (Seleccionada)", colLetter, rowNum, gemName);
-                        node.ContentDescription = string.Format("Gema {0} en {1}{2} seleccionada. Toca dos veces en una gema adyacente para mover o en la misma para cancelar.", gemName, colLetter, rowNum);
+                        node.Text = string.Format("{0}{1}, {2} ({3})", colLetter, rowNum, gemName, es ? "Seleccionada" : "Selected");
+                        node.ContentDescription = string.Format(es
+                            ? "Gema {0} en {1}{2} seleccionada. Toca dos veces en una gema adyacente para mover o en la misma para cancelar."
+                            : "Gem {0} at {1}{2} selected. Double tap an adjacent gem to swap or this gem to cancel.",
+                            gemName, colLetter, rowNum);
                     }
                     else
                     {
                         node.Text = string.Format("{0}{1}, {2}", colLetter, rowNum, gemName);
                         node.ContentDescription = string.Format("{0}{1}: {2}{3}", colLetter, rowNum, gemName, movesDesc);
                     }
+
+                    // Acciones nativas para el menú contextual y menú de acciones de TalkBack
+                    string selectActionText = isSelected
+                        ? (es ? "Cancelar selección" : "Deselect gem")
+                        : (es ? "Seleccionar gema" : "Select gem");
+                    node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ACTION_SELECT_GEM, new Java.Lang.String(selectActionText)));
+
+                    if (y > 0)
+                        node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ACTION_SWAP_UP, new Java.Lang.String(es ? "Mover hacia arriba" : "Swap up")));
+                    if (y < Board.Rows - 1)
+                        node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ACTION_SWAP_DOWN, new Java.Lang.String(es ? "Mover hacia abajo" : "Swap down")));
+                    if (x > 0)
+                        node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ACTION_SWAP_LEFT, new Java.Lang.String(es ? "Mover hacia la izquierda" : "Swap left")));
+                    if (x < Board.Cols - 1)
+                        node.AddAction(new AccessibilityNodeInfo.AccessibilityAction(ACTION_SWAP_RIGHT, new Java.Lang.String(es ? "Mover hacia la derecha" : "Swap right")));
+
                     return node;
                 }
             }
@@ -2402,6 +2485,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         public override bool PerformAction(int virtualViewId, Android.Views.Accessibility.Action action, Android.OS.Bundle arguments)
         {
+            int actionId = (int)action;
+
             if (action == Android.Views.Accessibility.Action.AccessibilityFocus)
             {
                 if (_focusedVirtualViewId != virtualViewId)
@@ -2425,6 +2510,62 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     return true;
                 }
                 return false;
+            }
+
+            if (actionId == ACTION_SELECT_GEM)
+            {
+                if (virtualViewId >= VIRTUAL_BOARD_BASE && virtualViewId < VIRTUAL_BOARD_BASE + 64)
+                {
+                    int idx = virtualViewId - VIRTUAL_BOARD_BASE;
+                    int x = idx / Board.Rows;
+                    int y = idx % Board.Rows;
+                    _view.SelectOrSwapCell(x, y);
+                    return true;
+                }
+            }
+            if (actionId == ACTION_SWAP_UP)
+            {
+                if (virtualViewId >= VIRTUAL_BOARD_BASE && virtualViewId < VIRTUAL_BOARD_BASE + 64)
+                {
+                    int idx = virtualViewId - VIRTUAL_BOARD_BASE;
+                    int x = idx / Board.Rows;
+                    int y = idx % Board.Rows;
+                    _view.PerformDirectSwap(x, y, x, y - 1);
+                    return true;
+                }
+            }
+            if (actionId == ACTION_SWAP_DOWN)
+            {
+                if (virtualViewId >= VIRTUAL_BOARD_BASE && virtualViewId < VIRTUAL_BOARD_BASE + 64)
+                {
+                    int idx = virtualViewId - VIRTUAL_BOARD_BASE;
+                    int x = idx / Board.Rows;
+                    int y = idx % Board.Rows;
+                    _view.PerformDirectSwap(x, y, x, y + 1);
+                    return true;
+                }
+            }
+            if (actionId == ACTION_SWAP_LEFT)
+            {
+                if (virtualViewId >= VIRTUAL_BOARD_BASE && virtualViewId < VIRTUAL_BOARD_BASE + 64)
+                {
+                    int idx = virtualViewId - VIRTUAL_BOARD_BASE;
+                    int x = idx / Board.Rows;
+                    int y = idx % Board.Rows;
+                    _view.PerformDirectSwap(x, y, x - 1, y);
+                    return true;
+                }
+            }
+            if (actionId == ACTION_SWAP_RIGHT)
+            {
+                if (virtualViewId >= VIRTUAL_BOARD_BASE && virtualViewId < VIRTUAL_BOARD_BASE + 64)
+                {
+                    int idx = virtualViewId - VIRTUAL_BOARD_BASE;
+                    int x = idx / Board.Rows;
+                    int y = idx % Board.Rows;
+                    _view.PerformDirectSwap(x, y, x + 1, y);
+                    return true;
+                }
             }
 
             if (action == Android.Views.Accessibility.Action.Click)
