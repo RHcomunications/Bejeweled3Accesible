@@ -40,5 +40,18 @@ namespace Bejeweled3Accessible.Engine
                 default: return "";
             }
         }
+
+        public static string GetZenTrackForLevel(int level)
+        {
+            if (level < 1) level = 1;
+            int zenPart = ((level - 1) % 4) + 1;
+            switch (zenPart)
+            {
+                case 2: return Bejeweled3Accessible.Audio.MusicMap.FileName(Bejeweled3Accessible.Audio.MusicMap.ZenPart2);
+                case 3: return Bejeweled3Accessible.Audio.MusicMap.FileName(Bejeweled3Accessible.Audio.MusicMap.ZenPart3);
+                case 4: return Bejeweled3Accessible.Audio.MusicMap.FileName(Bejeweled3Accessible.Audio.MusicMap.ZenPart4);
+                default: return Bejeweled3Accessible.Audio.MusicMap.FileName(Bejeweled3Accessible.Audio.MusicMap.ZenPart1);
+            }
+        }
     }
 }

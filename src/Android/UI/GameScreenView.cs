@@ -73,12 +73,30 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private float _startX, _startY;
         private bool _swapExecutedInCurrentTouch = false;
 
-        // Modo Relampago (Lightning): contador, multiplicador de tiempo y Last Hurrah
+        // Progresion y puntuacion por nivel
+        private int _levelProgressPoints = 0;
+        private int _lastHurrahScore = 0;
+
+        // Modo Relampago (Lightning)
         private int _lightningTimeLeft = 60;
         private int _lightningMultiplier = 1;
         private int _lightningTankSeconds = 0;
         private bool _lastHurrahActive = false;
-        private System.Threading.Timer _lightningTimer;
+
+        // Modo Tormenta de Hielo (Ice Storm)
+        private int _iceRiseCounter = 0;
+        private int _iceRiseInterval = 5;
+        private const int ICE_SKULL_GRACE_TICKS = 5;
+
+        // Modo Zen (Mantras y Respiracion)
+        private int _zenMantraTimerSec = 0;
+        private List<Tuple<AffirmationTheme, int>> _zenMantraOrder = new List<Tuple<AffirmationTheme, int>>();
+        private int _zenMantraPos = 0;
+        private int _zenBreathSec = 0;
+        private enum ZenBreathPhase { Inhale, HoldIn, Exhale, HoldOut }
+        private ZenBreathPhase _zenBreathPhase = ZenBreathPhase.Inhale;
+
+        private System.Threading.Timer _gameTimer;
 
         private class TeardropSplash
         {
@@ -1484,80 +1502,281 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
         }
 
-        private void StartLightningTimer()
+        private void StartGameTimer()
         {
-            StopLightningTimer();
-            _lightningTimer = new System.Threading.Timer(LightningTimerTick, null, 1000, 1000);
+            StopGameTimer();
+            _gameTimer = new System.Threading.Timer(GameTimerTick, null, 1000, 1000);
         }
 
-        private void StopLightningTimer()
+        private void StopGameTimer()
         {
-            if (_lightningTimer != null)
+            if (_gameTimer != null)
             {
-                _lightningTimer.Dispose();
-                _lightningTimer = null;
+                _gameTimer.Dispose();
+                _gameTimer = null;
             }
         }
 
-        private void LightningTimerTick(object state)
+        private void GameTimerTick(object state)
         {
             Post(new Java.Lang.Runnable(() =>
             {
-                if (_currentScreen != AndroidGameScreen.Playing || _currentModeKey != "ModeLightning")
+                if (_currentScreen != AndroidGameScreen.Playing)
                 {
-                    StopLightningTimer();
+                    StopGameTimer();
                     return;
                 }
 
-                // Reloj del multiplicador de tiempo: tickea cada segundo mientras hay
-                // un multiplicador activo (>1x), como en el Relampago original.
-                if (_lightningMultiplier > 1)
-                    _sound?.PlaySound(AudioMap.Tick);
-
-                _lightningTimeLeft--;
-                if (_lightningTimeLeft == 30)
-                    _sound?.PlaySound(AudioMap.VoiceThirtyseconds);
-                else if (_lightningTimeLeft <= 10 && _lightningTimeLeft > 0)
+                // 1. Modo Relampago (Lightning)
+                if (_currentModeKey == "ModeLightning")
                 {
-                    _sound?.PlaySound(AudioMap.CountdownWarning);
-                    _talkBack?.Speak(_lightningTimeLeft.ToString(), false);
+                    if (_lightningMultiplier > 1)
+                        _sound?.PlaySound(AudioMap.Tick);
+
+                    _lightningTimeLeft--;
+                    if (_lightningTimeLeft == 30)
+                        _sound?.PlaySound(AudioMap.VoiceThirtyseconds);
+                    else if (_lightningTimeLeft <= 10 && _lightningTimeLeft > 0)
+                    {
+                        _sound?.PlaySound(AudioMap.CountdownWarning);
+                        _talkBack?.Speak(_lightningTimeLeft.ToString(), false);
+                    }
+
+                    if (_lightningTimeLeft <= 0)
+                    {
+                        if (_lightningTankSeconds > 0)
+                        {
+                            _lightningTimeLeft = _lightningTankSeconds;
+                            _lightningTankSeconds = 0;
+                            _lastHurrahActive = true;
+                            _lightningMultiplier++;
+                            _sound?.PlaySound(AudioMap.LightningTubeFill10);
+                            _sound?.PlaySound(AudioMap.MultiplierAppears);
+                            _sound?.PlaySound(AudioMap.MultiplierHurrahed);
+                            _talkBack?.Speak(Localization.Get("TimeExtended", _lightningMultiplier), true);
+                        }
+                        else
+                        {
+                            StopGameTimer();
+                            _currentScreen = AndroidGameScreen.GameOver;
+                            _gameOverIdx = 0;
+                            _sound?.PlaySound(AudioMap.VoiceTimeup);
+                            _sound?.PlaySound(AudioMap.VoiceGameover);
+                            if (_score > Progress.LightningHighScore)
+                            {
+                                Progress.LightningHighScore = _score;
+                                _profileMgr.Save();
+                            }
+                            _talkBack?.Speak(Localization.Get("GameOver", _score), true);
+                            Invalidate();
+                            _talkBack?.NotifyStructureChanged();
+                            return;
+                        }
+                    }
                 }
 
-                if (_lightningTimeLeft <= 0)
+                // 2. Modo Tormenta de Hielo (Ice Storm)
+                else if (_currentModeKey == "ModeIceStorm")
                 {
-                    if (_lightningTankSeconds > 0)
+                    _iceRiseCounter++;
+                    if (_iceRiseCounter >= _iceRiseInterval)
                     {
-                        _lightningTimeLeft = _lightningTankSeconds;
-                        _lightningTankSeconds = 0;
-                        _lastHurrahActive = true;
-                        _lightningMultiplier++;
-                        _sound?.PlaySound(AudioMap.LightningTubeFill10);
-                        _sound?.PlaySound(AudioMap.MultiplierAppears);
-                        _sound?.PlaySound(AudioMap.MultiplierHurrahed);
-                        _talkBack?.Speak(Localization.Get("TimeExtended", _lightningMultiplier), true);
+                        _iceRiseCounter = 0;
+                        List<int> dangerCols = new List<int>();
+                        List<int> newSkullCols = new List<int>();
+                        for (int col = 0; col < 8; col++)
+                        {
+                            _iceColumns[col] = Math.Min(8, _iceColumns[col] + 1);
+                            if (_iceColumns[col] == 7) dangerCols.Add(col);
+                            if (_iceColumns[col] >= 8 && _iceSkullTicks[col] == 0)
+                            {
+                                _iceSkullTicks[col] = ICE_SKULL_GRACE_TICKS;
+                                newSkullCols.Add(col);
+                            }
+                        }
+
+                        if (newSkullCols.Count > 0)
+                        {
+                            _sound?.PlaySound(AudioMap.TowerHitsTop1);
+                            _sound?.PlaySound(AudioMap.IceWarning);
+                            _sound?.PlaySound(AudioMap.IceStormSteamBuildUp);
+                            List<string> colLetters = new List<string>();
+                            foreach (int c in newSkullCols) colLetters.Add(((char)('A' + c)).ToString());
+                            _talkBack?.Speak(Localization.Get("IceSkullColumns", string.Join(", ", colLetters)), false);
+                        }
+                        else if (dangerCols.Count > 0)
+                        {
+                            _sound?.PlaySound(AudioMap.IceWarning);
+                            _sound?.PlaySound(AudioMap.IceStormSteamBuildUp);
+                            List<string> colLetters = new List<string>();
+                            foreach (int c in dangerCols) colLetters.Add(((char)('A' + c)).ToString());
+                            _talkBack?.Speak(Localization.Get("IceDangerColumns", string.Join(", ", colLetters)), false);
+                        }
                     }
-                    else
+
+                    bool frozen = false;
+                    for (int col = 0; col < 8; col++)
                     {
-                        StopLightningTimer();
+                        if (_iceColumns[col] >= 8 && _iceSkullTicks[col] > 0)
+                        {
+                            _iceSkullTicks[col]--;
+                            if (_iceSkullTicks[col] <= 0) frozen = true;
+                        }
+                    }
+
+                    if (frozen)
+                    {
+                        StopGameTimer();
                         _currentScreen = AndroidGameScreen.GameOver;
                         _gameOverIdx = 0;
-                        _sound?.PlaySound(AudioMap.VoiceTimeup);
-                        _sound?.PlaySound(AudioMap.VoiceGameover);
-                        if (_score > Progress.LightningHighScore)
+                        _sound?.PlaySound(AudioMap.IceStormFinalThud);
+                        _sound?.PlaySound(AudioMap.IceStormGameOver);
+                        if (_score > Progress.IceStormHighScore)
                         {
-                            Progress.LightningHighScore = _score;
+                            Progress.IceStormHighScore = _score;
+                            _sound?.PlaySound(AudioMap.Rankup);
                             _profileMgr.Save();
                         }
                         _talkBack?.Speak(Localization.Get("GameOver", _score), true);
                         Invalidate();
                         _talkBack?.NotifyStructureChanged();
+                        return;
                     }
                 }
-                else
+
+                // 3. Modo Zen (Mantras y Respiracion Guiada)
+                else if (_currentModeKey == "ModeZen")
                 {
-                    _talkBack?.Speak(Localization.Get("LightningScoreAnnouncement", _score, _lightningTimeLeft, _lightningMultiplier * 5), false);
+                    if (_options.ZenMantras)
+                    {
+                        _zenMantraTimerSec++;
+                        if (_zenMantraTimerSec >= 20)
+                        {
+                            _zenMantraTimerSec = 0;
+                            if (_zenMantraPos >= _zenMantraOrder.Count)
+                            {
+                                _zenMantraOrder = Affirmations.BuildOrder(new Random());
+                                _zenMantraPos = 0;
+                            }
+                            if (_zenMantraOrder.Count > 0)
+                            {
+                                var m = _zenMantraOrder[_zenMantraPos++];
+                                _talkBack?.Speak(Affirmations.Get(m.Item1, m.Item2), false);
+                            }
+                        }
+                    }
+
+                    if (_options.ZenBreath)
+                    {
+                        _zenBreathSec++;
+                        if (_zenBreathSec >= 4)
+                        {
+                            _zenBreathSec = 0;
+                            switch (_zenBreathPhase)
+                            {
+                                case ZenBreathPhase.Inhale:
+                                    _sound?.PlaySound("breath_in");
+                                    _talkBack?.Speak(Localization.Get("ZenBreathInhale"), false);
+                                    _zenBreathPhase = ZenBreathPhase.HoldIn;
+                                    break;
+                                case ZenBreathPhase.HoldIn:
+                                    _talkBack?.Speak(Localization.Get("ZenBreathHoldIn"), false);
+                                    _zenBreathPhase = ZenBreathPhase.Exhale;
+                                    break;
+                                case ZenBreathPhase.Exhale:
+                                    _sound?.PlaySound("breath_out");
+                                    _talkBack?.Speak(Localization.Get("ZenBreathExhale"), false);
+                                    _zenBreathPhase = ZenBreathPhase.HoldOut;
+                                    break;
+                                case ZenBreathPhase.HoldOut:
+                                    _talkBack?.Speak(Localization.Get("ZenBreathHoldOut"), false);
+                                    _zenBreathPhase = ZenBreathPhase.Inhale;
+                                    break;
+                            }
+                        }
+                    }
+                }
+
+                // 4. Misión de bombas de tiempo en Quest
+                else if (_currentModeKey == "ModeQuest")
+                {
+                    int exploded = _board.TickBombs();
+                    if (exploded > 0)
+                    {
+                        _sound?.PlaySound(AudioMap.SkullBusted);
+                        _sound?.PlaySound(AudioMap.GemCountdownDestroyed);
+                        _talkBack?.Speak(Localization.Get("BombExploded"), true);
+                    }
                 }
             }));
+        }
+
+        private void AwardBadge(string key, BadgeTier tier)
+        {
+            if (_badgeMgr != null && _badgeMgr.SetTierIfHigher(key, tier))
+            {
+                string profName = _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.ProfileName : "Jugador 1";
+                _badgeMgr.Save(profName);
+                _sound?.PlaySound(AudioMap.Badgeawarded);
+                _sound?.PlaySound(AudioMap.Badgefall);
+                string bName = Localization.Get(key);
+                string tName = Localization.Get(string.Format("Tier{0}", tier.ToString()));
+                _talkBack?.Speak(Localization.Get("BadgeUnlockedAnnounce", bName, tName), true);
+            }
+        }
+
+        private void CheckBadgesEvaluation(CascadeResult res)
+        {
+            if (res == null) return;
+
+            // Blaster Badge
+            if (res.TotalGemsDestroyed >= 60) AwardBadge("BadgeBlaster", BadgeTier.Platinum);
+            else if (res.TotalGemsDestroyed >= 50) AwardBadge("BadgeBlaster", BadgeTier.Gold);
+            else if (res.TotalGemsDestroyed >= 40) AwardBadge("BadgeBlaster", BadgeTier.Silver);
+            else if (res.TotalGemsDestroyed >= 30) AwardBadge("BadgeBlaster", BadgeTier.Bronze);
+
+            // Inferno Badge
+            if (Progress.TotalFlameGemsDestroyed >= 2000) AwardBadge("BadgeInferno", BadgeTier.Platinum);
+            else if (Progress.TotalFlameGemsDestroyed >= 1000) AwardBadge("BadgeInferno", BadgeTier.Gold);
+            else if (Progress.TotalFlameGemsDestroyed >= 250) AwardBadge("BadgeInferno", BadgeTier.Silver);
+            else if (Progress.TotalFlameGemsDestroyed >= 50) AwardBadge("BadgeInferno", BadgeTier.Bronze);
+
+            // Stellar Badge
+            if (Progress.TotalStarGemsDestroyed >= 1000) AwardBadge("BadgeStellar", BadgeTier.Platinum);
+            else if (Progress.TotalStarGemsDestroyed >= 500) AwardBadge("BadgeStellar", BadgeTier.Gold);
+            else if (Progress.TotalStarGemsDestroyed >= 125) AwardBadge("BadgeStellar", BadgeTier.Silver);
+            else if (Progress.TotalStarGemsDestroyed >= 25) AwardBadge("BadgeStellar", BadgeTier.Bronze);
+
+            // Chromatic Badge
+            if (Progress.TotalHypercubesDestroyed >= 1000) AwardBadge("BadgeChromatic", BadgeTier.Platinum);
+            else if (Progress.TotalHypercubesDestroyed >= 500) AwardBadge("BadgeChromatic", BadgeTier.Gold);
+            else if (Progress.TotalHypercubesDestroyed >= 125) AwardBadge("BadgeChromatic", BadgeTier.Silver);
+            else if (Progress.TotalHypercubesDestroyed >= 25) AwardBadge("BadgeChromatic", BadgeTier.Bronze);
+
+            // Bejeweler Badge
+            if (_currentModeKey == "ModeClassic")
+            {
+                if (_score >= 500000) AwardBadge("BadgeBejeweler", BadgeTier.Platinum);
+                else if (_score >= 300000) AwardBadge("BadgeBejeweler", BadgeTier.Gold);
+                else if (_score >= 150000) AwardBadge("BadgeBejeweler", BadgeTier.Silver);
+                else if (_score >= 50000) AwardBadge("BadgeBejeweler", BadgeTier.Bronze);
+            }
+
+            // High Voltage Badge
+            if (_currentModeKey == "ModeLightning")
+            {
+                if (_score >= 750000) AwardBadge("BadgeHighVoltage", BadgeTier.Platinum);
+                else if (_score >= 500000) AwardBadge("BadgeHighVoltage", BadgeTier.Gold);
+                else if (_score >= 300000) AwardBadge("BadgeHighVoltage", BadgeTier.Silver);
+                else if (_score >= 100000) AwardBadge("BadgeHighVoltage", BadgeTier.Bronze);
+            }
+
+            // Ante Up Badge (Poker)
+            int pokerScore = Math.Max(Progress.PokerHighScore, _currentModeKey == "ModePoker" ? _score : 0);
+            if (pokerScore >= 750000) AwardBadge("BadgeAnteUp", BadgeTier.Platinum);
+            else if (pokerScore >= 500000) AwardBadge("BadgeAnteUp", BadgeTier.Gold);
+            else if (pokerScore >= 300000) AwardBadge("BadgeAnteUp", BadgeTier.Silver);
+            else if (pokerScore >= 100000) AwardBadge("BadgeAnteUp", BadgeTier.Bronze);
         }
 
         private void StartGame(string modeKey)
@@ -1572,11 +1791,17 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _currentScreen = AndroidGameScreen.Playing;
             _score = 0;
             _level = 1;
+            _levelProgressPoints = 0;
             _shufflesRemaining = 3;
             _pokerCards.Clear();
             _pokerSkulls = 0;
             _pokerSkullCharge = 0;
             _pokerHandBonus = 0;
+            _iceRiseCounter = 0;
+            _iceRiseInterval = 5;
+            _zenMantraTimerSec = 0;
+            _zenBreathSec = 0;
+            _zenBreathPhase = ZenBreathPhase.Inhale;
             for (int i = 0; i < 8; i++)
             {
                 _iceColumns[i] = 0;
@@ -1592,7 +1817,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 _lightningTankSeconds = 0;
                 _lastHurrahActive = false;
                 _sound?.PlayMusic(MusicMap.FileName(MusicMap.Lightning));
-                StartLightningTimer();
+                StartGameTimer();
                 _talkBack?.Speak(Localization.Get("LightningStarted"), true);
             }
             else if (modeKey == "ModePoker")
@@ -1612,6 +1837,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             else if (modeKey == "ModeIceStorm")
             {
                 _sound?.PlayMusic(MusicMap.FileName(MusicMap.IceStorm));
+                StartGameTimer();
             }
             else if (modeKey == "ModeQuest")
             {
@@ -1634,9 +1860,11 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                             _board.InitializeBoard(true);
                             _sound?.PlaySound(AudioMap.BombAppears);
                             _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestTimeBombs));
+                            StartGameTimer();
                             break;
                         case QuestType.IceStorm:
                             _sound?.PlayMusic(MusicMap.FileName(MusicMap.IceStorm));
+                            StartGameTimer();
                             break;
                         case QuestType.Poker:
                             _sound?.PlayMusic(MusicMap.FileName(MusicMap.Poker));
@@ -1661,6 +1889,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 {
                     _sound?.PlaySound(AmbientHelper.GetAmbientTrack((AmbientType)_options.ZenAmbient), 0.5f);
                 }
+                StartGameTimer();
             }
             else
             {
@@ -2136,16 +2365,99 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     }
                 }
 
+                // Combos de reaccion en cadena autenticos PopCap
+                if (res.CascadeDepth >= 2)
+                {
+                    if (_currentModeKey == "ModeZen" && res.CascadeDepth <= 2)
+                        _sound?.PlaySound(AudioMap.ZenCombo2);
+                    else
+                        _sound?.PlaySound(AudioMap.ComboPrefix + Math.Min(7, res.CascadeDepth));
+                }
+
                 // Cálculo y acumulación de puntuación
                 int lightningMult = (_currentModeKey == "ModeLightning") ? (_lightningMultiplier * 5) : 1;
                 int matchScore = res.TotalGemsDestroyed * 50 * Math.Max(1, res.CascadeDepth) * lightningMult;
                 _score += matchScore;
                 Progress.TotalGemsCleared += res.TotalGemsDestroyed;
+                Progress.TotalFlameGemsDestroyed += res.FlameDestroyed;
+                Progress.TotalStarGemsDestroyed += res.StarDestroyed;
+                Progress.TotalHypercubesDestroyed += res.HypercubeTriggered ? 1 : 0;
+
                 if (_currentModeKey == "ModeLightning" && res.ExtraTimeSeconds > 0)
                 {
                     _lightningTankSeconds += res.ExtraTimeSeconds;
                     _sound?.PlaySound(res.ExtraTimeSeconds >= 10 ? AudioMap.LightningTubeFill10 : AudioMap.LightningTubeFill5);
                 }
+
+                // Sistema de rangos en tiempo real
+                int rankBefore = RankSystem.GetRankLevel(Progress.TotalScore);
+                Progress.TotalScore += matchScore;
+                int rankAfter = RankSystem.GetRankLevel(Progress.TotalScore);
+                if (rankAfter > rankBefore)
+                {
+                    _sound?.PlaySound(AudioMap.Rankup);
+                    _talkBack?.Speak(Localization.Get("RankUpAnnouncement", RankSystem.GetRankTitle(Progress.TotalScore)), true);
+                }
+
+                // Progresión de niveles y desbloqueo de modos secretos
+                if (_currentModeKey == "ModeClassic")
+                {
+                    _levelProgressPoints += matchScore;
+                    int target = _level * 2500;
+                    if (_levelProgressPoints >= target)
+                    {
+                        _levelProgressPoints -= target;
+                        _level++;
+                        _sound?.PlaySound(AudioMap.VoiceLevelcomplete);
+                        int stage = ((_level - 1) % 4) + 1;
+                        _sound?.PlayMusic(MusicMap.FileName(MusicMap.ClassicParts[stage - 1]));
+                        if (_level > Progress.ClassicLevel)
+                        {
+                            if (Progress.ClassicLevel < 5 && _level >= 5)
+                            {
+                                _sound?.PlaySound(AudioMap.Secretunlocked);
+                                _talkBack?.Speak(Localization.Get("UnlockPoker"), true);
+                            }
+                            Progress.ClassicLevel = _level;
+                        }
+                    }
+                }
+                else if (_currentModeKey == "ModeZen")
+                {
+                    _levelProgressPoints += matchScore;
+                    int target = _level * 2000;
+                    if (_levelProgressPoints >= target)
+                    {
+                        _levelProgressPoints -= target;
+                        _level++;
+                        _sound?.PlaySound(AudioMap.VoiceLevelcomplete);
+                        if (_options.ZenAmbient == (int)AmbientType.None)
+                        {
+                            _sound?.PlayMusic(AmbientHelper.GetZenTrackForLevel(_level));
+                        }
+                        if (_level > Progress.ZenLevel)
+                        {
+                            if (Progress.ZenLevel < 5 && _level >= 5)
+                            {
+                                _sound?.PlaySound(AudioMap.Secretunlocked);
+                                _talkBack?.Speak(Localization.Get("UnlockButterflies"), true);
+                            }
+                            Progress.ZenLevel = _level;
+                        }
+                    }
+                }
+                else if (_currentModeKey == "ModeIceStorm")
+                {
+                    int newLvl = (_score / 5000) + 1;
+                    if (newLvl > _level)
+                    {
+                        _level = newLvl;
+                        _iceRiseInterval = Math.Max(1, 6 - _level);
+                        _sound?.PlaySound(AudioMap.VoiceLevelcomplete);
+                    }
+                }
+
+                CheckBadgesEvaluation(res);
                 _profileMgr.Save();
 
                 // Locuciones auténticas de PopCap
