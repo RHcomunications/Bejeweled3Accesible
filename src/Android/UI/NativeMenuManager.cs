@@ -63,11 +63,11 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 {
                     return string.Format("{0}.{1:D2}.{2:D2}.{3}", ver.Major, ver.Minor, ver.Build, ver.Revision);
                 }
-                return _activity.PackageManager?.GetPackageInfo(_activity.PackageName, 0)?.VersionName ?? "2026.08.27.2";
+                return _activity.PackageManager?.GetPackageInfo(_activity.PackageName, 0)?.VersionName ?? "2026.09.07.1";
             }
             catch
             {
-                return "2026.08.27.2";
+                return "2026.09.07.1";
             }
         }
 
