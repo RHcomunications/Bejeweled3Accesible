@@ -96,6 +96,19 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private enum ZenBreathPhase { Inhale, HoldIn, Exhale, HoldOut }
         private ZenBreathPhase _zenBreathPhase = ZenBreathPhase.Inhale;
 
+        // Modo Mision (Quest)
+        private QuestMission _activeQuest = null;
+        private int _activeQuestIndex = -1;
+        private string _activeQuestName = "";
+        private int _questButterfliesFreed = 0;
+        private int _questNuggets = 0;
+        private int _questGoldConverted = 0;
+        private int _questBombsDestroyed = 0;
+        private int _questMaxCascade = 0;
+        private int _questHandsScored = 0;
+        private int _questIceColumnsBroken = 0;
+        private int _diamondDepthMeters = 0;
+
         private System.Threading.Timer _gameTimer;
 
         private class TeardropSplash
@@ -1839,13 +1852,46 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 _sound?.PlayMusic(MusicMap.FileName(MusicMap.IceStorm));
                 StartGameTimer();
             }
-            else if (modeKey == "ModeQuest")
+            else if (modeKey.StartsWith("ModeQuest"))
             {
-                QuestMission[] missions = QuestManager.GetRelicMissions(_relicIdx);
-                if (_questChallengeIdx >= 0 && _questChallengeIdx < missions.Length)
+                int mIdx = -1;
+                if (modeKey.StartsWith("ModeQuest:") && int.TryParse(modeKey.Substring(10), out int parsedIdx))
                 {
-                    QuestMission m = missions[_questChallengeIdx];
-                    switch (m.Type)
+                    mIdx = parsedIdx;
+                }
+                else
+                {
+                    QuestMission[] missions = QuestManager.GetRelicMissions(_relicIdx);
+                    if (_questChallengeIdx >= 0 && _questChallengeIdx < missions.Length)
+                        mIdx = missions[_questChallengeIdx].MissionIndex;
+                }
+
+                if (mIdx >= 0 && mIdx < QuestManager.Missions.Length)
+                {
+                    _activeQuest = QuestManager.Missions[mIdx];
+                    _activeQuestIndex = _activeQuest.MissionIndex;
+                    _activeQuestName = _activeQuest.GetName();
+                    _relicIdx = _activeQuest.RelicIndex;
+                }
+                else
+                {
+                    _activeQuest = null;
+                    _activeQuestIndex = -1;
+                    _activeQuestName = "";
+                }
+
+                _questButterfliesFreed = 0;
+                _questNuggets = 0;
+                _questGoldConverted = 0;
+                _questBombsDestroyed = 0;
+                _questMaxCascade = 0;
+                _questHandsScored = 0;
+                _questIceColumnsBroken = 0;
+                _diamondDepthMeters = 0;
+
+                if (_activeQuest != null)
+                {
+                    switch (_activeQuest.Type)
                     {
                         case QuestType.Butterflies:
                             _board.InitializeButterfliesBoard();
@@ -2454,6 +2500,113 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         _level = newLvl;
                         _iceRiseInterval = Math.Max(1, 6 - _level);
                         _sound?.PlaySound(AudioMap.VoiceLevelcomplete);
+                    }
+                }
+                else if (_currentModeKey == "ModeQuest" && _activeQuest != null)
+                {
+                    if (res.ButterfliesFreed > 0) _questButterfliesFreed += res.ButterfliesFreed;
+                    if (res.GoldTilesConverted > 0) _questGoldConverted += res.GoldTilesConverted;
+                    if (res.BombsDestroyed > 0) _questBombsDestroyed += res.BombsDestroyed;
+                    if (res.NuggetsMined > 0) _questNuggets += res.NuggetsMined;
+                    if (res.CascadeDepth > _questMaxCascade) _questMaxCascade = res.CascadeDepth;
+
+                    switch (_activeQuest.Type)
+                    {
+                        case QuestType.Butterflies:
+                            _sound?.PlaySound(AudioMap.ButterflyAppear);
+                            break;
+                        case QuestType.Alchemy:
+                            if (res.GoldTilesConverted > 0)
+                            {
+                                _sound?.PlaySound(AudioMap.AlchemyConvert);
+                                _talkBack?.Speak(Localization.Get("GoldConvertedAnnounce", res.GoldTilesConverted), true);
+                            }
+                            break;
+                        case QuestType.GoldRush:
+                            if (res.NuggetsMined > 0)
+                            {
+                                _sound?.PlaySound(AudioMap.DiamondMineTreasurefind);
+                                _sound?.PlaySound(AudioMap.SandstormTreasureReveal);
+                                _talkBack?.Speak(Localization.Get("NuggetFound"), true);
+                            }
+                            break;
+                        case QuestType.TimeBomb:
+                            if (res.BombsDestroyed > 0)
+                            {
+                                _sound?.PlaySound(AudioMap.GemCountdownDestroyed);
+                                _sound?.PlaySound(AudioMap.SkullBusted);
+                            }
+                            break;
+                    }
+
+                    bool questCompleted = false;
+                    switch (_activeQuest.Type)
+                    {
+                        case QuestType.Butterflies:
+                            questCompleted = _questButterfliesFreed >= _activeQuest.Objective;
+                            break;
+                        case QuestType.GoldRush:
+                            questCompleted = _questNuggets >= _activeQuest.Objective;
+                            break;
+                        case QuestType.Alchemy:
+                            questCompleted = _questGoldConverted >= _activeQuest.Objective;
+                            break;
+                        case QuestType.TimeBomb:
+                            questCompleted = _questBombsDestroyed >= _activeQuest.Objective;
+                            break;
+                        case QuestType.Avalanche:
+                            questCompleted = _questMaxCascade >= _activeQuest.Objective;
+                            break;
+                        case QuestType.Poker:
+                            questCompleted = _questHandsScored >= _activeQuest.Objective;
+                            break;
+                        case QuestType.IceStorm:
+                            questCompleted = _questIceColumnsBroken >= _activeQuest.Objective;
+                            break;
+                        case QuestType.DiamondMine:
+                            questCompleted = _diamondDepthMeters >= _activeQuest.Objective;
+                            break;
+                    }
+
+                    if (questCompleted)
+                    {
+                        int relicDoneBefore = Progress.CountCompletedInRelic(_activeQuest.RelicIndex);
+                        int relicsBefore = Progress.QuestRelicCount;
+                        Progress.CompleteQuestMission(_activeQuestIndex);
+                        int relicDone = Progress.CountCompletedInRelic(_activeQuest.RelicIndex);
+                        if (relicDone == 4 && relicDoneBefore < 4)
+                        {
+                            Progress.QuestRelicCount++;
+                        }
+                        _profileMgr.Save();
+
+                        bool allQuestsComplete = true;
+                        for (int m = 0; m < 40; m++)
+                        {
+                            if (!Progress.IsQuestMissionComplete(m))
+                            {
+                                allQuestsComplete = false;
+                                break;
+                            }
+                        }
+                        if (allQuestsComplete)
+                            AwardBadge("BadgeHeroes", BadgeTier.Platinum);
+
+                        _sound?.PlaySound(AudioMap.VoiceChallengecomplete);
+                        _sound?.PlaySound(AudioMap.QuestAwardWreath);
+                        _sound?.PlaySound(AudioMap.QuestMenuRelicCompleteObject);
+                        _sound?.PlaySound(AudioMap.QuestMenuRelicCompleteRumble);
+
+                        bool mineJustUnlocked = relicsBefore == 0 && Progress.QuestRelicCount >= 1;
+                        if (mineJustUnlocked)
+                        {
+                            _sound?.PlaySound(AudioMap.Secretunlocked);
+                        }
+
+                        string questAnnounce = mineJustUnlocked
+                            ? Localization.Get("UnlockDiamondMine") + " " + Localization.Get("QuestCompleteAnnounce", _activeQuestName)
+                            : Localization.Get("QuestCompleteAnnounce", _activeQuestName);
+                        _talkBack?.Speak(questAnnounce, true);
                     }
                 }
 

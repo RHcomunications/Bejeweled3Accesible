@@ -384,9 +384,10 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 if (Progress.IsQuestMissionComplete(m.MissionIndex))
                     title += Localization.Get("QuestCompletedMark");
 
+                var mission = m;
                 container.AddView(CreateMenuButton(title, "", () =>
                 {
-                    _onStartGame?.Invoke("ModeQuest");
+                    _onStartGame?.Invoke("ModeQuest:" + mission.MissionIndex);
                 }));
             }
 
