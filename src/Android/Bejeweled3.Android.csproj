@@ -9,11 +9,11 @@
     <CheckEolTargetFramework>false</CheckEolTargetFramework>
     <ApplicationTitle>Bejeweled 3 Accesible</ApplicationTitle>
     <ApplicationId>com.narayan.bejeweled3accessible</ApplicationId>
-    <ApplicationVersion>23</ApplicationVersion>
-    <ApplicationDisplayVersion>2026.09.07.1</ApplicationDisplayVersion>
-    <AssemblyVersion>2026.9.7.1</AssemblyVersion>
-    <FileVersion>2026.9.7.1</FileVersion>
-    <Version>2026.09.07.1</Version>
+    <ApplicationVersion>24</ApplicationVersion>
+    <ApplicationDisplayVersion>2026.09.13.0</ApplicationDisplayVersion>
+    <AssemblyVersion>2026.9.13.0</AssemblyVersion>
+    <FileVersion>2026.9.13.0</FileVersion>
+    <Version>2026.09.13.0</Version>
     <RootNamespace>Bejeweled3Accessible.AndroidApp</RootNamespace>
     <AssemblyName>Bejeweled3Accessible.Android</AssemblyName>
     <AndroidPackageFormat>apk</AndroidPackageFormat>
