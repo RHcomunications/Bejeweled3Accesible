@@ -112,18 +112,18 @@ namespace Bejeweled3Accessible.Audio
         // Efectos DX8 de BASS (baSS core, no requieren bass_fx.dll) usados para
         // robustecer el audio binaural: ecualizacion por fila, reverb maestro
         // de "vacío espacial" y compresión/limitación para absorber picos.
-        private const int BASS_FX_DX8_COMPRESSOR = 1;
-        private const int BASS_FX_DX8_PARAMEQ = 7;
-        private const int BASS_FX_DX8_REVERB = 8;
+        internal const int BASS_FX_DX8_COMPRESSOR = 1;
+        internal const int BASS_FX_DX8_PARAMEQ = 7;
+        internal const int BASS_FX_DX8_REVERB = 8;
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern int BASS_ChannelSetFX(int handle, int type, int priority);
+        internal static extern int BASS_ChannelSetFX(int handle, int type, int priority);
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
         private static extern bool BASS_FXSetParameters(int fx, IntPtr paramsPtr);
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct BassDx8Parameq
+        internal struct BassDx8Parameq
         {
             public float fCenter;     // frecuencia central (Hz)
             public float fBandwidth;  // ancho de banda (semitonos, >= 1)
@@ -131,12 +131,17 @@ namespace Bejeweled3Accessible.Audio
         }
 
         [StructLayout(LayoutKind.Sequential)]
-        private struct BassDx8Reverb
+        internal struct BassDx8Reverb
         {
             public float fInGain;
             public float fReverbMix;  // mezcla (dB, -96..0; -96 = nada)
             public float fReverbTime; // decaimiento (ms)
             public float fHighFreqRTRatio;
+        }
+
+        private void AttachMusicSpatializer(int musicHandle)
+        {
+            return;
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -154,6 +159,18 @@ namespace Bejeweled3Accessible.Audio
         // deshabilitar desde Opciones: al apagarlo, la música y los SFX suenan
         // secos y centrados como el audio clásico del juego.
         public bool BinauralEnabled { get; set; }
+
+        // Entorno acústico temático actual del juego (Templos, Cavernas, Glaciares, etc.)
+        public SpatialAudio.AudioEnvironment CurrentEnvironment { get; private set; }
+
+        public void SetEnvironment(SpatialAudio.AudioEnvironment env)
+        {
+            CurrentEnvironment = env;
+            if (_currentMusicChannel != 0)
+            {
+                ApplyMusicAtmosphere(_currentMusicChannel);
+            }
+        }
 
         // Idioma de las locuciones del locutor/anunciador arcade (Español o Inglés).
         public Engine.Language VoiceLanguage { get; set; }
@@ -764,21 +781,27 @@ namespace Bejeweled3Accessible.Audio
                 if (audioBytes != null && audioBytes.Length > 0)
                 {
                     GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
-                    // Pure measurement handle: no BASS_SAMPLE_LOOP (the stream is
-                    // never played, only measured and freed immediately).
-                    int handle = BASS_StreamCreateFile(true, pinned.AddrOfPinnedObject(), 0, audioBytes.Length, 0);
-                    if (handle != 0)
+                    try
                     {
-                        long bytes = BASS_ChannelGetLength(handle, BASS_POS_BYTE);
-                        if (bytes > 0)
+                        // Pure measurement handle: no BASS_SAMPLE_LOOP (the stream is
+                        // never played, only measured and freed immediately).
+                        int handle = BASS_StreamCreateFile(true, pinned.AddrOfPinnedObject(), 0, audioBytes.Length, 0);
+                        if (handle != 0)
                         {
-                            double secs = BASS_ChannelBytes2Seconds(handle, bytes);
-                            if (secs > 0.0) durMs = (int)(secs * 1000.0);
-                            if (durMs < 50) durMs = 50;
+                            long bytes = BASS_ChannelGetLength(handle, BASS_POS_BYTE);
+                            if (bytes > 0)
+                            {
+                                double secs = BASS_ChannelBytes2Seconds(handle, bytes);
+                                if (secs > 0.0) durMs = (int)(secs * 1000.0);
+                                if (durMs < 50) durMs = 50;
+                            }
+                            BASS_StreamFree(handle);
                         }
-                        BASS_StreamFree(handle);
                     }
-                    if (pinned.IsAllocated) pinned.Free();
+                    finally
+                    {
+                        if (pinned.IsAllocated) { try { pinned.Free(); } catch { } }
+                    }
                 }
             }
             catch { }
@@ -972,10 +995,11 @@ namespace Bejeweled3Accessible.Audio
             byte[] audioBytes = LoadAudioBytes(soundName);
             if (audioBytes == null || audioBytes.Length == 0) return;
             GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
+            SpatialSfxSource source = null;
             try
             {
                 float depth = (depthFar < 0.0f) ? 0.0f : depthFar;
-                SpatialSfxSource source = new SpatialSfxSource(this, audioBytes, pinned, -1, pan, depth, -1, BinauralEnabled);
+                source = new SpatialSfxSource(this, audioBytes, pinned, -1, pan, depth, -1, BinauralEnabled);
                 int handle = source.OutputHandle;
                 if (handle == 0)
                 {
@@ -994,7 +1018,8 @@ namespace Bejeweled3Accessible.Audio
             }
             catch
             {
-                if (pinned.IsAllocated) { try { pinned.Free(); } catch { } }
+                if (source != null) { try { source.Dispose(); } catch { } }
+                else if (pinned.IsAllocated) { try { pinned.Free(); } catch { } }
             }
         }
 
@@ -1009,9 +1034,10 @@ namespace Bejeweled3Accessible.Audio
             byte[] audioBytes = LoadAudioBytes(soundName);
             if (audioBytes == null || audioBytes.Length == 0) return;
             GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
+            SpatialSfxSource source = null;
             try
             {
-                SpatialSfxSource source = new SpatialSfxSource(this, audioBytes, pinned, -1, fromPan, fromDepth, -1, BinauralEnabled);
+                source = new SpatialSfxSource(this, audioBytes, pinned, -1, fromPan, fromDepth, -1, BinauralEnabled);
                 int handle = source.OutputHandle;
                 if (handle == 0)
                 {
@@ -1031,7 +1057,8 @@ namespace Bejeweled3Accessible.Audio
             }
             catch
             {
-                if (pinned.IsAllocated) { try { pinned.Free(); } catch { } }
+                if (source != null) { try { source.Dispose(); } catch { } }
+                else if (pinned.IsAllocated) { try { pinned.Free(); } catch { } }
             }
         }
 
@@ -1439,20 +1466,28 @@ namespace Bejeweled3Accessible.Audio
         // monitor de musica convierte en MusicRechained fuera del hilo de BASS.
         private uint ModuleStreamProc(int handle, IntPtr buffer, uint length, IntPtr user)
         {
-            ModuleMusicPlayer player;
             try
             {
-                GCHandle token = GCHandle.FromIntPtr(user);
-                if (!token.IsAllocated) return 0;
-                player = token.Target as ModuleMusicPlayer;
-            }
-            catch { return 0; }
-            if (player == null) return 0;
+                if (buffer == IntPtr.Zero || length == 0) return 0;
+                ModuleMusicPlayer player;
+                try
+                {
+                    GCHandle token = GCHandle.FromIntPtr(user);
+                    if (!token.IsAllocated) return 0;
+                    player = token.Target as ModuleMusicPlayer;
+                }
+                catch { return 0; }
+                if (player == null) return 0;
 
-            bool replayed;
-            int frames = player.ReadInterleaved(buffer, (int)Math.Min(length / 8, (uint)ModuleMusicPlayer.MaxFrames), out replayed);
-            if (replayed || player.UpdateSectionAdvance()) _moduleEventPending = true;
-            return (uint)(frames * 8);
+                bool replayed;
+                int frames = player.ReadInterleaved(buffer, (int)Math.Min(length / 8, (uint)ModuleMusicPlayer.MaxFrames), out replayed);
+                if (replayed || player.UpdateSectionAdvance()) _moduleEventPending = true;
+                return (uint)(frames * 8);
+            }
+            catch
+            {
+                return 0;
+            }
         }
 
         // Creates a ready-to-play music stream at zero volume for a file-based
@@ -1513,32 +1548,6 @@ namespace Bejeweled3Accessible.Audio
                 }
                 return 0;
             }
-        }
-
-        private static void SetFxParams<T>(int fx, T s) where T : struct
-        {
-            int size = Marshal.SizeOf(s);
-            IntPtr p = Marshal.AllocHGlobal(size);
-            try
-            {
-                Marshal.StructureToPtr(s, p, false);
-                BASS_FXSetParameters(fx, p);
-            }
-            finally
-            {
-                Marshal.FreeHGlobal(p);
-            }
-        }
-
-        // Ecualizacion por fila del tablero: las filas frontales (0-2) ganan
-        // brillo (+3 dB a 8 kHz) y las filas lejanas (5-7) reciben un corte
-        // progresivo desde 4 kHz para reforzar la sensacion de profundidad.
-        // NO se usa pitch: solo se moldea el tono del SFX.
-        private void ApplyRowEq(int handle, int row)
-        {
-            // Sin EQ de fila: el GridSpatializer ya da profundidad por atenuacion
-            // de distancia. No modificamos el timbre de los sonidos originales.
-            return;
         }
 
         // Reverb ambiental sutil ("vacío espacial") + compresión/limitación para
@@ -1684,6 +1693,22 @@ namespace Bejeweled3Accessible.Audio
             SpatialSweepState s = (SpatialSweepState)obj;
             try
             {
+                if (s == null || s.Handle == 0 || BASS_ChannelIsActive(s.Handle) == 0)
+                {
+                    lock (_activeSpatialSweeps)
+                    {
+                        if (s != null) _activeSpatialSweeps.Remove(s);
+                    }
+                    if (s != null && s.Timer != null) { try { s.Timer.Dispose(); } catch { } s.Timer = null; }
+                    if (s != null && s.Handle != 0)
+                    {
+                        try { BASS_ChannelStop(s.Handle); } catch { }
+                        try { BASS_StreamFree(s.Handle); } catch { }
+                    }
+                    if (s != null && s.Pinned.IsAllocated) try { s.Pinned.Free(); } catch { }
+                    return;
+                }
+
                 double elapsed = (DateTime.Now - s.Started).TotalMilliseconds;
                 double t = elapsed / s.DurationMs;
                 if (t >= 1.0)
@@ -1719,34 +1744,63 @@ namespace Bejeweled3Accessible.Audio
             }
             catch
             {
-                if (s.Timer != null) { try { s.Timer.Dispose(); } catch { } s.Timer = null; }
+                if (s != null && s.Timer != null) { try { s.Timer.Dispose(); } catch { } s.Timer = null; }
+            }
+        }
+        internal static void SetFxParams<T>(int fx, T s) where T : struct
+        {
+            int size = Marshal.SizeOf(s);
+            IntPtr p = Marshal.AllocHGlobal(size);
+            try
+            {
+                Marshal.StructureToPtr(s, p, false);
+                BASS_FXSetParameters(fx, p);
+            }
+            finally
+            {
+                Marshal.FreeHGlobal(p);
             }
         }
 
-        // El audio espacial binaural se elimino: la musica suena plana y centrada
-        // (paneo estereo simple), sin envoltura de sala.
-        private void AttachMusicSpatializer(int musicHandle)
+        // Ecualizacion por fila del tablero: las filas frontales (0-2) ganan
+        // brillo (+3 dB a 8 kHz) y las filas lejanas (5-7) reciben un corte
+        // progresivo desde 4 kHz para reforzar la sensacion de profundidad.
+        // NO se usa pitch: solo se moldea el tono del SFX.
+        private void ApplyRowEq(int handle, int row)
         {
             return;
         }
 
-        // Reverb de cola para la musica-ambiente: la MISMA sala que los SFX
-        // (corta y brillante), para que musica y gemas compartan un unico
-        // espacio acustico. Sin compresor, para no matar la dinamica.
         private void ApplyMusicAtmosphere(int musicHandle)
         {
-            if (!BinauralEnabled) return;
+            if (!BinauralEnabled || musicHandle == 0) return;
             try
             {
+                var acoustics = SpatialAudio.GetEnvironmentAcoustics(CurrentEnvironment);
                 int rv = BASS_ChannelSetFX(musicHandle, BASS_FX_DX8_REVERB, 1);
                 if (rv != 0)
                 {
                     BassDx8Reverb rev = new BassDx8Reverb();
                     rev.fInGain = 0f;
-                    rev.fReverbMix = -20f;   // cola de la misma sala que los SFX
-                    rev.fReverbTime = 1200f;
-                    rev.fHighFreqRTRatio = 0.65f;
+                    rev.fReverbMix = acoustics.ReverbMix;
+                    rev.fReverbTime = acoustics.ReverbTime;
+                    rev.fHighFreqRTRatio = acoustics.HighFreqRTRatio;
                     SetFxParams(rv, rev);
+                }
+
+                if (acoustics.LowPassCutoff < 19000f)
+                {
+                    int eqFx = BASS_ChannelSetFX(musicHandle, BASS_FX_DX8_PARAMEQ, 2);
+                    if (eqFx != 0)
+                    {
+                        BassDx8Parameq eq = new BassDx8Parameq
+                        {
+                            fCenter = acoustics.LowPassCutoff,
+                            fBandwidth = 2.0f,
+                            fGain = -4.0f
+                        };
+                        SetFxParams(eqFx, eq);
+                    }
                 }
             }
             catch { }
@@ -2171,13 +2225,37 @@ namespace Bejeweled3Accessible.Audio
             }
             _inChans = (info.chans == 1) ? 1 : 2;
 
-            // Audio espacial simple: paneo estereo por columna (clasico
-            // Bejeweled) cuando BinauralEnabled esta activo. Sin sala/rebotes
-            // ni EQ de profundidad: el binaural se elimino por agresivo.
+            // Audio espacial temático: paneo estéreo adaptativo y presencia/elevación por ambiente
             _selfPin = default(GCHandle);
-            if (_binaural && Math.Abs(pan) > 0.0001f)
+            if (_binaural)
             {
-                try { BASS_ChannelSetAttribute(OutputHandle, BASS_ATTRIB_PAN, pan); } catch { }
+                var acoustics = SpatialAudio.GetEnvironmentAcoustics(_engine.CurrentEnvironment);
+                float finalPan = Math.Max(-1.0f, Math.Min(1.0f, pan * acoustics.StereoWidth));
+                if (Math.Abs(finalPan) > 0.0001f)
+                {
+                    try { BASS_ChannelSetAttribute(OutputHandle, BASS_ATTRIB_PAN, finalPan); } catch { }
+                }
+
+                float elevationBoost = SpatialAudio.ElevationTrebleBoost(row);
+                float presence = acoustics.PresenceGain + elevationBoost;
+                if (Math.Abs(presence) > 0.1f)
+                {
+                    try
+                    {
+                        int eqFx = SoundEngine.BASS_ChannelSetFX(OutputHandle, SoundEngine.BASS_FX_DX8_PARAMEQ, 0);
+                        if (eqFx != 0)
+                        {
+                            SoundEngine.BassDx8Parameq eq = new SoundEngine.BassDx8Parameq
+                            {
+                                fCenter = acoustics.PresenceFreq,
+                                fBandwidth = 1.5f,
+                                fGain = Math.Max(-6.0f, Math.Min(6.0f, presence))
+                            };
+                            SoundEngine.SetFxParams(eqFx, eq);
+                        }
+                    }
+                    catch { }
+                }
             }
         }
 

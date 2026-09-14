@@ -87,6 +87,11 @@ namespace Bejeweled3Accessible
             Application.SetUnhandledExceptionMode(UnhandledExceptionMode.CatchException);
             Application.ThreadException += (s, ev) => ReportFatal("UI", ev.Exception);
             AppDomain.CurrentDomain.UnhandledException += (s, ev) => ReportFatal("Dominio", ev.ExceptionObject as Exception);
+            System.Threading.Tasks.TaskScheduler.UnobservedTaskException += (s, ev) =>
+            {
+                ReportFatal("Task", ev.Exception);
+                try { ev.SetObserved(); } catch { }
+            };
 
             Application.Run(new MainWindow());
         }
@@ -140,18 +145,32 @@ namespace Bejeweled3Accessible
         {
             try
             {
-                string log = Path.Combine(Path.GetTempPath(), "B3A_crash.log");
                 System.Text.StringBuilder sb = new System.Text.StringBuilder();
                 sb.AppendLine(DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss") + "  [" + source + "]");
                 sb.AppendLine(ex != null ? ex.ToString() : "(sin excepcion)");
                 sb.AppendLine(new string('-', 60));
-                File.AppendAllText(log, sb.ToString());
+                string content = sb.ToString();
+
+                // 1. Guardar en carpeta de datos del usuario
+                try
+                {
+                    string dataDir = Engine.StoragePaths.ResolveDataDirectory(null);
+                    File.AppendAllText(Path.Combine(dataDir, "crash.log"), content);
+                }
+                catch { }
+
+                // 2. Guardar en Temp por respaldo
+                try
+                {
+                    File.AppendAllText(Path.Combine(Path.GetTempPath(), "B3A_crash.log"), content);
+                }
+                catch { }
             }
             catch { }
             try
             {
                 MessageBox.Show(
-                    "Se produjo un error inesperado (registrado en B3A_crash.log):\r\n\r\n" +
+                    "Se produjo un error inesperado (registrado en crash.log):\r\n\r\n" +
                     (ex != null ? ex.GetType().Name + ": " + ex.Message : "(sin detalles)"),
                     "Bejeweled 3 Accesible",
                     MessageBoxButtons.OK,
@@ -162,6 +181,7 @@ namespace Bejeweled3Accessible
 
         private const int SW_RESTORE = 9;
 
+        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         private delegate bool EnumWindowsProc(IntPtr hWnd, IntPtr lParam);
 
         [DllImport("user32.dll")]

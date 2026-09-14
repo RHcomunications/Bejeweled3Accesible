@@ -6,13 +6,13 @@ namespace Bejeweled3Accessible.Accessibility
 {
     public class NvdaSpeech : IDisposable
     {
-        [DllImport("nvdaControllerClient32.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("nvdaControllerClient32.dll", CharSet = CharSet.Unicode, CallingConvention = CallingConvention.StdCall)]
         private static extern int nvdaController_speakText(string text);
 
-        [DllImport("nvdaControllerClient32.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("nvdaControllerClient32.dll", CallingConvention = CallingConvention.StdCall)]
         private static extern int nvdaController_cancelSpeech();
 
-        [DllImport("nvdaControllerClient32.dll", CallingConvention = CallingConvention.Cdecl)]
+        [DllImport("nvdaControllerClient32.dll", CallingConvention = CallingConvention.StdCall)]
         private static extern int nvdaController_testIfRunning();
 
         private readonly SpeechSynthesizer _sapi;

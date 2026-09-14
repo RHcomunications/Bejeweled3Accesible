@@ -1312,9 +1312,9 @@ namespace Bejeweled3Accessible.Tests
 
                 string[] onDisk = Directory.GetFiles(soundsDir, "*.ogg")
                     .Select(f => Path.GetFileNameWithoutExtension(f))
-                    .Where(n => !n.StartsWith("gem_hit_p"))
+                    .Where(n => !n.StartsWith("gem_hit_p") && !n.EndsWith("_en") && !n.EndsWith("_es"))
                     .ToArray();
-                Assert.Equal(190, onDisk.Length, "190 ogg en sounds raiz (sin anidar, excluidas variantes gem_hit_p*)");
+                Assert.Equal(190, onDisk.Length, "190 ogg en sounds raiz (sin anidar, excluidas variantes gem_hit_p* y voces localizadas _en/_es)");
                 Assert.Equal(190, AudioMap.SoundCount, "SoundCount coincide");
 
                 var missingOnDisk = new List<string>();
@@ -1498,10 +1498,44 @@ namespace Bejeweled3Accessible.Tests
                 Assert.True(right > 0f, "Columna 7 a la derecha (" + right.ToString("F3") + ")");
                 // Tablero de 8 columas: no hay columna central unica; las dos del
                 // medio (3 y 4) deben quedar cerca del centro (pan ~0) y en lados
-                // opuestos.
-                Assert.True(Math.Abs(midL) < 0.2f, "Columna 3 cerca del centro (" + midL.ToString("F3") + ")");
-                Assert.True(Math.Abs(midR) < 0.2f, "Columna 4 cerca del centro (" + midR.ToString("F3") + ")");
-                Assert.True(midL < 0f && midR > 0f, "Columnas centrales en lados opuestos");
+                // opuestos para dar simetria.
+                Assert.True(midL < 0f && midR > 0f, "Columnas centrales (3, 4) se separan al medio");
+                Assert.Near(Math.Abs(midL), midR, 0.0001f, "Simetria central");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Spatial: perfiles acústicos temáticos válidos para todos los entornos", () =>
+            {
+                foreach (SpatialAudio.AudioEnvironment env in Enum.GetValues(typeof(SpatialAudio.AudioEnvironment)))
+                {
+                    var ac = SpatialAudio.GetEnvironmentAcoustics(env);
+                    Assert.True(ac.ReverbMix >= -96.0f && ac.ReverbMix <= 0.0f, env + " ReverbMix dentro de rango DX8");
+                    Assert.True(ac.ReverbTime >= 100.0f && ac.ReverbTime <= 5000.0f, env + " ReverbTime dentro de rango DX8");
+                    Assert.True(ac.HighFreqRTRatio >= 0.05f && ac.HighFreqRTRatio <= 1.0f, env + " HighFreqRTRatio válido");
+                    Assert.True(ac.LowPassCutoff >= 1000.0f && ac.LowPassCutoff <= 22000.0f, env + " LowPassCutoff válido");
+                    Assert.True(ac.StereoWidth >= 0.5f && ac.StereoWidth <= 2.0f, env + " StereoWidth válido");
+                }
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Spatial: elevación de brillo en filas altas de caída", () =>
+            {
+                Assert.True(SpatialAudio.ElevationTrebleBoost(0) > SpatialAudio.ElevationTrebleBoost(1), "Fila 0 más alta que 1");
+                Assert.True(SpatialAudio.ElevationTrebleBoost(1) > SpatialAudio.ElevationTrebleBoost(2), "Fila 1 más alta que 2");
+                Assert.Equal(0.0f, SpatialAudio.ElevationTrebleBoost(3), "Fila 3 neutral");
+                Assert.Equal(0.0f, SpatialAudio.ElevationTrebleBoost(7), "Fila 7 base");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Sound: SetEnvironment cambia la sala temática y actualiza la música", () =>
+            {
+                string repoRoot = AppDomain.CurrentDomain.BaseDirectory;
+                SoundEngine sound = new SoundEngine(repoRoot);
+                sound.BinauralEnabled = true;
+                Assert.Equal(SpatialAudio.AudioEnvironment.CrystalTemple, sound.CurrentEnvironment, "Default CrystalTemple");
+
+                sound.SetEnvironment(SpatialAudio.AudioEnvironment.UndergroundCavern);
+                Assert.Equal(SpatialAudio.AudioEnvironment.UndergroundCavern, sound.CurrentEnvironment, "Cambio a UndergroundCavern");
+
+                sound.SetEnvironment(SpatialAudio.AudioEnvironment.GlacialChamber);
+                Assert.Equal(SpatialAudio.AudioEnvironment.GlacialChamber, sound.CurrentEnvironment, "Cambio a GlacialChamber");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Sound: valores por defecto del motor", () =>

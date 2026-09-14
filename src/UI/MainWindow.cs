@@ -377,6 +377,7 @@ namespace Bejeweled3Accessible.UI
             // Persist once when leaving gameplay, not on every turn.
             _profileMgr.Save();
 
+            _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.CrystalTemple);
             _sound.PlaySound(AudioMap.Backtomain);
             _sound.PlaySound(AudioMap.Menuspin);
 
@@ -1735,6 +1736,7 @@ namespace Bejeweled3Accessible.UI
             string startSpeech = null;
             if (modeKey == "ModeLightning")
             {
+                _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.EnergyConduit);
                 _lightningTimeLeft = 60;
                 _lightningMultiplier = 1;
                 _lightningTankSeconds = 0;
@@ -1746,22 +1748,26 @@ namespace Bejeweled3Accessible.UI
             }
             else if (modeKey == "ModeZen")
             {
+                _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.Sanctuary);
                 _zenMgr.StartZenSession();
                 startSpeech = Localization.Get("ZenStarted");
             }
             else if (modeKey == "ModePoker")
             {
+                _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.VictorianSalon);
                 _sound.PlayMusic(MusicMap.FileName(MusicMap.Poker));
                 startSpeech = Localization.Get("PokerStarted");
             }
             else if (modeKey == "ModeButterflies")
             {
+                _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.TwilightGarden);
                 _board.InitializeButterfliesBoard();
                 _sound.PlayMusic(MusicMap.FileName(MusicMap.Butterflies));
                 startSpeech = Localization.Get("ButterfliesStarted") + " " + Localization.Get("ButterflyStart", _board.GetButterflyCount());
             }
             else if (modeKey == "ModeIceStorm")
             {
+                _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.GlacialChamber);
                 for (int i = 0; i < 8; i++)
                 {
                     _iceColumns[i] = 0;
@@ -1775,6 +1781,7 @@ namespace Bejeweled3Accessible.UI
             }
             else if (modeKey == "ModeDiamondMine")
             {
+                _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.UndergroundCavern);
                 _diamondDepthMeters = 0;
                 _lightningTimeLeft = 60;
                 _lightningMultiplier = 1;
@@ -1791,15 +1798,18 @@ namespace Bejeweled3Accessible.UI
                     switch (_activeQuest.Type)
                     {
                         case Engine.QuestType.Butterflies:
+                            _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.TwilightGarden);
                             _board.InitializeButterfliesBoard();
                             _sound.PlayMusic(MusicMap.FileName(MusicMap.Butterflies));
                             break;
                         case Engine.QuestType.DiamondMine:
                         case Engine.QuestType.GoldRush:
+                            _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.UndergroundCavern);
                             _board.InitializeDiamondMineBoard();
                             _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestBuriedTreasure));
                             break;
                         case Engine.QuestType.TimeBomb:
+                            _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.EnergyConduit);
                             // Authentic: the first board is already armed with bombs
                             _board.InitializeBoard(true);
                             _sound.PlaySound(AudioMap.BombAppears);
@@ -1807,6 +1817,7 @@ namespace Bejeweled3Accessible.UI
                             _lightningTimer.Start();
                             break;
                         case Engine.QuestType.IceStorm:
+                            _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.GlacialChamber);
                             for (int i = 0; i < 8; i++)
                             {
                                 _iceColumns[i] = 0;
@@ -1818,18 +1829,22 @@ namespace Bejeweled3Accessible.UI
                             _sound.PlayMusic(MusicMap.FileName(MusicMap.IceStorm));
                             break;
                         case Engine.QuestType.Poker:
+                            _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.VictorianSalon);
                             _sound.PlayMusic(MusicMap.FileName(MusicMap.Poker));
                             break;
                         case Engine.QuestType.Avalanche:
+                            _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.GlacialChamber);
                             _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestTurnByTurn));
                             break;
                         default:
+                            _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.CrystalTemple);
                             _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestTakeYourTime));
                             break;
                     }
                 }
                 else
                 {
+                    _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.CrystalTemple);
                     _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestTakeYourTime));
                 }
 
@@ -1839,6 +1854,7 @@ namespace Bejeweled3Accessible.UI
             }
             else
             {
+                _sound.SetEnvironment(Audio.SpatialAudio.AudioEnvironment.CrystalTemple);
                 _sound.PlayMusic(MusicMap.FileName(MusicMap.ClassicPart1));
                 startSpeech = Localization.Get("ClassicStarted");
             }

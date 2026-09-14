@@ -87,5 +87,122 @@ namespace Bejeweled3Accessible.Audio
             if (depthFar >= 1.0f) return 1.3f;
             return 1.0f + 0.3f * depthFar;
         }
+
+        // --- Entornos Acústicos Temáticos de Bejeweled 3 ---
+        public enum AudioEnvironment
+        {
+            CrystalTemple,      // Clásico, Menús, Relicarios (cámara de mármol y cristal)
+            UndergroundCavern,  // Mina de Diamantes (caverna profunda de roca)
+            GlacialChamber,     // Tormenta de Hielo (acústica helada con reflejos brillantes)
+            TwilightGarden,     // Mariposas (jardín abierto crepuscular y elevación)
+            Sanctuary,          // Zen (santuario envolvente de meditación)
+            EnergyConduit,      // Relámpago (conducto elemental de alta energía)
+            VictorianSalon      // Poker (salón íntimo de paño y madera noble)
+        }
+
+        public struct EnvironmentAcoustics
+        {
+            public float ReverbMix;         // dB (-96..0)
+            public float ReverbTime;        // ms (decaimiento)
+            public float HighFreqRTRatio;   // ratio de agudos en la reverb (0.1..0.99)
+            public float LowPassCutoff;     // corte de agudos por absorción de sala (Hz)
+            public float StereoWidth;       // anchura estéreo del espacio (0.8..1.5)
+            public float PresenceGain;      // dB de realce tímbrico (-6..+6)
+            public float PresenceFreq;      // Hz de frecuencia central de presencia
+        }
+
+        public static EnvironmentAcoustics GetEnvironmentAcoustics(AudioEnvironment env)
+        {
+            switch (env)
+            {
+                case AudioEnvironment.UndergroundCavern:
+                    return new EnvironmentAcoustics
+                    {
+                        ReverbMix = -14.0f,
+                        ReverbTime = 1800.0f,
+                        HighFreqRTRatio = 0.35f,
+                        LowPassCutoff = 6500.0f,
+                        StereoWidth = 1.15f,
+                        PresenceGain = 3.0f,
+                        PresenceFreq = 250.0f
+                    };
+                case AudioEnvironment.GlacialChamber:
+                    return new EnvironmentAcoustics
+                    {
+                        ReverbMix = -16.0f,
+                        ReverbTime = 800.0f,
+                        HighFreqRTRatio = 0.90f,
+                        LowPassCutoff = 20000.0f,
+                        StereoWidth = 1.25f,
+                        PresenceGain = 2.5f,
+                        PresenceFreq = 7500.0f
+                    };
+                case AudioEnvironment.TwilightGarden:
+                    return new EnvironmentAcoustics
+                    {
+                        ReverbMix = -26.0f,
+                        ReverbTime = 600.0f,
+                        HighFreqRTRatio = 0.60f,
+                        LowPassCutoff = 20000.0f,
+                        StereoWidth = 1.35f,
+                        PresenceGain = 1.0f,
+                        PresenceFreq = 4000.0f
+                    };
+                case AudioEnvironment.Sanctuary:
+                    return new EnvironmentAcoustics
+                    {
+                        ReverbMix = -16.0f,
+                        ReverbTime = 1500.0f,
+                        HighFreqRTRatio = 0.50f,
+                        LowPassCutoff = 18000.0f,
+                        StereoWidth = 1.20f,
+                        PresenceGain = 1.0f,
+                        PresenceFreq = 1000.0f
+                    };
+                case AudioEnvironment.EnergyConduit:
+                    return new EnvironmentAcoustics
+                    {
+                        ReverbMix = -20.0f,
+                        ReverbTime = 700.0f,
+                        HighFreqRTRatio = 0.80f,
+                        LowPassCutoff = 20000.0f,
+                        StereoWidth = 1.20f,
+                        PresenceGain = 3.5f,
+                        PresenceFreq = 3500.0f
+                    };
+                case AudioEnvironment.VictorianSalon:
+                    return new EnvironmentAcoustics
+                    {
+                        ReverbMix = -28.0f,
+                        ReverbTime = 400.0f,
+                        HighFreqRTRatio = 0.40f,
+                        LowPassCutoff = 16000.0f,
+                        StereoWidth = 1.00f,
+                        PresenceGain = 0.5f,
+                        PresenceFreq = 2000.0f
+                    };
+                case AudioEnvironment.CrystalTemple:
+                default:
+                    return new EnvironmentAcoustics
+                    {
+                        ReverbMix = -18.0f,
+                        ReverbTime = 1200.0f,
+                        HighFreqRTRatio = 0.70f,
+                        LowPassCutoff = 20000.0f,
+                        StereoWidth = 1.00f,
+                        PresenceGain = 1.5f,
+                        PresenceFreq = 5500.0f
+                    };
+            }
+        }
+
+        // Elevación por fila: filas superiores (0-2) tienen más brillo de "caída desde el techo",
+        // filas inferiores (6-7) tienen más cuerpo sobre el pedestal de piedra.
+        public static float ElevationTrebleBoost(int row)
+        {
+            if (row < 0 || row >= BoardRows) return 0.0f;
+            if (row <= 2) return (3 - row) * 1.0f; // +1..+3 dB en filas altas
+            return 0.0f;
+        }
     }
 }

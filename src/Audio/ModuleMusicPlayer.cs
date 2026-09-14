@@ -130,6 +130,7 @@ namespace Bejeweled3Accessible.Audio
         public int ReadInterleaved(IntPtr dest, int maxFrames, out bool replayed)
         {
             replayed = false;
+            if (dest == IntPtr.Zero || maxFrames <= 0) return 0;
             lock (_lock)
             {
                 if (_disposed || _mod == IntPtr.Zero) return 0;
@@ -149,13 +150,14 @@ namespace Bejeweled3Accessible.Audio
                 }
                 _ended = false;
 
-                for (int i = 0; i < got; i++)
+                int framesToWrite = Math.Min((int)got, MaxFrames);
+                for (int i = 0; i < framesToWrite; i++)
                 {
                     _interleaved[i * 2] = _left[i];
                     _interleaved[i * 2 + 1] = _right[i];
                 }
-                System.Runtime.InteropServices.Marshal.Copy(_interleaved, 0, dest, (int)got * 2);
-                return (int)got;
+                System.Runtime.InteropServices.Marshal.Copy(_interleaved, 0, dest, framesToWrite * 2);
+                return framesToWrite;
             }
         }
 
