@@ -623,6 +623,8 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         {
             if (_board == null || cellX < 0 || cellX >= Board.Cols || cellY < 0 || cellY >= Board.Rows) return;
 
+            int virtualId = GameAccessibilityNodeProvider.VIRTUAL_BOARD_BASE + (cellX * Board.Rows + cellY);
+
             // Re-selección: Si se toca la misma casilla seleccionada, cancela la selección
             if (_selectedX == cellX && _selectedY == cellY)
             {
@@ -630,7 +632,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 _selectedY = -1;
                 _sound?.PlaySound(AudioMap.ButtonPress);
                 _talkBack?.Speak("Selección cancelada.", true);
+                _nodeProvider?.SetFocusedVirtualView(virtualId);
                 Invalidate();
+                _talkBack?.NotifyVirtualViewFocused(virtualId);
                 return;
             }
 
@@ -657,7 +661,9 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
             _sound?.PlaySoundSpatial(AudioMap.Select, cellX, cellY);
             _talkBack?.Speak(string.Format("Gema {0} en {1}{2} seleccionada. Elige celda de destino.", gemColor, colLetter, rowNum), true);
+            _nodeProvider?.SetFocusedVirtualView(virtualId);
             Invalidate();
+            _talkBack?.NotifyVirtualViewFocused(virtualId);
         }
 
         public override void OnInitializeAccessibilityNodeInfo(AccessibilityNodeInfo info)
@@ -1825,6 +1831,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
             if (modeKey == "ModeLightning")
             {
+                _sound?.SetEnvironment(AudioEnvironment.EnergyConduit);
                 _lightningTimeLeft = 60;
                 _lightningMultiplier = 1;
                 _lightningTankSeconds = 0;
@@ -1835,20 +1842,24 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
             else if (modeKey == "ModePoker")
             {
+                _sound?.SetEnvironment(AudioEnvironment.VictorianSalon);
                 _sound?.PlayMusic(MusicMap.FileName(MusicMap.Poker));
             }
             else if (modeKey == "ModeButterflies")
             {
+                _sound?.SetEnvironment(AudioEnvironment.TwilightGarden);
                 _board.InitializeButterfliesBoard();
                 _sound?.PlayMusic(MusicMap.FileName(MusicMap.Butterflies));
             }
             else if (modeKey == "ModeDiamondMine")
             {
+                _sound?.SetEnvironment(AudioEnvironment.UndergroundCavern);
                 _board.InitializeDiamondMineBoard();
                 _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestBuriedTreasure));
             }
             else if (modeKey == "ModeIceStorm")
             {
+                _sound?.SetEnvironment(AudioEnvironment.GlacialChamber);
                 _sound?.PlayMusic(MusicMap.FileName(MusicMap.IceStorm));
                 StartGameTimer();
             }
@@ -1894,42 +1905,51 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     switch (_activeQuest.Type)
                     {
                         case QuestType.Butterflies:
+                            _sound?.SetEnvironment(AudioEnvironment.TwilightGarden);
                             _board.InitializeButterfliesBoard();
                             _sound?.PlayMusic(MusicMap.FileName(MusicMap.Butterflies));
                             break;
                         case QuestType.DiamondMine:
                         case QuestType.GoldRush:
+                            _sound?.SetEnvironment(AudioEnvironment.UndergroundCavern);
                             _board.InitializeDiamondMineBoard();
                             _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestBuriedTreasure));
                             break;
                         case QuestType.TimeBomb:
+                            _sound?.SetEnvironment(AudioEnvironment.EnergyConduit);
                             _board.InitializeBoard(true);
                             _sound?.PlaySound(AudioMap.BombAppears);
                             _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestTimeBombs));
                             StartGameTimer();
                             break;
                         case QuestType.IceStorm:
+                            _sound?.SetEnvironment(AudioEnvironment.GlacialChamber);
                             _sound?.PlayMusic(MusicMap.FileName(MusicMap.IceStorm));
                             StartGameTimer();
                             break;
                         case QuestType.Poker:
+                            _sound?.SetEnvironment(AudioEnvironment.VictorianSalon);
                             _sound?.PlayMusic(MusicMap.FileName(MusicMap.Poker));
                             break;
                         case QuestType.Avalanche:
+                            _sound?.SetEnvironment(AudioEnvironment.EnergyConduit);
                             _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestTurnByTurn));
                             break;
                         default:
+                            _sound?.SetEnvironment(AudioEnvironment.CrystalTemple);
                             _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestTakeYourTime));
                             break;
                     }
                 }
                 else
                 {
+                    _sound?.SetEnvironment(AudioEnvironment.CrystalTemple);
                     _sound?.PlayMusic(MusicMap.FileName(MusicMap.QuestTheme));
                 }
             }
             else if (modeKey == "ModeZen")
             {
+                _sound?.SetEnvironment(AudioEnvironment.Sanctuary);
                 _sound?.PlayMusic(MusicMap.FileName(MusicMap.ZenPart1));
                 if (_options.ZenAmbient != (int)AmbientType.None)
                 {
@@ -1939,6 +1959,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             }
             else
             {
+                _sound?.SetEnvironment(AudioEnvironment.CrystalTemple);
                 _sound?.PlayMusic(MusicMap.FileName(MusicMap.ClassicPart1));
             }
 
@@ -2062,6 +2083,12 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                         {
                             _cursorX = x;
                             _cursorY = y;
+
+                            if (explore)
+                            {
+                                SelectOrSwapCell(x, y);
+                                return true;
+                            }
 
                             if (_selectedX >= 0 && _selectedY >= 0)
                             {
@@ -2699,6 +2726,16 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
         private void AnnounceCell(int x, int y)
         {
+            if (_board == null || x < 0 || x >= Board.Cols || y < 0 || y >= Board.Rows) return;
+
+            // Si la exploración táctil de TalkBack está activa, la lectura se gestiona
+            // automáticamente por el foco de accesibilidad (ViewAccessibilityFocused)
+            // para permitir interrupción inmediata al mover el dedo y evitar encolamiento.
+            if (_talkBack != null && _talkBack.IsTouchExplorationEnabled)
+            {
+                return;
+            }
+
             Gem g = _board.GetGem(x, y);
             string col = ((char)('A' + x)).ToString();
             int row = y + 1;
@@ -2801,6 +2838,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             node.PackageName = _view.Context.PackageName;
             node.ClassName = "android.widget.Button";
             node.SetSource(_view, virtualViewId);
+            node.SetParent(_view);
             node.VisibleToUser = true;
             node.Enabled = true;
             node.Focusable = true;

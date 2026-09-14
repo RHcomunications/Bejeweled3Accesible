@@ -199,6 +199,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             string profName = _profileMgr.CurrentProfile != null ? _profileMgr.CurrentProfile.ProfileName : "";
             var scroll = CreateBaseLayout(Localization.Get("AppTitle"), out var container);
 
+            _sound?.SetEnvironment(AudioEnvironment.CrystalTemple);
             _sound?.PlayMusic(MusicMap.MainTheme);
             // "Welcome back" solo al INICIAR el juego (arranque), igual que Windows
             // (TransitionToMainMenu(true) en MusicRechained). Nunca al volver al menu.

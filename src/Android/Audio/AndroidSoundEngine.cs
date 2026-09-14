@@ -37,6 +37,12 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         public int VoiceVol { get; set; } = 100;
         public Engine.Language VoiceLanguage { get; set; } = Engine.Language.Spanish;
         public bool BinauralEnabled { get; set; } = true;
+        public AudioEnvironment CurrentEnvironment { get; private set; } = AudioEnvironment.CrystalTemple;
+
+        public void SetEnvironment(AudioEnvironment env)
+        {
+            CurrentEnvironment = env;
+        }
 
         public void UpdateMusicVolume()
         {
@@ -242,7 +248,8 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
             if (string.IsNullOrWhiteSpace(key)) return;
             float pan = BinauralEnabled ? SpatialAudio.PanColumn(col) : 0f;
             float depth = BinauralEnabled ? SpatialAudio.DepthForRow(row) : 0f;
-            PlaySoundSpatialPan(pan, depth, key, baseVol);
+            float elevationRate = (BinauralEnabled && row >= 0) ? SpatialAudio.ElevationTrebleBoost(row) : 1.0f;
+            PlaySoundSpatialPan(pan, depth, key, baseVol, elevationRate);
         }
 
         public void PlaySoundSpatialPan(float pan, float depth, string key, float baseVol = 1.0f, float rate = 1.0f)
@@ -286,7 +293,8 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         {
             float pan = BinauralEnabled ? SpatialAudio.PanColumn(col) : 0f;
             float depth = BinauralEnabled ? SpatialAudio.DepthForRow(row) : 0f;
-            PlaySoundSpatialPan(pan, depth, key, 1.0f, pitch);
+            float elevationRate = (BinauralEnabled && row >= 0) ? SpatialAudio.ElevationTrebleBoost(row) : 1.0f;
+            PlaySoundSpatialPan(pan, depth, key, 1.0f, pitch * elevationRate);
         }
 
         private static float ClampRate(float r)
