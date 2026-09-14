@@ -2,6 +2,29 @@ using System;
 
 namespace Bejeweled3Accessible.Audio
 {
+    // --- Entornos Acústicos Temáticos de Bejeweled 3 ---
+    public enum AudioEnvironment
+    {
+        CrystalTemple,      // Clásico, Menús, Relicarios (cámara de mármol y cristal)
+        UndergroundCavern,  // Mina de Diamantes (caverna profunda de roca)
+        GlacialChamber,     // Tormenta de Hielo (acústica helada con reflejos brillantes)
+        TwilightGarden,     // Mariposas (jardín abierto crepuscular y elevación)
+        Sanctuary,          // Zen (santuario envolvente de meditación)
+        EnergyConduit,      // Relámpago (conducto elemental de alta energía)
+        VictorianSalon      // Poker (salón íntimo de paño y madera noble)
+    }
+
+    public struct EnvironmentAcoustics
+    {
+        public float ReverbMix;         // dB (-96..0)
+        public float ReverbTime;        // ms (decaimiento)
+        public float HighFreqRTRatio;   // ratio de agudos en la reverb (0.1..0.99)
+        public float LowPassCutoff;     // corte de agudos por absorción de sala (Hz)
+        public float StereoWidth;       // anchura estéreo del espacio (0.8..1.5)
+        public float PresenceGain;      // dB de realce tímbrico (-6..+6)
+        public float PresenceFreq;      // Hz de frecuencia central de presencia
+    }
+
     // Modelo de audio espacial unico y generado para este juego: cada efecto
     // del tablero se coloca con dos parametros derivados de su celda:
     //   - Pan (L/R): la columna (A..H) se reparte de izquierda a derecha.
@@ -86,29 +109,6 @@ namespace Bejeweled3Accessible.Audio
             if (depthFar <= 0.0f) return 1.0f;
             if (depthFar >= 1.0f) return 1.3f;
             return 1.0f + 0.3f * depthFar;
-        }
-
-        // --- Entornos Acústicos Temáticos de Bejeweled 3 ---
-        public enum AudioEnvironment
-        {
-            CrystalTemple,      // Clásico, Menús, Relicarios (cámara de mármol y cristal)
-            UndergroundCavern,  // Mina de Diamantes (caverna profunda de roca)
-            GlacialChamber,     // Tormenta de Hielo (acústica helada con reflejos brillantes)
-            TwilightGarden,     // Mariposas (jardín abierto crepuscular y elevación)
-            Sanctuary,          // Zen (santuario envolvente de meditación)
-            EnergyConduit,      // Relámpago (conducto elemental de alta energía)
-            VictorianSalon      // Poker (salón íntimo de paño y madera noble)
-        }
-
-        public struct EnvironmentAcoustics
-        {
-            public float ReverbMix;         // dB (-96..0)
-            public float ReverbTime;        // ms (decaimiento)
-            public float HighFreqRTRatio;   // ratio de agudos en la reverb (0.1..0.99)
-            public float LowPassCutoff;     // corte de agudos por absorción de sala (Hz)
-            public float StereoWidth;       // anchura estéreo del espacio (0.8..1.5)
-            public float PresenceGain;      // dB de realce tímbrico (-6..+6)
-            public float PresenceFreq;      // Hz de frecuencia central de presencia
         }
 
         public static EnvironmentAcoustics GetEnvironmentAcoustics(AudioEnvironment env)

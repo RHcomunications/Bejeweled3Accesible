@@ -161,9 +161,9 @@ namespace Bejeweled3Accessible.Audio
         public bool BinauralEnabled { get; set; }
 
         // Entorno acústico temático actual del juego (Templos, Cavernas, Glaciares, etc.)
-        public SpatialAudio.AudioEnvironment CurrentEnvironment { get; private set; }
+        public AudioEnvironment CurrentEnvironment { get; private set; }
 
-        public void SetEnvironment(SpatialAudio.AudioEnvironment env)
+        public void SetEnvironment(AudioEnvironment env)
         {
             CurrentEnvironment = env;
             if (_currentMusicChannel != 0)

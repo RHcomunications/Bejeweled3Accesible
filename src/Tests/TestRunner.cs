@@ -1505,7 +1505,7 @@ namespace Bejeweled3Accessible.Tests
 
             tests.Add(Tuple.Create<string, Action>("Spatial: perfiles acústicos temáticos válidos para todos los entornos", () =>
             {
-                foreach (SpatialAudio.AudioEnvironment env in Enum.GetValues(typeof(SpatialAudio.AudioEnvironment)))
+                foreach (AudioEnvironment env in Enum.GetValues(typeof(AudioEnvironment)))
                 {
                     var ac = SpatialAudio.GetEnvironmentAcoustics(env);
                     Assert.True(ac.ReverbMix >= -96.0f && ac.ReverbMix <= 0.0f, env + " ReverbMix dentro de rango DX8");
@@ -1529,13 +1529,13 @@ namespace Bejeweled3Accessible.Tests
                 string repoRoot = AppDomain.CurrentDomain.BaseDirectory;
                 SoundEngine sound = new SoundEngine(repoRoot);
                 sound.BinauralEnabled = true;
-                Assert.Equal(SpatialAudio.AudioEnvironment.CrystalTemple, sound.CurrentEnvironment, "Default CrystalTemple");
+                Assert.Equal(AudioEnvironment.CrystalTemple, sound.CurrentEnvironment, "Default CrystalTemple");
 
-                sound.SetEnvironment(SpatialAudio.AudioEnvironment.UndergroundCavern);
-                Assert.Equal(SpatialAudio.AudioEnvironment.UndergroundCavern, sound.CurrentEnvironment, "Cambio a UndergroundCavern");
+                sound.SetEnvironment(AudioEnvironment.UndergroundCavern);
+                Assert.Equal(AudioEnvironment.UndergroundCavern, sound.CurrentEnvironment, "Cambio a UndergroundCavern");
 
-                sound.SetEnvironment(SpatialAudio.AudioEnvironment.GlacialChamber);
-                Assert.Equal(SpatialAudio.AudioEnvironment.GlacialChamber, sound.CurrentEnvironment, "Cambio a GlacialChamber");
+                sound.SetEnvironment(AudioEnvironment.GlacialChamber);
+                Assert.Equal(AudioEnvironment.GlacialChamber, sound.CurrentEnvironment, "Cambio a GlacialChamber");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Sound: valores por defecto del motor", () =>
