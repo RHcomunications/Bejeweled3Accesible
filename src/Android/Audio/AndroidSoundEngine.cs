@@ -42,6 +42,10 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         public void SetEnvironment(AudioEnvironment env)
         {
             CurrentEnvironment = env;
+            if (_modulePlayer != null && _modulePlayer.IsValid)
+            {
+                _modulePlayer.SetEnvironment(env);
+            }
         }
 
         public void UpdateMusicVolume()
@@ -246,10 +250,16 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
         public void PlaySoundSpatial(string key, int col, int row, float baseVol = 1.0f)
         {
             if (string.IsNullOrWhiteSpace(key)) return;
-            float pan = BinauralEnabled ? SpatialAudio.PanColumn(col) : 0f;
-            float depth = BinauralEnabled ? SpatialAudio.DepthForRow(row) : 0f;
-            float elevationRate = (BinauralEnabled && row >= 0) ? SpatialAudio.ElevationTrebleBoost(row) : 1.0f;
-            PlaySoundSpatialPan(pan, depth, key, baseVol, elevationRate);
+            if (BinauralEnabled)
+            {
+                var hrtf = SpatialAudio.GetHrtfParameters(col, row, CurrentEnvironment);
+                float elevationRate = (row >= 0) ? (1.0f + 0.02f * hrtf.ElevationBoost) : 1.0f;
+                PlaySoundSpatialPan(hrtf.Pan, hrtf.Depth, key, baseVol, elevationRate);
+            }
+            else
+            {
+                PlaySoundSpatialPan(0f, 0f, key, baseVol, 1.0f);
+            }
         }
 
         public void PlaySoundSpatialPan(float pan, float depth, string key, float baseVol = 1.0f, float rate = 1.0f)
@@ -291,10 +301,16 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
 
         public void PlaySoundSpatialPitch(string key, int col, int row, float pitch)
         {
-            float pan = BinauralEnabled ? SpatialAudio.PanColumn(col) : 0f;
-            float depth = BinauralEnabled ? SpatialAudio.DepthForRow(row) : 0f;
-            float elevationRate = (BinauralEnabled && row >= 0) ? SpatialAudio.ElevationTrebleBoost(row) : 1.0f;
-            PlaySoundSpatialPan(pan, depth, key, 1.0f, pitch * elevationRate);
+            if (BinauralEnabled)
+            {
+                var hrtf = SpatialAudio.GetHrtfParameters(col, row, CurrentEnvironment);
+                float elevationRate = (row >= 0) ? (1.0f + 0.02f * hrtf.ElevationBoost) : 1.0f;
+                PlaySoundSpatialPan(hrtf.Pan, hrtf.Depth, key, 1.0f, pitch * elevationRate);
+            }
+            else
+            {
+                PlaySoundSpatialPan(0f, 0f, key, 1.0f, pitch);
+            }
         }
 
         private static float ClampRate(float r)

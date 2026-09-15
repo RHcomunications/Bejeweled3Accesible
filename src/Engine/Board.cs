@@ -47,6 +47,22 @@ namespace Bejeweled3Accessible.Engine
         public HashSet<GemColor> MatchedColors = new HashSet<GemColor>();
     }
 
+    public struct SpecialGemCreation
+    {
+        public int X;
+        public int Y;
+        public SpecialType Special;
+        public GemColor Color;
+
+        public SpecialGemCreation(int x, int y, SpecialType special, GemColor color)
+        {
+            X = x;
+            Y = y;
+            Special = special;
+            Color = color;
+        }
+    }
+
     public class Board
     {
         public const int Rows = 8;
@@ -58,6 +74,14 @@ namespace Bejeweled3Accessible.Engine
         private GemColor _hyperTargetColor;
         private int _hyperSwapX, _hyperSwapY;
         private bool _annihilatorPending;
+
+        // Buffers reutilizables para eliminar presión sobre el Garbage Collector (GC) en cascadas
+        private readonly bool[,] _toDestroy = new bool[Rows, Cols];
+        private readonly bool[,] _dirtDestroyed = new bool[Rows, Cols];
+        private readonly List<SpecialGemCreation> _newSpecials = new List<SpecialGemCreation>(16);
+        private readonly HashSet<int> _elbowCells = new HashSet<int>();
+        private static readonly int[] NeighborDx = { 0, 0, -1, 1 };
+        private static readonly int[] NeighborDy = { -1, 1, 0, 0 };
 
         public Board(int seed)
         {
@@ -284,8 +308,11 @@ namespace Bejeweled3Accessible.Engine
 
             while (true)
             {
-                bool[,] toDestroy = new bool[Rows, Cols];
-                List<Tuple<int, int, SpecialType, GemColor>> newSpecials = new List<Tuple<int, int, SpecialType, GemColor>>();
+                Array.Clear(_toDestroy, 0, _toDestroy.Length);
+                Array.Clear(_dirtDestroyed, 0, _dirtDestroyed.Length);
+                _newSpecials.Clear();
+                _elbowCells.Clear();
+
                 bool foundMatchThisPass = false;
                 int matchesBeforeThisPass = res.MatchesMade;
                 int flamesBefore = res.FlameCreated;
@@ -322,7 +349,7 @@ namespace Bejeweled3Accessible.Engine
                                 foundMatchThisPass = true;
                                 res.MatchesMade++;
                                 int startX = x - runLen + 1;
-                                for (int i = startX; i <= x; i++) toDestroy[y, i] = true;
+                                for (int i = startX; i <= x; i++) _toDestroy[y, i] = true;
 
                                 // Special Gem Creations (official Bejeweled 3 rules)
                                 // 4 in a row = Flame, 5 in a row = Hypercube,
@@ -331,17 +358,17 @@ namespace Bejeweled3Accessible.Engine
                                 GemColor c = _grid[y, startX].Color;
                                 if (runLen == 4)
                                 {
-                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(startX + 1, y, SpecialType.Flame, c));
+                                    _newSpecials.Add(new SpecialGemCreation(startX + 1, y, SpecialType.Flame, c));
                                     res.FlameCreated++;
                                 }
                                 else if (runLen == 5)
                                 {
-                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(startX + 2, y, SpecialType.Hypercube, c));
+                                    _newSpecials.Add(new SpecialGemCreation(startX + 2, y, SpecialType.Hypercube, c));
                                     res.HypercubeCreated++;
                                 }
                                 else if (runLen >= 6)
                                 {
-                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(startX + 2, y, SpecialType.Supernova, c));
+                                    _newSpecials.Add(new SpecialGemCreation(startX + 2, y, SpecialType.Supernova, c));
                                     res.SupernovaCreated++;
                                 }
                             }
@@ -372,7 +399,7 @@ namespace Bejeweled3Accessible.Engine
                                 foundMatchThisPass = true;
                                 res.MatchesMade++;
                                 int startY = y - runLen + 1;
-                                for (int j = startY; j <= y; j++) toDestroy[j, x] = true;
+                                for (int j = startY; j <= y; j++) _toDestroy[j, x] = true;
 
                                 // Ice Storm: a vertical match conceals an ice column
                                 // (authentic rule: verticals shatter the ice front).
@@ -381,17 +408,17 @@ namespace Bejeweled3Accessible.Engine
                                 GemColor c = _grid[startY, x].Color;
                                 if (runLen == 4)
                                 {
-                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(x, startY + 1, SpecialType.Flame, c));
+                                    _newSpecials.Add(new SpecialGemCreation(x, startY + 1, SpecialType.Flame, c));
                                     res.FlameCreated++;
                                 }
                                 else if (runLen == 5)
                                 {
-                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(x, startY + 2, SpecialType.Hypercube, c));
+                                    _newSpecials.Add(new SpecialGemCreation(x, startY + 2, SpecialType.Hypercube, c));
                                     res.HypercubeCreated++;
                                 }
                                 else if (runLen >= 6)
                                 {
-                                    newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(x, startY + 2, SpecialType.Supernova, c));
+                                    _newSpecials.Add(new SpecialGemCreation(x, startY + 2, SpecialType.Supernova, c));
                                     res.SupernovaCreated++;
                                 }
                             }
@@ -402,18 +429,17 @@ namespace Bejeweled3Accessible.Engine
 
                 // Detect T / L shapes and create Star gems at the "elbow" cell
                 // (official rule: a double match is worth 50 per match + 50 bonus).
-                HashSet<int> elbowCells = new HashSet<int>();
                 for (int y = 0; y < Rows; y++)
                 {
                     for (int x = 0; x < Cols; x++)
                     {
-                        if (!toDestroy[y, x] || _grid[y, x] == null) continue;
+                        if (!_toDestroy[y, x] || _grid[y, x] == null) continue;
                         GemColor c = _grid[y, x].Color;
 
-                        bool hasH = (x - 1 >= 0 && toDestroy[y, x - 1] && _grid[y, x - 1] != null && _grid[y, x - 1].Color == c)
-                                 || (x + 1 < Cols && toDestroy[y, x + 1] && _grid[y, x + 1] != null && _grid[y, x + 1].Color == c);
-                        bool hasV = (y - 1 >= 0 && toDestroy[y - 1, x] && _grid[y - 1, x] != null && _grid[y - 1, x].Color == c)
-                                 || (y + 1 < Rows && toDestroy[y + 1, x] && _grid[y + 1, x] != null && _grid[y + 1, x].Color == c);
+                        bool hasH = (x - 1 >= 0 && _toDestroy[y, x - 1] && _grid[y, x - 1] != null && _grid[y, x - 1].Color == c)
+                                 || (x + 1 < Cols && _toDestroy[y, x + 1] && _grid[y, x + 1] != null && _grid[y, x + 1].Color == c);
+                        bool hasV = (y - 1 >= 0 && _toDestroy[y - 1, x] && _grid[y - 1, x] != null && _grid[y - 1, x].Color == c)
+                                 || (y + 1 < Rows && _toDestroy[y + 1, x] && _grid[y + 1, x] != null && _grid[y + 1, x].Color == c);
                         if (!hasH || !hasV) continue;
 
                         bool alreadyNear = false;
@@ -424,7 +450,7 @@ namespace Bejeweled3Accessible.Engine
                                 int ay = y + dy;
                                 int ax = x + dx;
                                 if (ay < 0 || ay >= Rows || ax < 0 || ax >= Cols) continue;
-                                if (elbowCells.Contains(ay * Cols + ax))
+                                if (_elbowCells.Contains(ay * Cols + ax))
                                 {
                                     alreadyNear = true;
                                     break;
@@ -433,8 +459,8 @@ namespace Bejeweled3Accessible.Engine
                         }
                         if (alreadyNear) continue;
 
-                        elbowCells.Add(y * Cols + x);
-                        newSpecials.Add(new Tuple<int, int, SpecialType, GemColor>(x, y, SpecialType.Star, c));
+                        _elbowCells.Add(y * Cols + x);
+                        _newSpecials.Add(new SpecialGemCreation(x, y, SpecialType.Star, c));
                         res.StarCreated++;
                         res.DoubleMatchBonus++;
                     }
@@ -455,7 +481,7 @@ namespace Bejeweled3Accessible.Engine
                 {
                     for (int x = 0; x < Cols; x++)
                     {
-                        if (toDestroy[y, x] && _grid[y, x] != null)
+                        if (_toDestroy[y, x] && _grid[y, x] != null)
                         {
                             // El conteo de gemas destruidas se hace en el bucle de
                             // limpieza (mira cada celda borrada una sola vez), asi no
@@ -470,8 +496,8 @@ namespace Bejeweled3Accessible.Engine
                                     for (int dx = -1; dx <= 1; dx++)
                                         if (y + dy >= 0 && y + dy < Rows && x + dx >= 0 && x + dx < Cols)
                                         {
-                                            if (_grid[y + dy, x + dx] != null && !toDestroy[y + dy, x + dx]) res.FlameBlastGems++;
-                                            toDestroy[y + dy, x + dx] = true;
+                                            if (_grid[y + dy, x + dx] != null && !_toDestroy[y + dy, x + dx]) res.FlameBlastGems++;
+                                            _toDestroy[y + dy, x + dx] = true;
                                         }
                             }
                             // Star blast full row & column (official: 50 per gem in the cross)
@@ -481,13 +507,13 @@ namespace Bejeweled3Accessible.Engine
                                 res.StarBlastGems++;
                                 for (int r = 0; r < Rows; r++)
                                 {
-                                    if (r != y && _grid[r, x] != null && !toDestroy[r, x]) res.StarBlastGems++;
-                                    toDestroy[r, x] = true;
+                                    if (r != y && _grid[r, x] != null && !_toDestroy[r, x]) res.StarBlastGems++;
+                                    _toDestroy[r, x] = true;
                                 }
                                 for (int c = 0; c < Cols; c++)
                                 {
-                                    if (_grid[y, c] != null && !toDestroy[y, c]) res.StarBlastGems++;
-                                    toDestroy[y, c] = true;
+                                    if (_grid[y, c] != null && !_toDestroy[y, c]) res.StarBlastGems++;
+                                    _toDestroy[y, c] = true;
                                 }
                             }
                             // Supernova blast 3 rows & 3 cols (official: 50 per gem)
@@ -499,27 +525,26 @@ namespace Bejeweled3Accessible.Engine
                                     if (y + dy >= 0 && y + dy < Rows)
                                         for (int c = 0; c < Cols; c++)
                                         {
-                                            if (!(y + dy == y && c == x) && _grid[y + dy, c] != null && !toDestroy[y + dy, c]) res.SupernovaBlastGems++;
-                                            toDestroy[y + dy, c] = true;
+                                            if (!(y + dy == y && c == x) && _grid[y + dy, c] != null && !_toDestroy[y + dy, c]) res.SupernovaBlastGems++;
+                                            _toDestroy[y + dy, c] = true;
                                         }
                                 for (int dx = -1; dx <= 1; dx++)
                                     if (x + dx >= 0 && x + dx < Cols)
                                         for (int r = 0; r < Rows; r++)
                                         {
-                                            if (!(r == y && x + dx == x) && _grid[r, x + dx] != null && !toDestroy[r, x + dx]) res.SupernovaBlastGems++;
-                                            toDestroy[r, x + dx] = true;
+                                            if (!(r == y && x + dx == x) && _grid[r, x + dx] != null && !_toDestroy[r, x + dx]) res.SupernovaBlastGems++;
+                                            _toDestroy[r, x + dx] = true;
                                         }
                             }
                         }
                     }
                 }
                 // Clear destroyed gems & clear adjacent Dirt/HardRock in Diamond Mine
-                bool[,] dirtDestroyed = new bool[Rows, Cols];
                 for (int y = 0; y < Rows; y++)
                 {
                     for (int x = 0; x < Cols; x++)
                     {
-                        if (toDestroy[y, x] && _grid[y, x] != null && _grid[y, x].Special != SpecialType.Dirt && _grid[y, x].Special != SpecialType.HardRock && _grid[y, x].Special != SpecialType.GoldNugget)
+                        if (_toDestroy[y, x] && _grid[y, x] != null && _grid[y, x].Special != SpecialType.Dirt && _grid[y, x].Special != SpecialType.HardRock && _grid[y, x].Special != SpecialType.GoldNugget)
                         {
                             // Conteo unico por gema borrada (corrige la subcuenta de
                             // las victimas de blast "upstream" que el bucle de
@@ -542,12 +567,10 @@ namespace Bejeweled3Accessible.Engine
                             // Alchemy: destroyed gems turn their neighbours to gold
                             if (isAlchemy)
                             {
-                                int[] adx = { 0, 0, -1, 1 };
-                                int[] ady = { -1, 1, 0, 0 };
                                 for (int d = 0; d < 4; d++)
                                 {
-                                    int ny = y + ady[d];
-                                    int nx = x + adx[d];
+                                    int ny = y + NeighborDy[d];
+                                    int nx = x + NeighborDx[d];
                                     if (ny >= 0 && ny < Rows && nx >= 0 && nx < Cols && _grid[ny, nx] != null
                                         && _grid[ny, nx].Special == SpecialType.None && !_grid[ny, nx].IsButterfly)
                                     {
@@ -558,22 +581,20 @@ namespace Bejeweled3Accessible.Engine
                             }
 
                             // Damage adjacent dirt/rock
-                            int[] dx = { 0, 0, -1, 1 };
-                            int[] dy = { -1, 1, 0, 0 };
                             for (int d = 0; d < 4; d++)
                             {
-                                int ny = y + dy[d];
-                                int nx = x + dx[d];
+                                int ny = y + NeighborDy[d];
+                                int nx = x + NeighborDx[d];
                                 if (ny >= 0 && ny < Rows && nx >= 0 && nx < Cols && _grid[ny, nx] != null)
                                 {
                                     if (_grid[ny, nx].Special == SpecialType.Dirt)
                                     {
-                                        dirtDestroyed[ny, nx] = true;
+                                        _dirtDestroyed[ny, nx] = true;
                                         res.DirtCleared++;
                                     }
                                     else if (_grid[ny, nx].Special == SpecialType.GoldNugget)
                                     {
-                                        dirtDestroyed[ny, nx] = true;
+                                        _dirtDestroyed[ny, nx] = true;
                                         res.NuggetsMined++;
                                     }
                                     else if (_grid[ny, nx].Special == SpecialType.HardRock)
@@ -581,7 +602,7 @@ namespace Bejeweled3Accessible.Engine
                                         _grid[ny, nx].RockDurability--;
                                         if (_grid[ny, nx].RockDurability <= 0)
                                         {
-                                            dirtDestroyed[ny, nx] = true;
+                                            _dirtDestroyed[ny, nx] = true;
                                             res.RockCleared++;
                                         }
                                     }
@@ -595,7 +616,7 @@ namespace Bejeweled3Accessible.Engine
                 {
                     for (int x = 0; x < Cols; x++)
                     {
-                        if (dirtDestroyed[y, x]) _grid[y, x] = null;
+                        if (_dirtDestroyed[y, x]) _grid[y, x] = null;
                     }
                 }
 
@@ -625,9 +646,9 @@ namespace Bejeweled3Accessible.Engine
                 res.StepHypercubeCreationPoints.Add(500 * stepHypercubeCreated);
 
                 // Place newly formed special gems
-                foreach (var sp in newSpecials)
+                foreach (var sp in _newSpecials)
                 {
-                    _grid[sp.Item2, sp.Item1] = new Gem(sp.Item4, sp.Item3);
+                    _grid[sp.Y, sp.X] = new Gem(sp.Color, sp.Special);
                 }
 
                 // Apply Gravity & Drop New Gems

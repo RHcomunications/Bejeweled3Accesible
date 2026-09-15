@@ -141,7 +141,7 @@ namespace Bejeweled3Accessible.Audio
 
         private void AttachMusicSpatializer(int musicHandle)
         {
-            return;
+            ApplyMusicAtmosphere(musicHandle);
         }
 
         [StructLayout(LayoutKind.Sequential)]
@@ -1006,7 +1006,8 @@ namespace Bejeweled3Accessible.Audio
                     try { source.Dispose(); } catch { }
                     return;
                 }
-                BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, (float)SfxVol / 100.0f);
+                float depthVol = BinauralEnabled ? SpatialAudio.VolumeForDepth(depth) : 1.0f;
+                BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, ((float)SfxVol / 100.0f) * depthVol);
                 if (Math.Abs(pitchMultiplier - 1.0f) > 0.01f)
                 {
                     float currentFreq = 44100.0f;
@@ -1134,7 +1135,8 @@ namespace Bejeweled3Accessible.Audio
                     return;
                 }
 
-                BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, (float)SfxVol / 100.0f);
+                float depthVol = BinauralEnabled ? SpatialAudio.VolumeForDepth(depth) : 1.0f;
+                BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, ((float)SfxVol / 100.0f) * depthVol);
                 if (Math.Abs(pitchMultiplier - 1.0f) > 0.01f && !fxSemitones.HasValue)
                 {
                     float currentFreq = 44100.0f;
@@ -1704,6 +1706,7 @@ namespace Bejeweled3Accessible.Audio
                     {
                         try { BASS_ChannelStop(s.Handle); } catch { }
                         try { BASS_StreamFree(s.Handle); } catch { }
+                        s.Handle = 0;
                     }
                     if (s != null && s.Pinned.IsAllocated) try { s.Pinned.Free(); } catch { }
                     return;
@@ -1720,6 +1723,7 @@ namespace Bejeweled3Accessible.Audio
                     if (s.Timer != null) { try { s.Timer.Dispose(); } catch { } s.Timer = null; }
                     try { BASS_ChannelStop(s.Handle); } catch { }
                     try { BASS_StreamFree(s.Handle); } catch { }
+                    s.Handle = 0;
                     if (s.Pinned.IsAllocated) try { s.Pinned.Free(); } catch { }
                     return;
                 }
@@ -2225,7 +2229,7 @@ namespace Bejeweled3Accessible.Audio
             }
             _inChans = (info.chans == 1) ? 1 : 2;
 
-            // Audio espacial temático: paneo estéreo adaptativo y presencia/elevación por ambiente
+            // Audio espacial temático: paneo estéreo adaptativo, absorción de aire por distancia y presencia/elevación
             _selfPin = default(GCHandle);
             if (_binaural)
             {
@@ -2236,6 +2240,28 @@ namespace Bejeweled3Accessible.Audio
                     try { BASS_ChannelSetAttribute(OutputHandle, BASS_ATTRIB_PAN, finalPan); } catch { }
                 }
 
+                // Absorción de altas frecuencias por aire en función de la profundidad (filas lejanas)
+                float airCutoff = SpatialAudio.AirCutoffForDepth(depth);
+                if (airCutoff < 19000f)
+                {
+                    try
+                    {
+                        int airFx = SoundEngine.BASS_ChannelSetFX(OutputHandle, SoundEngine.BASS_FX_DX8_PARAMEQ, 1);
+                        if (airFx != 0)
+                        {
+                            SoundEngine.BassDx8Parameq airEq = new SoundEngine.BassDx8Parameq
+                            {
+                                fCenter = airCutoff,
+                                fBandwidth = 2.0f,
+                                fGain = -1.0f - 4.0f * depth
+                            };
+                            SoundEngine.SetFxParams(airFx, airEq);
+                        }
+                    }
+                    catch { }
+                }
+
+                // Realce tímbrico por sala y elevación por fila de caída
                 float elevationBoost = SpatialAudio.ElevationTrebleBoost(row);
                 float presence = acoustics.PresenceGain + elevationBoost;
                 if (Math.Abs(presence) > 0.1f)

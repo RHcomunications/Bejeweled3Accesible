@@ -204,5 +204,38 @@ namespace Bejeweled3Accessible.Audio
             if (row <= 2) return (3 - row) * 1.0f; // +1..+3 dB en filas altas
             return 0.0f;
         }
+
+        public struct HrtfParameters
+        {
+            public float Pan;             // -0.85 .. +0.85
+            public float Depth;           // 0.0 (frente) .. 1.0 (fondo)
+            public float Volume;          // 1.0 .. 0.65
+            public float AirCutoff;       // 20000 Hz .. 6000 Hz
+            public float StereoWidth;     // Ancho estéreo acústico
+            public float ElevationBoost;  // 0 .. +3 dB
+            public float PresenceGain;    // dB
+            public float PresenceFreq;    // Hz
+        }
+
+        public static HrtfParameters GetHrtfParameters(int col, int row, AudioEnvironment env)
+        {
+            float pan = (col < 0) ? CenterPan : PanColumn(col);
+            float depth = (row < 0) ? 0.0f : DepthForRow(row);
+            var acoustics = GetEnvironmentAcoustics(env);
+            float finalPan = Math.Max(-1.0f, Math.Min(1.0f, pan * acoustics.StereoWidth));
+            float elevation = (row >= 0) ? ElevationTrebleBoost(row) : 0.0f;
+
+            return new HrtfParameters
+            {
+                Pan = finalPan,
+                Depth = depth,
+                Volume = VolumeForDepth(depth),
+                AirCutoff = AirCutoffForDepth(depth),
+                StereoWidth = acoustics.StereoWidth,
+                ElevationBoost = elevation,
+                PresenceGain = acoustics.PresenceGain + elevation,
+                PresenceFreq = acoustics.PresenceFreq
+            };
+        }
     }
 }

@@ -33,6 +33,18 @@ namespace Bejeweled3Accessible.AndroidApp
         protected override void OnCreate(Bundle savedInstanceState)
         {
             base.OnCreate(savedInstanceState);
+
+            // Registro global de excepciones para depuración y robustez en Android
+            Android.Runtime.AndroidEnvironment.UnhandledExceptionRaiser += (s, ev) =>
+            {
+                LogAndroidCrash("AndroidEnvironment", ev.Exception);
+                ev.Handled = true;
+            };
+            AppDomain.CurrentDomain.UnhandledException += (s, ev) =>
+            {
+                LogAndroidCrash("AppDomain", ev.ExceptionObject as Exception);
+            };
+
             EnableFullScreen();
 
             Localization.UseAndroidStrings = true;
@@ -53,6 +65,23 @@ namespace Bejeweled3Accessible.AndroidApp
             });
 
             _menuManager.ShowLoadingScreen();
+        }
+
+        private void LogAndroidCrash(string source, Exception ex)
+        {
+            try
+            {
+                string msg = string.Format("[{0:yyyy-MM-dd HH:mm:ss}] [{1}] {2}\r\n",
+                    DateTime.UtcNow, source, ex != null ? ex.ToString() : "(null)");
+                string dataDir = FilesDir?.AbsolutePath;
+                if (!string.IsNullOrEmpty(dataDir))
+                {
+                    string path = System.IO.Path.Combine(dataDir, "crash_android.log");
+                    System.IO.File.AppendAllText(path, msg);
+                }
+                Android.Util.Log.Error("BejeweledCrash", msg);
+            }
+            catch { }
         }
 
         public void StartGameBoard(string modeKey)

@@ -220,6 +220,13 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
             get { return _playing; }
         }
 
+        private AudioEnvironment _currentEnv = AudioEnvironment.CrystalTemple;
+
+        public void SetEnvironment(AudioEnvironment env)
+        {
+            _currentEnv = env;
+        }
+
         private void PlayLoop()
         {
             var pcm = new short[MaxFrames * 2];
@@ -233,10 +240,22 @@ namespace Bejeweled3Accessible.AndroidApp.Audio
                     continue;
                 }
 
+                var acoustics = SpatialAudio.GetEnvironmentAcoustics(_currentEnv);
+                float width = acoustics.StereoWidth;
+
                 for (int i = 0; i < frames; i++)
                 {
-                    pcm[i * 2] = ClampShort(_left[i]);
-                    pcm[i * 2 + 1] = ClampShort(_right[i]);
+                    float l = _left[i];
+                    float r = _right[i];
+                    if (Math.Abs(width - 1.0f) > 0.01f)
+                    {
+                        float mid = (l + r) * 0.5f;
+                        float side = (l - r) * 0.5f * width;
+                        l = mid + side;
+                        r = mid - side;
+                    }
+                    pcm[i * 2] = ClampShort(l);
+                    pcm[i * 2 + 1] = ClampShort(r);
                 }
 
                 lock (_lock)
