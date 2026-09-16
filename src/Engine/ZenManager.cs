@@ -124,7 +124,7 @@ namespace Bejeweled3Accessible.Engine
             }
         }
 
-        private void PlayAmbientTrack()
+        public void PlayAmbientTrack()
         {
             StopAmbientTrack();
             try
@@ -138,7 +138,7 @@ namespace Bejeweled3Accessible.Engine
             catch { }
         }
 
-        private void StopAmbientTrack()
+        public void StopAmbientTrack()
         {
             _sound.StopMusic();
         }

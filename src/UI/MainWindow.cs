@@ -1208,7 +1208,7 @@ namespace Bejeweled3Accessible.UI
                 _options.CustomMusicTrack = "Auto";
                 string name = Localization.Get("MusicBoxAuto");
                 _speech.Speak(Localization.Get("OptMusicBox", name), true);
-                _sound.PlayMusic(Audio.MusicMap.FileName(Audio.MusicMap.MainTheme));
+                PlayAutoMusicForCurrentContext();
             }
             else
             {
@@ -1217,6 +1217,36 @@ namespace Bejeweled3Accessible.UI
                 string name = Localization.Get(sel.LocalizationKey);
                 _speech.Speak(Localization.Get("OptMusicBox", name), true);
                 _sound.PlayMusic(Audio.MusicMap.FileName(sel.FileKey));
+            }
+        }
+
+        private void PlayMusicForCurrentMode()
+        {
+            if (_currentModeKey == "ModeZen" && _zenMgr != null && _zenMgr.AmbientEnabled && _zenMgr.SelectedAmbient != AmbientType.None)
+            {
+                _sound.StopMusic();
+                _zenMgr.PlayAmbientTrack();
+                return;
+            }
+
+            Engine.QuestType? qType = _activeQuest != null ? (Engine.QuestType?)_activeQuest.Type : null;
+            string trackFile = Audio.MusicMap.GetModeMusicFileName(_currentModeKey, _level, qType);
+            _sound.PlayMusic(trackFile);
+        }
+
+        private void PlayAutoMusicForCurrentContext()
+        {
+            if (_optionsOriginScreen == GameScreen.PauseMenu || _screen == GameScreen.Playing || _screen == GameScreen.PauseMenu)
+            {
+                PlayMusicForCurrentMode();
+            }
+            else if (_optionsOriginScreen == GameScreen.QuestRelicScreen || _optionsOriginScreen == GameScreen.QuestChallengeScreen || _screen == GameScreen.QuestRelicScreen || _screen == GameScreen.QuestChallengeScreen)
+            {
+                _sound.PlayMusic(Audio.MusicMap.FileName(Audio.MusicMap.QuestTheme));
+            }
+            else
+            {
+                _sound.PlayMusic(Audio.MusicMap.FileName(Audio.MusicMap.MainTheme));
             }
         }
 

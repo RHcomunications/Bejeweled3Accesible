@@ -270,6 +270,67 @@ namespace Bejeweled3Accessible.Audio
             }
             return MainTheme;
         }
+
+        /// <summary>
+        /// Determina la pista de música contextual correspondiente al modo de juego actual y su estado.
+        /// </summary>
+        public static string GetModeMusicFileName(string modeKey, int level = 1, QuestType? questType = null)
+        {
+            if (string.Equals(modeKey, "ModeLightning", StringComparison.OrdinalIgnoreCase))
+            {
+                return FileName(Lightning);
+            }
+            if (string.Equals(modeKey, "ModeZen", StringComparison.OrdinalIgnoreCase))
+            {
+                return ZenManager.GetZenTrackForLevel(level);
+            }
+            if (string.Equals(modeKey, "ModePoker", StringComparison.OrdinalIgnoreCase))
+            {
+                return FileName(Poker);
+            }
+            if (string.Equals(modeKey, "ModeButterflies", StringComparison.OrdinalIgnoreCase))
+            {
+                return FileName(Butterflies);
+            }
+            if (string.Equals(modeKey, "ModeIceStorm", StringComparison.OrdinalIgnoreCase))
+            {
+                return FileName(IceStorm);
+            }
+            if (string.Equals(modeKey, "ModeDiamondMine", StringComparison.OrdinalIgnoreCase))
+            {
+                return FileName(QuestBuriedTreasure);
+            }
+            if (string.Equals(modeKey, "ModeQuest", StringComparison.OrdinalIgnoreCase))
+            {
+                if (questType.HasValue)
+                {
+                    switch (questType.Value)
+                    {
+                        case QuestType.Butterflies:
+                            return FileName(Butterflies);
+                        case QuestType.DiamondMine:
+                        case QuestType.GoldRush:
+                            return FileName(QuestBuriedTreasure);
+                        case QuestType.TimeBomb:
+                            return FileName(QuestTimeBombs);
+                        case QuestType.IceStorm:
+                            return FileName(IceStorm);
+                        case QuestType.Poker:
+                            return FileName(Poker);
+                        case QuestType.Avalanche:
+                            return FileName(QuestTurnByTurn);
+                        case QuestType.Alchemy:
+                        default:
+                            return FileName(QuestTakeYourTime);
+                    }
+                }
+                return FileName(QuestTakeYourTime);
+            }
+
+            // Modo Clásico o por defecto: 4 partes según el nivel
+            int stage = Math.Max(1, Math.Min(4, ((level - 1) % 4) + 1));
+            return FileName(ClassicParts[stage - 1]);
+        }
         #endregion
     }
 }

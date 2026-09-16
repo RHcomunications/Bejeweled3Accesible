@@ -2203,6 +2203,36 @@ namespace Bejeweled3Accessible.Tests
                 Localization.CurrentLanguage = Language.Spanish;
             }));
 
+            tests.Add(Tuple.Create<string, Action>("Jukebox: restauracion automatica contextual de musica por modo", () =>
+            {
+                // Classic por partes de nivel
+                Assert.Equal(MusicMap.FileName(MusicMap.ClassicPart1), MusicMap.GetModeMusicFileName("ModeClassic", 1), "Clasico nivel 1 = Parte 1");
+                Assert.Equal(MusicMap.FileName(MusicMap.ClassicPart2), MusicMap.GetModeMusicFileName("ModeClassic", 2), "Clasico nivel 2 = Parte 2");
+                Assert.Equal(MusicMap.FileName(MusicMap.ClassicPart3), MusicMap.GetModeMusicFileName("ModeClassic", 3), "Clasico nivel 3 = Parte 3");
+                Assert.Equal(MusicMap.FileName(MusicMap.ClassicPart4), MusicMap.GetModeMusicFileName("ModeClassic", 4), "Clasico nivel 4 = Parte 4");
+                Assert.Equal(MusicMap.FileName(MusicMap.ClassicPart1), MusicMap.GetModeMusicFileName("ModeClassic", 5), "Clasico nivel 5 = Parte 1");
+
+                // Modos especiales
+                Assert.Equal(MusicMap.FileName(MusicMap.Lightning), MusicMap.GetModeMusicFileName("ModeLightning"), "Lightning");
+                Assert.Equal(MusicMap.FileName(MusicMap.Poker), MusicMap.GetModeMusicFileName("ModePoker"), "Poker");
+                Assert.Equal(MusicMap.FileName(MusicMap.Butterflies), MusicMap.GetModeMusicFileName("ModeButterflies"), "Butterflies");
+                Assert.Equal(MusicMap.FileName(MusicMap.IceStorm), MusicMap.GetModeMusicFileName("ModeIceStorm"), "IceStorm");
+                Assert.Equal(MusicMap.FileName(MusicMap.QuestBuriedTreasure), MusicMap.GetModeMusicFileName("ModeDiamondMine"), "DiamondMine");
+
+                // Zen por niveles
+                Assert.Equal(ZenManager.GetZenTrackForLevel(1), MusicMap.GetModeMusicFileName("ModeZen", 1), "Zen nivel 1");
+                Assert.Equal(ZenManager.GetZenTrackForLevel(2), MusicMap.GetModeMusicFileName("ModeZen", 2), "Zen nivel 2");
+
+                // Quest por tipos de mision
+                Assert.Equal(MusicMap.FileName(MusicMap.Butterflies), MusicMap.GetModeMusicFileName("ModeQuest", 1, QuestType.Butterflies), "Quest Mariposas");
+                Assert.Equal(MusicMap.FileName(MusicMap.QuestBuriedTreasure), MusicMap.GetModeMusicFileName("ModeQuest", 1, QuestType.DiamondMine), "Quest Tesoro Enterrado");
+                Assert.Equal(MusicMap.FileName(MusicMap.QuestTimeBombs), MusicMap.GetModeMusicFileName("ModeQuest", 1, QuestType.TimeBomb), "Quest Bombas de Tiempo");
+                Assert.Equal(MusicMap.FileName(MusicMap.IceStorm), MusicMap.GetModeMusicFileName("ModeQuest", 1, QuestType.IceStorm), "Quest Tormenta de Hielo");
+                Assert.Equal(MusicMap.FileName(MusicMap.Poker), MusicMap.GetModeMusicFileName("ModeQuest", 1, QuestType.Poker), "Quest Poker");
+                Assert.Equal(MusicMap.FileName(MusicMap.QuestTurnByTurn), MusicMap.GetModeMusicFileName("ModeQuest", 1, QuestType.Avalanche), "Quest Avalancha");
+                Assert.Equal(MusicMap.FileName(MusicMap.QuestTakeYourTime), MusicMap.GetModeMusicFileName("ModeQuest", 1, QuestType.Alchemy), "Quest Alquimia");
+            }));
+
             return tests;
         }
 
