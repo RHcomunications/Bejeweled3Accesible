@@ -1067,9 +1067,7 @@ namespace Bejeweled3Accessible.UI
             if (IsJukeboxAccessible)
             {
                 string cur = _options.CustomMusicTrack;
-                musicBoxDisplay = (string.IsNullOrEmpty(cur) || cur.Equals("Auto", StringComparison.OrdinalIgnoreCase))
-                    ? Localization.Get("MusicBoxAuto")
-                    : cur;
+                musicBoxDisplay = Audio.MusicMap.GetJukeboxTrackName(cur);
             }
             else
             {
@@ -1266,14 +1264,15 @@ namespace Bejeweled3Accessible.UI
                 return;
             }
 
-            var tracks = Audio.MusicMap.AllTrackKeys;
+            var tracks = Audio.MusicMap.JukeboxTracks;
             int curIdx = -1; // -1 = Auto
             string cur = _options.CustomMusicTrack;
             if (!string.IsNullOrEmpty(cur) && !cur.Equals("Auto", StringComparison.OrdinalIgnoreCase))
             {
                 for (int i = 0; i < tracks.Length; i++)
                 {
-                    if (tracks[i].Equals(cur, StringComparison.OrdinalIgnoreCase))
+                    if (tracks[i].Key.Equals(cur, StringComparison.OrdinalIgnoreCase) ||
+                        tracks[i].FileKey.Equals(cur, StringComparison.OrdinalIgnoreCase))
                     {
                         curIdx = i;
                         break;
@@ -1288,15 +1287,17 @@ namespace Bejeweled3Accessible.UI
             if (curIdx == -1)
             {
                 _options.CustomMusicTrack = "Auto";
-                _speech.Speak(Localization.Get("OptMusicBox", Localization.Get("MusicBoxAuto")), true);
+                string name = Localization.Get("MusicBoxAuto");
+                _speech.Speak(Localization.Get("OptMusicBox", name), true);
                 _sound.PlayMusic(Audio.MusicMap.FileName(Audio.MusicMap.MainTheme));
             }
             else
             {
-                string selTrack = tracks[curIdx];
-                _options.CustomMusicTrack = selTrack;
-                _speech.Speak(Localization.Get("OptMusicBox", selTrack), true);
-                _sound.PlayMusic(Audio.MusicMap.FileName(selTrack));
+                var sel = tracks[curIdx];
+                _options.CustomMusicTrack = sel.Key;
+                string name = Localization.Get(sel.LocalizationKey);
+                _speech.Speak(Localization.Get("OptMusicBox", name), true);
+                _sound.PlayMusic(Audio.MusicMap.FileName(sel.FileKey));
             }
         }
 

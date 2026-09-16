@@ -2161,17 +2161,44 @@ namespace Bejeweled3Accessible.Tests
                     GameOptions.OverrideDataDirectory = tmp;
                     GameOptions opt = new GameOptions();
                     Assert.Equal("Auto", opt.CustomMusicTrack, "El valor por defecto debe ser Auto");
-                    opt.CustomMusicTrack = "03_classic_3";
+                    opt.CustomMusicTrack = "Classic";
                     opt.Save();
 
                     GameOptions loaded = GameOptions.Load();
-                    Assert.Equal("03_classic_3", loaded.CustomMusicTrack, "Debe persistir y cargar la pista seleccionada");
+                    Assert.Equal("Classic", loaded.CustomMusicTrack, "Debe persistir y cargar la pista seleccionada");
                 }
                 finally
                 {
                     GameOptions.OverrideDataDirectory = null;
                     try { Directory.Delete(tmp, true); } catch { }
                 }
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Jukebox: pistas oficiales autenticas del MO3 y ambientes", () =>
+            {
+                Assert.Equal(19, MusicMap.JukeboxTracks.Length, "19 pistas oficiales en total (13 del MO3 + 6 ambientales)");
+                foreach (var track in MusicMap.JukeboxTracks)
+                {
+                    Assert.False(string.IsNullOrEmpty(track.Key), "Key valida");
+                    Assert.False(string.IsNullOrEmpty(track.FileKey), "FileKey valida");
+                    Assert.False(string.IsNullOrEmpty(track.LocalizationKey), "LocalizationKey valida");
+                    // Las pistas no deben ser medleys descartados
+                    Assert.False(track.Key.Contains("Remix") || track.Key.Contains("Medley") || track.Key.Contains("FinalTurn"), "No medleys");
+                }
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Jukebox: localizacion dinamica de pistas en espanol e ingles", () =>
+            {
+                Localization.CurrentLanguage = Language.Spanish;
+                Assert.Equal("Automática", MusicMap.GetJukeboxTrackName("Auto"), "Auto en espanol");
+                Assert.Equal("Modo Clásico", MusicMap.GetJukeboxTrackName("Classic"), "Classic en espanol");
+                Assert.Equal("Ambiente: Cascada", MusicMap.GetJukeboxTrackName("AmbientWaterfall"), "Cascada en espanol");
+
+                Localization.CurrentLanguage = Language.English;
+                Assert.Equal("Automatic", MusicMap.GetJukeboxTrackName("Auto"), "Auto en ingles");
+                Assert.Equal("Classic Mode", MusicMap.GetJukeboxTrackName("Classic"), "Classic en ingles");
+                Assert.Equal("Ambient: Waterfall", MusicMap.GetJukeboxTrackName("AmbientWaterfall"), "Waterfall en ingles");
+                Localization.CurrentLanguage = Language.Spanish;
             }));
 
             return tests;

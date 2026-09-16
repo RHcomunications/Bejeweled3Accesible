@@ -9,6 +9,7 @@
 // mientras que las pistas ambientales 24-29 se reproducen como ficheros
 // independientes (los ambient\*.ogg reales, renombrados .mp3).
 using System;
+using Bejeweled3Accessible.Engine;
 
 namespace Bejeweled3Accessible.Audio
 {
@@ -196,6 +197,78 @@ namespace Bejeweled3Accessible.Audio
                 if (known > order) return known;
             }
             return -1;
+        }
+        #endregion
+
+        #region Caja de Música (Jukebox) Oficial
+        public struct JukeboxTrackInfo
+        {
+            public string Key;
+            public string FileKey;
+            public string LocalizationKey;
+
+            public JukeboxTrackInfo(string key, string fileKey, string locKey)
+            {
+                Key = key;
+                FileKey = fileKey;
+                LocalizationKey = locKey;
+            }
+        }
+
+        // Pistas oficiales para la Caja de Música (Jukebox):
+        // Exclusivamente las pistas del módulo .MO3 real (sin medleys ni descartados)
+        // y los 6 ambientes sonoros reales.
+        public static readonly JukeboxTrackInfo[] JukeboxTracks = new JukeboxTrackInfo[]
+        {
+            new JukeboxTrackInfo("MainTheme", MainTheme, "MusicTrackMainTheme"),
+            new JukeboxTrackInfo("Intro", Intro, "MusicTrackIntro"),
+            new JukeboxTrackInfo("Classic", ClassicPart1, "MusicTrackClassic"),
+            new JukeboxTrackInfo("Lightning", Lightning, "MusicTrackLightning"),
+            new JukeboxTrackInfo("Zen", ZenPart1, "MusicTrackZen"),
+            new JukeboxTrackInfo("Butterflies", Butterflies, "MusicTrackButterflies"),
+            new JukeboxTrackInfo("Poker", Poker, "MusicTrackPoker"),
+            new JukeboxTrackInfo("IceStorm", IceStorm, "MusicTrackIceStorm"),
+            new JukeboxTrackInfo("QuestTheme", QuestTheme, "MusicTrackQuest"),
+            new JukeboxTrackInfo("QuestBuriedTreasure", QuestBuriedTreasure, "MusicTrackBuriedTreasure"),
+            new JukeboxTrackInfo("QuestTakeYourTime", QuestTakeYourTime, "MusicTrackTakeYourTime"),
+            new JukeboxTrackInfo("QuestTurnByTurn", QuestTurnByTurn, "MusicTrackTurnByTurn"),
+            new JukeboxTrackInfo("QuestTimeBombs", QuestTimeBombs, "MusicTrackTimeBombs"),
+            new JukeboxTrackInfo("AmbientCoastal", AmbientCoastal, "MusicTrackAmbientCoastal"),
+            new JukeboxTrackInfo("AmbientCrickets", AmbientCrickets, "MusicTrackAmbientCrickets"),
+            new JukeboxTrackInfo("AmbientForest", AmbientForest, "MusicTrackAmbientForest"),
+            new JukeboxTrackInfo("AmbientOceanSurf", AmbientOceanSurf, "MusicTrackAmbientOceanSurf"),
+            new JukeboxTrackInfo("AmbientRainLeaves", AmbientRainLeaves, "MusicTrackAmbientRainLeaves"),
+            new JukeboxTrackInfo("AmbientWaterfall", AmbientWaterfall, "MusicTrackAmbientWaterfall"),
+        };
+
+        public static string GetJukeboxTrackName(string key)
+        {
+            if (string.IsNullOrEmpty(key) || key.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+                return Localization.Get("MusicBoxAuto");
+
+            foreach (var track in JukeboxTracks)
+            {
+                if (track.Key.Equals(key, StringComparison.OrdinalIgnoreCase) || track.FileKey.Equals(key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return Localization.Get(track.LocalizationKey);
+                }
+            }
+            return Localization.Get("MusicBoxAuto");
+        }
+
+        public static string GetJukeboxFileKey(string key)
+        {
+            if (string.IsNullOrEmpty(key) || key.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+                return MainTheme;
+
+            foreach (var track in JukeboxTracks)
+            {
+                if (track.Key.Equals(key, StringComparison.OrdinalIgnoreCase) || track.FileKey.Equals(key, StringComparison.OrdinalIgnoreCase))
+                {
+                    return track.FileKey;
+                }
+            }
+            return MainTheme;
         }
         #endregion
     }
