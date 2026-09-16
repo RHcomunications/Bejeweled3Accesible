@@ -1548,7 +1548,7 @@ namespace Bejeweled3Accessible.Audio
                 if (audioBytes == null || audioBytes.Length == 0) return 0;
 
                 GCHandle pinned = GCHandle.Alloc(audioBytes, GCHandleType.Pinned);
-                int handle = BASS_StreamCreateFile(true, pinned.AddrOfPinnedObject(), 0, audioBytes.Length, 0);
+                int handle = BASS_StreamCreateFile(true, pinned.AddrOfPinnedObject(), 0, audioBytes.Length, BASS_SAMPLE_FLOAT | BASS_SAMPLE_LOOP);
 
                 if (handle == 0)
                 {
@@ -1828,9 +1828,50 @@ namespace Bejeweled3Accessible.Audio
                 float width = acoustics.StereoWidth;
                 if (Math.Abs(width - 1.0f) < 0.01f) return;
 
+                BassChannelInfo info;
+                bool isFloat = true;
+                if (BASS_ChannelGetInfo(handle, out info))
+                {
+                    if ((info.flags & (int)BASS_SAMPLE_FLOAT) == 0)
+                    {
+                        isFloat = false;
+                    }
+                }
+
+                if (!isFloat)
+                {
+                    int shortCount = length / 2;
+                    int frameCount = shortCount / 2;
+                    if (frameCount <= 0) return;
+
+                    short[] sBuf = new short[shortCount];
+                    Marshal.Copy(buffer, sBuf, 0, shortCount);
+                    for (int i = 0; i < frameCount; i++)
+                    {
+                        int lIdx = i * 2;
+                        int rIdx = lIdx + 1;
+                        float l = sBuf[lIdx];
+                        float r = sBuf[rIdx];
+
+                        float mid = 0.5f * (l + r);
+                        float side = 0.5f * (l - r);
+
+                        float newL = mid + width * side;
+                        float newR = mid - width * side;
+
+                        if (newL > 32767f) newL = 32767f; else if (newL < -32768f) newL = -32768f;
+                        if (newR > 32767f) newR = 32767f; else if (newR < -32768f) newR = -32768f;
+
+                        sBuf[lIdx] = (short)newL;
+                        sBuf[rIdx] = (short)newR;
+                    }
+                    Marshal.Copy(sBuf, 0, buffer, shortCount);
+                    return;
+                }
+
                 int floatCount = length / 4;
-                int frameCount = floatCount / 2;
-                if (frameCount <= 0) return;
+                int fFrameCount = floatCount / 2;
+                if (fFrameCount <= 0) return;
 
                 float[] buf = _musicDspBuffer;
                 if (buf == null || buf.Length < floatCount)
@@ -1841,7 +1882,7 @@ namespace Bejeweled3Accessible.Audio
 
                 Marshal.Copy(buffer, buf, 0, floatCount);
 
-                for (int i = 0; i < frameCount; i++)
+                for (int i = 0; i < fFrameCount; i++)
                 {
                     int lIdx = i * 2;
                     int rIdx = lIdx + 1;
@@ -1851,8 +1892,14 @@ namespace Bejeweled3Accessible.Audio
                     float mid = 0.5f * (l + r);
                     float side = 0.5f * (l - r);
 
-                    buf[lIdx] = mid + width * side;
-                    buf[rIdx] = mid - width * side;
+                    float newL = mid + width * side;
+                    float newR = mid - width * side;
+
+                    if (newL > 1.0f) newL = 1.0f; else if (newL < -1.0f) newL = -1.0f;
+                    if (newR > 1.0f) newR = 1.0f; else if (newR < -1.0f) newR = -1.0f;
+
+                    buf[lIdx] = newL;
+                    buf[rIdx] = newR;
                 }
 
                 Marshal.Copy(buf, 0, buffer, floatCount);

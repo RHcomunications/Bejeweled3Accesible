@@ -1670,11 +1670,19 @@ namespace Bejeweled3Accessible.Tests
                     Assert.True(MusicEmitsAudio(sound), "Modulo debe emitir audio tras el DSP de ambiente");
                     Assert.Equal("01 - Intro.mp3", sound.MusicNowPlaying, "NowPlaying modulo");
 
+                    sound.SetEnvironment(AudioEnvironment.Sanctuary);
                     sound.PlayMusic("24 - Coastal.mp3");
-                    System.Threading.Thread.Sleep(900);
-                    Assert.True(sound.MusicChannelActive, "Ambiente debe estar activo tras espacializar");
-                    Assert.True(MusicEmitsAudio(sound), "Ambiente debe emitir audio tras el DSP de ambiente");
-                    Assert.Equal("24 - Coastal.mp3", sound.MusicNowPlaying, "NowPlaying ambiente");
+                    System.Threading.Thread.Sleep(600);
+                    Assert.True(sound.MusicChannelActive, "Ambiente Coastal activo tras espacializar");
+                    Assert.True(MusicEmitsAudio(sound), "Ambiente Coastal emite audio tras DSP");
+                    Assert.Equal("24 - Coastal.mp3", sound.MusicNowPlaying, "NowPlaying Coastal");
+
+                    sound.PlayMusic("28 - Rain Leaves.mp3");
+                    System.Threading.Thread.Sleep(600);
+                    Assert.True(sound.MusicChannelActive, "Ambiente Rain Leaves activo tras cambio");
+                    Assert.True(MusicEmitsAudio(sound), "Ambiente Rain Leaves emite audio");
+                    Assert.Equal("28 - Rain Leaves.mp3", sound.MusicNowPlaying, "NowPlaying Rain Leaves");
+
                     Assert.NoThrow(() => sound.StopMusic(), "Stop music");
                 }
             }));
