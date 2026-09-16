@@ -99,9 +99,7 @@ bejeweled3_accessible/
       - **Santuario Zen (`Sanctuary`)**: Zen. Sala meditativa suave y envolvente (`-24.0 dB`, `1000 ms`, `StereoWidth = 1.10`).
       - **Conducto de Energía (`EnergyConduit`)**: Relámpago. Resonancia ágil de alta energía (`-25.0 dB`, `550 ms`, presencia a 4 kHz, `StereoWidth = 1.08`).
       - **Salón Victoriano (`VictorianSalon`)**: Poker. Acústica íntima y seca (`-27.0 dB`, `400 ms`, `StereoWidth = 1.04`).
-    - **Protección de Ambientes de Naturaleza y Alta Definición Estéreo**: Las grabaciones de campo de Zen (costa, bosque, grillos, lluvia, cascada, oleaje) se reproducen en su formato estéreo nativo 100% puro sin reverb de sala cerrada. Para la música, la atenuación de absorción de sala es ultra suave (`-1.0 dB`) preservando toda la fidelidad y brillo de los agudos.
-    - **Espacialización Mid/Side en Música**: Procesamiento DSP en tiempo real sobre el push-stream de BASS que ensancha o enfoca la imagen estéreo de la música (`StereoWidth`) en función del espacio temático sin distorsión ni clipping.
-    - **Gestión Dinámica de Efectos**: Limpieza y reconfiguración sin fugas de memoria (`BASS_ChannelRemoveFX` / `BASS_ChannelRemoveDSP`) al transicionar entre salas y modos de juego.
+    - **Música y Ambientes como Bed Objects Puros (100% Estéreo de Estudio)**: La música (módulo `.mo3` decodificado por `libopenmpt` y pistas MP3) y los 6 ambientes naturales de Zen se reproducen en formato directo *Bed Object* sin ningún filtro ecualizador inserto, sin reverberación de sala y sin DSP que pueda colapsar o degradar la imagen estéreo nativa. La espacialización y el envío DRR se aplican única y exclusivamente a los objetos de audio del tablero (SFX de gemas, cascadas, voces).
 4. **Ducking y Voces Centradas**:
    - Locuciones del narrador y síntesis de voz centradas con *ducking* automático de la música (la música baja al 30% en jugadas clave y recupera volumen suavemente).
    - `bass_fx.dll` (x64) + `bass_fx32.dll` (x86) presentes para compatibilidad. Variantes pre-renderizadas con rubberband `gem_hit_p0..p12.ogg` (+1 semitono por nivel de cascada).

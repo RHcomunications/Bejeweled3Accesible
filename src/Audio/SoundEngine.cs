@@ -88,19 +88,8 @@ namespace Bejeweled3Accessible.Audio
         [UnmanagedFunctionPointer(CallingConvention.StdCall)]
         private delegate uint BassStreamProc(int handle, IntPtr buffer, uint length, IntPtr user);
 
-        // Callback DSP de BASS: recibe el buffer de PCM ya mezclado del canal y
-        // lo sustituye por la salida del GridSpatializer (musica como ambiente).
-        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        private delegate void DspProc(int handle, int channel, IntPtr buffer, int length, IntPtr user);
-
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
         private static extern bool BASS_ChannelGetInfo(int handle, out BassChannelInfo info);
-
-        [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern int BASS_ChannelSetDSP(int handle, [MarshalAs(UnmanagedType.FunctionPtr)] DspProc proc, IntPtr user, int priority);
-
-        [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern bool BASS_ChannelRemoveDSP(int handle, int dsp);
 
         [StructLayout(LayoutKind.Sequential)]
         private struct BassChannelInfo
@@ -145,11 +134,6 @@ namespace Bejeweled3Accessible.Audio
             public float fHighFreqRTRatio;
         }
 
-        private void AttachMusicSpatializer(int musicHandle)
-        {
-            ApplyMusicAtmosphere(musicHandle);
-        }
-
         [StructLayout(LayoutKind.Sequential)]
         private struct BassDx8Compressor
         {
@@ -161,21 +145,12 @@ namespace Bejeweled3Accessible.Audio
             public float fPredelay;
         }
 
-        // Audio binaural (GridSpatializer + FX de atmósfera). Se puede
-        // deshabilitar desde Opciones: al apagarlo, la música y los SFX suenan
-        // secos y centrados como el audio clásico del juego.
+        // Audio binaural para SFX y objetos de juego del tablero.
         private bool _binauralEnabled = true;
         public bool BinauralEnabled
         {
             get { return _binauralEnabled; }
-            set
-            {
-                _binauralEnabled = value;
-                if (_currentMusicChannel != 0)
-                {
-                    ApplyMusicAtmosphere(_currentMusicChannel);
-                }
-            }
+            set { _binauralEnabled = value; }
         }
 
         // Entorno acústico temático actual del juego (Templos, Cavernas, Glaciares, etc.)
@@ -184,10 +159,6 @@ namespace Bejeweled3Accessible.Audio
         public void SetEnvironment(AudioEnvironment env)
         {
             CurrentEnvironment = env;
-            if (_currentMusicChannel != 0)
-            {
-                ApplyMusicAtmosphere(_currentMusicChannel);
-            }
         }
 
         // Idioma de las locuciones del locutor/anunciador arcade (Español o Inglés).
@@ -237,15 +208,6 @@ namespace Bejeweled3Accessible.Audio
         // y archivo); el crossfade y el reencadenado no se ven afectados.
         private float _musicOriginalVolume = 1.0f;
         private System.Threading.Timer _musicDuckTimer;
-
-        // Handles de efectos y DSP de atmosfera tematica instalados en el canal de musica
-        private int _musicFxChannel = 0;
-        private int _musicReverbFx = 0;
-        private int _musicEqFx = 0;
-        private int _musicPresenceFx = 0;
-        private int _musicDspHandle = 0;
-        private DspProc _musicDspProc;
-        private float[] _musicDspBuffer = new float[16384];
 
         // Queue a voice without ever cutting the one that is sounding now.
         private void EnqueueVoice(VoiceRequest req)
@@ -1329,7 +1291,6 @@ namespace Bejeweled3Accessible.Audio
             {
                 if (_currentMusicChannel != 0)
                 {
-                    RemoveMusicAtmosphere(_currentMusicChannel);
                     BASS_ChannelStop(_currentMusicChannel);
                     BASS_StreamFree(_currentMusicChannel);
                     _currentMusicChannel = 0;
@@ -1359,7 +1320,6 @@ namespace Bejeweled3Accessible.Audio
                 {
                     _currentMusicFile = _pendingMusicFile;
                 }
-                ApplyMusicAtmosphere(_currentMusicChannel);
             }
             _pendingMusicFile = null;
         }
@@ -1470,11 +1430,8 @@ namespace Bejeweled3Accessible.Audio
                     return 0;
                 }
 
-                // Fade-in starts from silence. La pista se espacializa como
-                // ambiente (GridSpatializer) para que acompane al juego con
-                // envoltura estereo y aire, en lugar de sonar plana y centrada.
+                // Fade-in starts from silence. La musica es un Bed Object estéreo puro sin filtros destructivos.
                 BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, 0.0f);
-                AttachMusicSpatializer(handle);
                 BASS_ChannelPlay(handle, true);
                 return handle;
             }
@@ -1563,12 +1520,6 @@ namespace Bejeweled3Accessible.Audio
 
                 // Fade-in starts from silence.
                 BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, 0.0f);
-                // Las pistas ambientales de naturaleza (24-29) son grabaciones de campo
-                // estereo reales al aire libre: no se les aplica reverb de sala cerrada.
-                if (MusicMap.OrderForFile(musicFileName) >= 0)
-                {
-                    AttachMusicSpatializer(handle);
-                }
                 BASS_ChannelPlay(handle, true);
 
                 pin = pinned;
@@ -1807,192 +1758,6 @@ namespace Bejeweled3Accessible.Audio
             return;
         }
 
-        private void RemoveMusicAtmosphere(int channel = 0)
-        {
-            try
-            {
-                int targetChan = (channel != 0) ? channel : _musicFxChannel;
-                if (targetChan != 0)
-                {
-                    if (_musicReverbFx != 0) { BASS_ChannelRemoveFX(targetChan, _musicReverbFx); _musicReverbFx = 0; }
-                    if (_musicEqFx != 0) { BASS_ChannelRemoveFX(targetChan, _musicEqFx); _musicEqFx = 0; }
-                    if (_musicPresenceFx != 0) { BASS_ChannelRemoveFX(targetChan, _musicPresenceFx); _musicPresenceFx = 0; }
-                    if (_musicDspHandle != 0) { BASS_ChannelRemoveDSP(targetChan, _musicDspHandle); _musicDspHandle = 0; }
-                }
-                if (targetChan == _musicFxChannel || channel == 0)
-                {
-                    _musicFxChannel = 0;
-                }
-            }
-            catch { }
-        }
-
-        private void MusicStereoWidthDsp(int handle, int channel, IntPtr buffer, int length, IntPtr user)
-        {
-            if (!_binauralEnabled || buffer == IntPtr.Zero || length <= 0) return;
-            try
-            {
-                var acoustics = SpatialAudio.GetEnvironmentAcoustics(CurrentEnvironment);
-                float width = acoustics.StereoWidth;
-                if (Math.Abs(width - 1.0f) < 0.01f) return;
-
-                BassChannelInfo info;
-                bool isFloat = true;
-                if (BASS_ChannelGetInfo(handle, out info))
-                {
-                    if (info.chans != 2) return;
-                    if ((info.flags & (int)BASS_SAMPLE_FLOAT) == 0)
-                    {
-                        isFloat = false;
-                    }
-                }
-
-                if (!isFloat)
-                {
-                    int shortCount = length / 2;
-                    int frameCount = shortCount / 2;
-                    if (frameCount <= 0) return;
-
-                    short[] sBuf = new short[shortCount];
-                    Marshal.Copy(buffer, sBuf, 0, shortCount);
-                    for (int i = 0; i < frameCount; i++)
-                    {
-                        int lIdx = i * 2;
-                        int rIdx = lIdx + 1;
-                        float l = sBuf[lIdx];
-                        float r = sBuf[rIdx];
-
-                        float mid = 0.5f * (l + r);
-                        float side = 0.5f * (l - r);
-
-                        float newL = mid + width * side;
-                        float newR = mid - width * side;
-
-                        if (newL > 32767f) newL = 32767f; else if (newL < -32768f) newL = -32768f;
-                        if (newR > 32767f) newR = 32767f; else if (newR < -32768f) newR = -32768f;
-
-                        sBuf[lIdx] = (short)newL;
-                        sBuf[rIdx] = (short)newR;
-                    }
-                    Marshal.Copy(sBuf, 0, buffer, shortCount);
-                    return;
-                }
-
-                int floatCount = length / 4;
-                int fFrameCount = floatCount / 2;
-                if (fFrameCount <= 0) return;
-
-                float[] buf = _musicDspBuffer;
-                if (buf == null || buf.Length < floatCount)
-                {
-                    buf = new float[Math.Max(floatCount, 16384)];
-                    _musicDspBuffer = buf;
-                }
-
-                Marshal.Copy(buffer, buf, 0, floatCount);
-
-                for (int i = 0; i < fFrameCount; i++)
-                {
-                    int lIdx = i * 2;
-                    int rIdx = lIdx + 1;
-                    float l = buf[lIdx];
-                    float r = buf[rIdx];
-
-                    float mid = 0.5f * (l + r);
-                    float side = 0.5f * (l - r);
-
-                    float newL = mid + width * side;
-                    float newR = mid - width * side;
-
-                    if (newL > 1.0f) newL = 1.0f; else if (newL < -1.0f) newL = -1.0f;
-                    if (newR > 1.0f) newR = 1.0f; else if (newR < -1.0f) newR = -1.0f;
-
-                    buf[lIdx] = newL;
-                    buf[rIdx] = newR;
-                }
-
-                Marshal.Copy(buf, 0, buffer, floatCount);
-            }
-            catch { }
-        }
-
-        private void ApplyMusicAtmosphere(int musicHandle)
-        {
-            if (musicHandle == 0) return;
-            RemoveMusicAtmosphere(musicHandle);
-            if (!_binauralEnabled) return;
-            try
-            {
-                // Si la pista activa es un ambiente de naturaleza, no se le aplica reverb de sala
-                if (!string.IsNullOrEmpty(_currentMusicFile) && MusicMap.OrderForFile(_currentMusicFile) < 0)
-                {
-                    return;
-                }
-
-                _musicFxChannel = musicHandle;
-                var acoustics = SpatialAudio.GetEnvironmentAcoustics(CurrentEnvironment);
-
-                // 1. Reverb temático envolvente sutil y calibrado
-                int rv = BASS_ChannelSetFX(musicHandle, BASS_FX_DX8_REVERB, 1);
-                if (rv != 0)
-                {
-                    BassDx8Reverb rev = new BassDx8Reverb();
-                    rev.fInGain = 0f;
-                    rev.fReverbMix = acoustics.ReverbMix;
-                    rev.fReverbTime = acoustics.ReverbTime;
-                    rev.fHighFreqRTRatio = acoustics.HighFreqRTRatio;
-                    SetFxParams(rv, rev);
-                    _musicReverbFx = rv;
-                }
-
-                // 2. Filtro suave de absorción acústica de sala (atenuación transparente)
-                if (acoustics.LowPassCutoff < 19000f)
-                {
-                    int eqFx = BASS_ChannelSetFX(musicHandle, BASS_FX_DX8_PARAMEQ, 2);
-                    if (eqFx != 0)
-                    {
-                        BassDx8Parameq eq = new BassDx8Parameq
-                        {
-                            fCenter = acoustics.LowPassCutoff,
-                            fBandwidth = 1.5f,
-                            fGain = -1.0f
-                        };
-                        SetFxParams(eqFx, eq);
-                        _musicEqFx = eqFx;
-                    }
-                }
-
-                // 3. Realce de presencia tímbrica del entorno
-                if (Math.Abs(acoustics.PresenceGain) > 0.01f)
-                {
-                    int presFx = BASS_ChannelSetFX(musicHandle, BASS_FX_DX8_PARAMEQ, 3);
-                    if (presFx != 0)
-                    {
-                        BassDx8Parameq pres = new BassDx8Parameq
-                        {
-                            fCenter = acoustics.PresenceFreq,
-                            fBandwidth = 1.5f,
-                            fGain = acoustics.PresenceGain
-                        };
-                        SetFxParams(presFx, pres);
-                        _musicPresenceFx = presFx;
-                    }
-                }
-
-                // 4. Espacialización y dimensionalidad Mid/Side
-                if (_musicDspProc == null)
-                {
-                    _musicDspProc = MusicStereoWidthDsp;
-                }
-                int dsp = BASS_ChannelSetDSP(musicHandle, _musicDspProc, IntPtr.Zero, 0);
-                if (dsp != 0)
-                {
-                    _musicDspHandle = dsp;
-                }
-            }
-            catch { }
-        }
-
         // Atenuación suave del volumen de la música (sidechain/ducking).
         // Desliza el volumen hacia el nivel objetivo en durationMs milisegundos,
         // y programa una recuperación automática al volumen original después de ese
@@ -2168,7 +1933,6 @@ namespace Bejeweled3Accessible.Audio
                 {
                     if (_currentMusicChannel != 0)
                     {
-                        RemoveMusicAtmosphere(_currentMusicChannel);
                         BASS_ChannelStop(_currentMusicChannel);
                         BASS_StreamFree(_currentMusicChannel);
                         _currentMusicChannel = 0;
