@@ -520,24 +520,41 @@ namespace Bejeweled3Accessible.Update
 
                 if (!File.Exists(zipPath))
                 {
-                    string url = "https://github.com/" + GitHubRepo
-                        + "/releases/download/" + tag + "/" + BuildZipAssetName(tag);
-                    Exception lastError = null;
-                    for (int attempt = 0; attempt < 3; attempt++)
+                    string rawVersion = tag.StartsWith("v", StringComparison.OrdinalIgnoreCase) ? tag.Substring(1) : tag;
+                    string[] candidateNames = new string[]
                     {
-                        try
+                        BuildZipAssetName(tag),
+                        ZipAssetPrefix + rawVersion + ".zip",
+                        ZipAssetPrefix + tag + ".zip"
+                    };
+
+                    Exception lastError = null;
+                    bool downloaded = false;
+
+                    foreach (string candidate in candidateNames)
+                    {
+                        string url = "https://github.com/" + GitHubRepo
+                            + "/releases/download/" + tag + "/" + candidate;
+                        for (int attempt = 0; attempt < 2; attempt++)
                         {
-                            DownloadToFile(url, zipPath, progressCallback);
-                            lastError = null;
-                            break;
+                            try
+                            {
+                                DownloadToFile(url, zipPath, progressCallback);
+                                lastError = null;
+                                downloaded = true;
+                                break;
+                            }
+                            catch (Exception ex)
+                            {
+                                lastError = ex;
+                                try { if (File.Exists(zipPath)) File.Delete(zipPath); } catch { }
+                                System.Threading.Thread.Sleep(200);
+                            }
                         }
-                        catch (Exception ex)
-                        {
-                            lastError = ex;
-                            System.Threading.Thread.Sleep(400); // reintenta: el archivo puede estar en uso un instante
-                        }
+                        if (downloaded) break;
                     }
-                    if (lastError != null)
+
+                    if (!downloaded && lastError != null)
                     {
                         try { if (File.Exists(zipPath)) File.Delete(zipPath); } catch { }
                         result.Error = "descarga fallida: " + lastError.Message;
