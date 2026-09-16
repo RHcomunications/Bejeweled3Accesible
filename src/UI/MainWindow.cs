@@ -1048,11 +1048,23 @@ namespace Bejeweled3Accessible.UI
             }
         }
 
+        private bool IsJukeboxAccessible
+        {
+            get
+            {
+#if DEBUG
+                return true; // Acceso desbloqueado en Debug para pruebas de desarrollo
+#else
+                return _progress != null && _progress.IsJukeboxUnlocked;
+#endif
+            }
+        }
+
         private string[] GetOptionsMenuItems()
         {
             string voiceLangName = (_sound.VoiceLanguage == Language.Spanish) ? "Español" : "English";
             string musicBoxDisplay;
-            if (_progress != null && _progress.IsJukeboxUnlocked)
+            if (IsJukeboxAccessible)
             {
                 string cur = _options.CustomMusicTrack;
                 musicBoxDisplay = (string.IsNullOrEmpty(cur) || cur.Equals("Auto", StringComparison.OrdinalIgnoreCase))
@@ -1247,7 +1259,7 @@ namespace Bejeweled3Accessible.UI
 
         private void CycleMusicBoxTrack(int delta)
         {
-            if (_progress == null || !_progress.IsJukeboxUnlocked)
+            if (!IsJukeboxAccessible)
             {
                 _sound.PlaySound(AudioMap.Badmove);
                 _speech.Speak(Localization.Get("MusicBoxLockedHint"), true);
