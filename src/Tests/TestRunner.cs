@@ -1243,17 +1243,28 @@ namespace Bejeweled3Accessible.Tests
                 Assert.True(pac.GetFileBytes("select.ogg") == null, "Debe devolver null");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("AudioSchool: suena el sonido real de movimiento de tablero (select)", () =>
+            tests.Add(Tuple.Create<string, Action>("SpatialAudio: Object-based CreateAudioObject calcula coordenadas 3D y paneo", () =>
             {
-                // La Escuela de Audio debe entregar el sonido que corresponde al
-                // movimiento de tablero (AudioMap.Select), no un beep arbitrario.
-                // Si 'select' falta en el PAC, LoadAudioBytes devuelve null y la
-                // prueba queda en silencio ("no suena").
-                string baseDir = AppDomain.CurrentDomain.BaseDirectory;
-                string pacPath = Path.Combine(baseDir, "audio.pac");
-                if (!File.Exists(pacPath)) return; // sin PAC en esta configuracion
-                PacReader pac = new PacReader(pacPath);
-                Assert.True(pac.GetFileBytes("select") != null, "select (sonido de movimiento de tablero) debe estar en el PAC para la Escuela de Audio");
+                var objLeft = SpatialAudio.CreateAudioObject(0, 7, AudioEnvironment.CrystalTemple, AudioObjectClass.BoardGem);
+                Assert.True(objLeft.DirectPan < -0.5f, "Columna 0 debe estar paneada fuertemente a la izquierda");
+                Assert.True(Math.Abs(objLeft.Y - 0.0f) < 0.01f, "Fila 7 (frente) debe tener Y=0.0f");
+
+                var objRight = SpatialAudio.CreateAudioObject(7, 0, AudioEnvironment.CrystalTemple, AudioObjectClass.BoardGem);
+                Assert.True(objRight.DirectPan > 0.5f, "Columna 7 debe estar paneada a la derecha");
+                Assert.True(Math.Abs(objRight.Y - 1.0f) < 0.01f, "Fila 0 (fondo) debe tener Y=1.0f");
+
+                var objCenter = SpatialAudio.CreateAudioObject(-1, -1, AudioEnvironment.CrystalTemple, AudioObjectClass.UINavigation);
+                Assert.True(Math.Abs(objCenter.DirectPan) < 0.01f, "Objeto centrado/UI debe tener DirectPan 0");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("SpatialAudio: DRR escala con profundidad y preserva ataques brillantes", () =>
+            {
+                var front = SpatialAudio.CreateAudioObject(3, 7, AudioEnvironment.GlacialChamber);
+                var back = SpatialAudio.CreateAudioObject(3, 0, AudioEnvironment.GlacialChamber);
+
+                Assert.True(front.DirectVolume > back.DirectVolume, "Frente debe tener mayor volumen directo que fondo");
+                Assert.True(back.DrrReverbMix > front.DrrReverbMix, "Fondo debe tener mayor envío de sala (DRR desacoplado)");
+                Assert.True(front.DirectVolume >= 0.95f, "El objeto frontal conserva volumen directo al 100%");
             }));
 
             tests.Add(Tuple.Create<string, Action>("PAC: archivo basura se ignora sin excepcion", () =>
@@ -1471,21 +1482,20 @@ namespace Bejeweled3Accessible.Tests
                 Assert.True(v1 > 0.4f, "Fondo no se silencia (" + v1.ToString("F2") + ")");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("Spatial: el aire oscurece al alejar (corte mas bajo)", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: DepthForRow y ElevationForRow calculan profundidad y altura", () =>
             {
-                float c0 = SpatialAudio.AirCutoffForDepth(0.0f);
-                float c1 = SpatialAudio.AirCutoffForDepth(1.0f);
-                Assert.Near(20000.0f, c0, 1.0f, "Frente transparente");
-                Assert.True(c1 < c0, "Fondo corta mas agudo");
-                Assert.True(c1 > 3000.0f && c1 < 9000.0f, "Fondo ~6 kHz, fue " + c1.ToString("F0"));
+                Assert.Near(0.0f, SpatialAudio.DepthForRow(7), 0.001f, "Fila 7 (frente) es profundidad 0");
+                Assert.Near(1.0f, SpatialAudio.DepthForRow(0), 0.001f, "Fila 0 (fondo) es profundidad 1");
+                Assert.Near(1.0f, SpatialAudio.ElevationForRow(0), 0.001f, "Fila 0 (techo) es elevacion 1");
+                Assert.Near(0.0f, SpatialAudio.ElevationForRow(7), 0.001f, "Fila 7 (suelo) es elevacion 0");
             }));
 
-            tests.Add(Tuple.Create<string, Action>("Spatial: la anchura estereo crece con la profundidad", () =>
+            tests.Add(Tuple.Create<string, Action>("Spatial: EaseSweep y SweepPan realizan transicion suave", () =>
             {
-                float w0 = SpatialAudio.WidthForDepth(0.0f);
-                float w1 = SpatialAudio.WidthForDepth(1.0f);
-                Assert.Near(1.0f, w0, 0.001f, "Frente sin ensanchar");
-                Assert.True(w1 > w0, "Fondo mas ancho");
+                Assert.Near(0.0f, SpatialAudio.EaseSweep(0.0f), 0.001f, "Inicio en 0");
+                Assert.Near(1.0f, SpatialAudio.EaseSweep(1.0f), 0.001f, "Final en 1");
+                float mid = SpatialAudio.SweepPan(-0.8f, 0.8f, 0.5f);
+                Assert.Near(0.0f, mid, 0.001f, "Punto medio centrado");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Spatial: PanColumn lateraliza L/R (paneo simple)", () =>
@@ -1514,14 +1524,6 @@ namespace Bejeweled3Accessible.Tests
                     Assert.True(ac.LowPassCutoff >= 1000.0f && ac.LowPassCutoff <= 22000.0f, env + " LowPassCutoff válido");
                     Assert.True(ac.StereoWidth >= 0.5f && ac.StereoWidth <= 2.0f, env + " StereoWidth válido");
                 }
-            }));
-
-            tests.Add(Tuple.Create<string, Action>("Spatial: elevación de brillo en filas altas de caída", () =>
-            {
-                Assert.True(SpatialAudio.ElevationTrebleBoost(0) > SpatialAudio.ElevationTrebleBoost(1), "Fila 0 más alta que 1");
-                Assert.True(SpatialAudio.ElevationTrebleBoost(1) > SpatialAudio.ElevationTrebleBoost(2), "Fila 1 más alta que 2");
-                Assert.Equal(0.0f, SpatialAudio.ElevationTrebleBoost(3), "Fila 3 neutral");
-                Assert.Equal(0.0f, SpatialAudio.ElevationTrebleBoost(7), "Fila 7 base");
             }));
 
             tests.Add(Tuple.Create<string, Action>("Sound: SetEnvironment cambia la sala temática y actualiza la música", () =>

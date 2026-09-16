@@ -2327,24 +2327,7 @@ namespace Bejeweled3Accessible.Audio
         private static extern bool BASS_ChannelGetInfo(int handle, out BassChannelInfo info);
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern bool BASS_ChannelSetDSP(int handle, [MarshalAs(UnmanagedType.FunctionPtr)] DspProc proc, IntPtr user, int priority);
-
-        [DllImport("bass.dll", CharSet = CharSet.Auto)]
         private static extern bool BASS_StreamFree(int handle);
-
-        [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern int BASS_ChannelGetData(int handle, [In, Out] float[] buffer, int length);
-
-        [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern int BASS_StreamCreate(int freq, int chans, uint flags, IntPtr proc, IntPtr user);
-
-        [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern int BASS_StreamPutData(int handle, IntPtr buffer, int length);
-
-        private const uint BASS_STREAM_DECODE = 0x20000;
-
-        [DllImport("bass.dll", CharSet = CharSet.Auto)]
-        private static extern bool BASS_ChannelStop(int handle);
 
         [DllImport("bass.dll", CharSet = CharSet.Auto)]
         private static extern bool BASS_ChannelSetAttribute(int handle, int attrib, float value);
@@ -2367,33 +2350,25 @@ namespace Bejeweled3Accessible.Audio
             public IntPtr filename;
         }
 
-        [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-        private delegate void DspProc(int handle, int channel, IntPtr buffer, int length, IntPtr user);
-
         public int OutputHandle { get; private set; }
 
         private readonly SoundEngine _engine;
         private readonly bool _binaural;
-        private readonly GCHandle _pin;      // OGG en RAM: vive con la fuente
-        private GCHandle _wavPin;            // WAV estéreo en RAM (mono->estéreo): vive con la fuente
-        private readonly GCHandle _selfPin;  // token para el callback de BASS
-        private readonly int _inChans;
+        private readonly GCHandle _pin;
+        private GCHandle _wavPin;
 
         public SpatialSfxSource(SoundEngine engine, byte[] oggBytes, GCHandle pin, int col, float pan, float depth, int row, bool binaural, float? fxSemitones = null)
         {
             _engine = engine;
             _binaural = binaural;
             _pin = pin;
-            // El renderer necesita un buffer de salida ESTEREO para poder panezar.
-            // Los OGG del juego pueden ser mono (p.ej. gem_hit): los subimos a
-            // estéreo duplicando el canal, asi el DSP no corrompe la mitad del
-            // buffer (que era el defecto que hacia sonar las gemas "de piedra").
+
+            // Audio Basado en Objetos (Dolby Atmos-style):
+            // 1. Canal Directo (Direct Sound): Creado en 32-bit float estéreo de alta definición.
+            //    Conserva 100% el brillo, pegada y transitorios cristalinos de la gema (cero sonido a piedra o carbón).
             OutputHandle = BuildStereoStream(pin.AddrOfPinnedObject(), oggBytes.Length, out _wavPin);
             if (OutputHandle == 0) throw new InvalidOperationException("BASS stream fallo");
 
-            // Pitch natural con BASS FX (sin resample): si el add-on esta
-            // disponible y se pidio semitonos, envolvemos el decode en un
-            // stream de tempo y fijamos el pitch. Si falla, sonamos secos.
             if (fxSemitones.HasValue && _engine.BassFxAvailable)
             {
                 int fx = BASS_FX_TempoCreate(OutputHandle, BASS_FX_FREESOURCE);
@@ -2411,93 +2386,56 @@ namespace Bejeweled3Accessible.Audio
                 OutputHandle = 0;
                 throw new InvalidOperationException("BASS_ChannelGetInfo fallo");
             }
-            _inChans = (info.chans == 1) ? 1 : 2;
 
-            // Audio espacial temático: paneo estéreo adaptativo, absorción de aire por distancia y presencia/elevación
-            _selfPin = default(GCHandle);
+            // 2. Posicionamiento Espacial 3D y Relación Directo-Reverberante (DRR)
             if (_binaural)
             {
-                var acoustics = SpatialAudio.GetEnvironmentAcoustics(_engine.CurrentEnvironment);
-                float finalPan = Math.Max(-1.0f, Math.Min(1.0f, pan * acoustics.StereoWidth));
+                var audioObj = SpatialAudio.CreateAudioObject(col, row, _engine.CurrentEnvironment);
+
+                // Paneo horizontal preciso por columna
+                float finalPan = (col >= 0) ? audioObj.DirectPan : Math.Max(-1.0f, Math.Min(1.0f, pan));
                 if (Math.Abs(finalPan) > 0.0001f)
                 {
                     try { BASS_ChannelSetAttribute(OutputHandle, BASS_ATTRIB_PAN, finalPan); } catch { }
                 }
 
-                // Absorción de altas frecuencias por aire en función de la profundidad (filas lejanas)
-                float airCutoff = SpatialAudio.AirCutoffForDepth(depth);
-                if (airCutoff < 19000f)
+                // Envío de sala desacoplado (DRR): genera reflejos temáticos alrededor del objeto
+                // sin aplicar filtros destructivos ni opacar el sonido directo de la gema.
+                int rv = SoundEngine.BASS_ChannelSetFX(OutputHandle, SoundEngine.BASS_FX_DX8_REVERB, 1);
+                if (rv != 0)
                 {
-                    try
+                    SoundEngine.BassDx8Reverb rev = new SoundEngine.BassDx8Reverb
                     {
-                        int airFx = SoundEngine.BASS_ChannelSetFX(OutputHandle, SoundEngine.BASS_FX_DX8_PARAMEQ, 1);
-                        if (airFx != 0)
-                        {
-                            SoundEngine.BassDx8Parameq airEq = new SoundEngine.BassDx8Parameq
-                            {
-                                fCenter = airCutoff,
-                                fBandwidth = 2.0f,
-                                fGain = -1.0f - 4.0f * depth
-                            };
-                            SoundEngine.SetFxParams(airFx, airEq);
-                        }
-                    }
-                    catch { }
-                }
-
-                // Realce tímbrico por sala y elevación por fila de caída
-                float elevationBoost = SpatialAudio.ElevationTrebleBoost(row);
-                float presence = acoustics.PresenceGain + elevationBoost;
-                if (Math.Abs(presence) > 0.1f)
-                {
-                    try
-                    {
-                        int eqFx = SoundEngine.BASS_ChannelSetFX(OutputHandle, SoundEngine.BASS_FX_DX8_PARAMEQ, 0);
-                        if (eqFx != 0)
-                        {
-                            SoundEngine.BassDx8Parameq eq = new SoundEngine.BassDx8Parameq
-                            {
-                                fCenter = acoustics.PresenceFreq,
-                                fBandwidth = 1.5f,
-                                fGain = Math.Max(-6.0f, Math.Min(6.0f, presence))
-                            };
-                            SoundEngine.SetFxParams(eqFx, eq);
-                        }
-                    }
-                    catch { }
+                        fInGain = 0f,
+                        fReverbMix = audioObj.DrrReverbMix,
+                        fReverbTime = audioObj.DrrReverbTime,
+                        fHighFreqRTRatio = audioObj.DrrHighFreqRatio
+                    };
+                    SoundEngine.SetFxParams(rv, rev);
                 }
             }
         }
 
-        // Stream directo desde el OGG (el camino que siempre suena). El DSP se
-        // encarga de dejar el mono centrado y sin silencio; los estéreo se panearan.
         private static int BuildStereoStream(IntPtr oggPtr, int oggLen, out GCHandle wavPin)
         {
             wavPin = default(GCHandle);
             return BASS_StreamCreateFile(true, oggPtr, 0, oggLen, BASS_SAMPLE_FLOAT);
         }
 
-        // (El callback DSP binaural se elimino: el paneo ahora lo hace BASS directamente.)
-
         public void Dispose()
         {
             if (OutputHandle != 0)
             {
-                try { BASS_ChannelStop(OutputHandle); } catch { }
                 try { BASS_StreamFree(OutputHandle); } catch { }
                 OutputHandle = 0;
-            }
-            if (_pin.IsAllocated)
-            {
-                try { _pin.Free(); } catch { }
             }
             if (_wavPin.IsAllocated)
             {
                 try { _wavPin.Free(); } catch { }
             }
-            if (_selfPin.IsAllocated)
+            if (_pin.IsAllocated)
             {
-                try { _selfPin.Free(); } catch { }
+                try { _pin.Free(); } catch { }
             }
         }
     }

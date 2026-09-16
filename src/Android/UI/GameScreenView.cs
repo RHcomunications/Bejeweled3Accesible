@@ -26,7 +26,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         QuestChallengeScreen,
         ProfileSelectScreen,
         OptionsScreen,
-        AudioSchool,
         ZenOptionsScreen,
         PauseMenu,
         Playing,
@@ -54,7 +53,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
         private int _questChallengeIdx = 0;
         private int _profileIdx = 0;
         private int _optionsIdx = 0;
-        private int _audioSchoolIdx = 0;
         private int _zenOptionsIdx = 0;
         private int _pauseIdx = 0;
         private int _gameOverIdx = 0;
@@ -308,7 +306,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 Localization.Get("MenuChangeUser", profName),
                 Localization.Get("MenuLanguage"),
                 Localization.Get("MenuOptions"),
-                Localization.Get("MenuAudioSchool"),
                 Localization.Get("MenuUpdateCheck"),
                 Localization.Get("MenuExit")
             };
@@ -442,23 +439,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             return list.ToArray();
         }
 
-        private string[] GetAudioSchoolItems()
-        {
-            bool en = Localization.CurrentLanguage == Language.English;
-            Func<string, string, string> L = (es, e) => en ? e : es;
-            var items = new List<string>();
-            string[] cols = { "A", "B", "C", "D", "E", "F", "G", "H" };
-            for (int i = 0; i < 8; i++)
-                items.Add(L(string.Format("Columna {0} (izquierda a derecha)", cols[i]),
-                            string.Format("Column {0} (left to right)", cols[i])));
-            items.Add(L("Profundidad frente (cerca)", "Front depth (near)"));
-            items.Add(L("Profundidad fondo (lejos)", "Back depth (far)"));
-            items.Add(L("Barrido izquierda -> derecha", "Sweep left -> right"));
-            items.Add(L("Barrido frente -> fondo", "Sweep front -> back"));
-            items.Add(Localization.Get("OptBack"));
-            return items.ToArray();
-        }
-
         private string[] GetZenOptionsMenuItems()
         {
             string ambStr = _options.ZenAmbient != (int)AmbientType.None ? AmbientHelper.GetAmbientName((AmbientType)_options.ZenAmbient) : Localization.Get("StateDisabled");
@@ -517,9 +497,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 case AndroidGameScreen.OptionsScreen:
                     activeIdx = _optionsIdx;
                     return GetOptionsMenuItems();
-                case AndroidGameScreen.AudioSchool:
-                    activeIdx = _audioSchoolIdx;
-                    return GetAudioSchoolItems();
                 case AndroidGameScreen.ZenOptionsScreen:
                     activeIdx = _zenOptionsIdx;
                     return GetZenOptionsMenuItems();
@@ -548,7 +525,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 case AndroidGameScreen.QuestChallengeScreen: _questChallengeIdx = idx; break;
                 case AndroidGameScreen.ProfileSelectScreen: _profileIdx = idx; break;
                 case AndroidGameScreen.OptionsScreen: _optionsIdx = idx; break;
-                case AndroidGameScreen.AudioSchool: _audioSchoolIdx = idx; break;
                 case AndroidGameScreen.ZenOptionsScreen: _zenOptionsIdx = idx; break;
                 case AndroidGameScreen.PauseMenu: _pauseIdx = idx; break;
                 case AndroidGameScreen.GameOver: _gameOverIdx = idx; break;
@@ -808,7 +784,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 case AndroidGameScreen.QuestChallengeScreen: return Localization.Get("Relic" + (_relicIdx + 1));
                 case AndroidGameScreen.ProfileSelectScreen: return Localization.Get("ProfileSelectTitle");
                 case AndroidGameScreen.OptionsScreen: return Localization.Get("OptionsTitle");
-                case AndroidGameScreen.AudioSchool: return Localization.Get("AudioSchoolTitle");
                 case AndroidGameScreen.ZenOptionsScreen: return Localization.Get("ZenOptionsTitle");
                 case AndroidGameScreen.PauseMenu: return Localization.Get("PauseTitle");
                 case AndroidGameScreen.GameOver: return Localization.Get("GameOverTitle");
@@ -1096,8 +1071,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     return;
                 }
                 else if (idx == 6) { _currentScreen = AndroidGameScreen.OptionsScreen; _optionsIdx = 0; }
-                else if (idx == 7) { _currentScreen = AndroidGameScreen.AudioSchool; _audioSchoolIdx = 0; }
-                else if (idx == 8)
+                else if (idx == 7)
                 {
                     _sound?.PlaySound(AudioMap.Select);
                     _talkBack?.Speak(Localization.Get("UpdateChecking"), true);
@@ -1123,7 +1097,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     });
                     return;
                 }
-                else if (idx == 9)
+                else if (idx == 8)
                 {
                     _sound?.PlaySound(AudioMap.VoiceGoodbye);
                     _talkBack?.Speak(Localization.CurrentLanguage == Language.Spanish ? "¡Adiós!" : "Goodbye!", true);
@@ -1303,25 +1277,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                     return;
                 }
             }
-            else if (_currentScreen == AndroidGameScreen.AudioSchool)
-            {
-                string[] schoolItems = GetAudioSchoolItems();
-                if (idx == schoolItems.Length - 1) // Volver
-                {
-                    _sound?.PlaySound(AudioMap.Backtomain);
-                    _currentScreen = AndroidGameScreen.MainMenu;
-                    _menuIdx = 0;
-                    AnnounceCurrentMenu();
-                    Invalidate();
-                    return;
-                }
-                else
-                {
-                    _talkBack?.Speak(schoolItems[idx], true);
-                    PlayAudioSchoolTest(idx);
-                    return;
-                }
-            }
             else if (_currentScreen == AndroidGameScreen.ZenOptionsScreen)
             {
                 string[] zenItems = GetZenOptionsMenuItems();
@@ -1481,44 +1436,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
 
                 builder.Show();
             });
-        }
-
-        private void PlayAudioSchoolTest(int idx)
-        {
-            string s = AudioMap.Select;
-            if (idx >= 0 && idx <= 7)
-            {
-                float pan = SpatialAudio.PanColumn(idx);
-                _sound?.PlaySoundSpatialPan(pan, 0.0f, s);
-            }
-            else if (idx == 8)
-                _sound?.PlaySoundSpatialPan(0.0f, 0.0f, s);
-            else if (idx == 9)
-                _sound?.PlaySoundSpatialPan(0.0f, 1.0f, s);
-            else if (idx == 10)
-            {
-                // Barrido izquierda -> derecha: varia el pan gradualmente.
-                System.Threading.Tasks.Task.Run(async () =>
-                {
-                    for (float p = -1.0f; p <= 1.0f; p += 0.25f)
-                    {
-                        _sound?.PlaySoundSpatialPan(p, 0.0f, s);
-                        await System.Threading.Tasks.Task.Delay(120);
-                    }
-                });
-            }
-            else if (idx == 11)
-            {
-                // Barrido frente -> fondo: varia la profundidad gradualmente.
-                System.Threading.Tasks.Task.Run(async () =>
-                {
-                    for (float d = 0.0f; d <= 1.0f; d += 0.2f)
-                    {
-                        _sound?.PlaySoundSpatialPan(0.0f, d, s);
-                        await System.Threading.Tasks.Task.Delay(120);
-                    }
-                });
-            }
         }
 
         private void StartGameTimer()

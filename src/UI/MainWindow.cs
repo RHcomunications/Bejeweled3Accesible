@@ -11,7 +11,7 @@ using Updater = Bejeweled3Accessible.Update.AutoUpdater;
 
 namespace Bejeweled3Accessible.UI
 {
-    public enum GameScreen { Loading, ProfileInput, ProfileSelectScreen, MainMenu, GameSelect, Options, BadgesScreen, RecordsScreen, TutorialScreen, ZenOptionsScreen, QuestRelicScreen, QuestChallengeScreen, AudioSchool, Playing, PauseMenu, GameOver }
+    public enum GameScreen { Loading, ProfileInput, ProfileSelectScreen, MainMenu, GameSelect, Options, BadgesScreen, RecordsScreen, TutorialScreen, ZenOptionsScreen, QuestRelicScreen, QuestChallengeScreen, Playing, PauseMenu, GameOver }
 
     public class MainWindow : Form
     {
@@ -50,7 +50,6 @@ namespace Bejeweled3Accessible.UI
         private int _recordsIdx = 0;
         private int _tutorialIdx = 0;
         private int _relicIdx = 0;
-        private int _audioSchoolIdx = 0;
         private int _questChallengeIdx = 0;
         private int _profileSelectIdx = 0;
         private int _zenOptionsIdx = 0;
@@ -224,8 +223,7 @@ namespace Bejeweled3Accessible.UI
                 Localization.Get("MenuTutorial"),
                 Localization.Get("MenuChangeUser", profName),
                 Localization.Get("MenuLanguage"),
-                Localization.Get("MenuOptions"),
-                Localization.Get("MenuAudioSchool")
+                Localization.Get("MenuOptions")
             };
 #if !DEBUG
             items.Add(Localization.Get("MenuUpdateCheck"));
@@ -690,7 +688,6 @@ namespace Bejeweled3Accessible.UI
                 TransitionToMainMenu(true);
             }
             else if (_screen == GameScreen.MainMenu) HandleMainMenuKeys(e);
-            else if (_screen == GameScreen.AudioSchool) HandleAudioSchoolKeys(e);
             else if (_screen == GameScreen.GameSelect) HandleGameSelectKeys(e);
             else if (_screen == GameScreen.Options) HandleOptionsKeys(e);
             else if (_screen == GameScreen.BadgesScreen) HandleBadgesKeys(e);
@@ -982,15 +979,8 @@ namespace Bejeweled3Accessible.UI
                     _optionsIdx = 0;
                     _speech.Speak(Localization.Get("OptionsTitle") + ". " + GetOptionsMenuItems()[0], true);
                 }
-                else if (_menuIdx == 7) // Escuela de Audio
-                {
-                    _screen = GameScreen.AudioSchool;
-                    _audioSchoolIdx = 0;
-                    _sound.PlaySound(AudioMap.ButtonPress);
-                    _speech.Speak(Localization.Get("AudioSchoolTitle") + ". " + GetAudioSchoolItems()[0], true);
-                }
 #if !DEBUG
-                else if (_menuIdx == 8) // Update check
+                else if (_menuIdx == 7) // Update check
                 {
                     if (!_updateChecked)
                     {
@@ -1085,77 +1075,6 @@ namespace Bejeweled3Accessible.UI
                 Localization.Get("OptMusicBox", musicBoxDisplay),
                 Localization.Get("OptBack")
             };
-        }
-
-        // "Escuela de Audio": demostracion corta del unico modelo espacial de
-        // este juego (sin perfiles): recorre columnas (L/R) y profundidad
-        // (frente/fondo) y un par de barridos, con un sonido real del tablero.
-        private string[] GetAudioSchoolItems()
-        {
-            bool en = Localization.CurrentLanguage == Language.English;
-            Func<string, string, string> L = (es, e) => en ? e : es;
-            var items = new List<string>();
-            string[] cols = { "A", "B", "C", "D", "E", "F", "G", "H" };
-            for (int i = 0; i < 8; i++)
-                items.Add(L(string.Format("Columna {0} (izquierda a derecha)", cols[i]),
-                            string.Format("Column {0} (left to right)", cols[i])));
-            items.Add(L("Profundidad frente (cerca)", "Front depth (near)"));
-            items.Add(L("Profundidad fondo (lejos)", "Back depth (far)"));
-            items.Add(L("Barrido izquierda -> derecha", "Sweep left -> right"));
-            items.Add(L("Barrido frente -> fondo", "Sweep front -> back"));
-            return items.ToArray();
-        }
-
-        private void HandleAudioSchoolKeys(KeyEventArgs e)
-        {
-            string[] items = GetAudioSchoolItems();
-            if (e.KeyCode == Keys.Down)
-            {
-                _audioSchoolIdx = (_audioSchoolIdx + 1) % items.Length;
-                _sound.PlaySound(AudioMap.ButtonMouseover);
-                _speech.Speak(items[_audioSchoolIdx], true);
-            }
-            else if (e.KeyCode == Keys.Up)
-            {
-                _audioSchoolIdx = (_audioSchoolIdx - 1 + items.Length) % items.Length;
-                _sound.PlaySound(AudioMap.ButtonMouseover);
-                _speech.Speak(items[_audioSchoolIdx], true);
-            }
-            else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
-            {
-                // Sin click de menu: el tono de calibracion (sin500) debe oirse solo,
-                // si no se solapa con el click y parece "otro click del menu".
-                // Confirma la opcion (la repite) y luego reproduce el sonido posicionado.
-                _speech.Speak(items[_audioSchoolIdx], true);
-                PlayAudioSchoolTest(_audioSchoolIdx);
-            }
-            else if (e.KeyCode == Keys.Escape)
-            {
-                _sound.PlaySound(AudioMap.ButtonPress);
-                _screen = GameScreen.MainMenu;
-                _menuIdx = 7;
-                _speech.Speak(Localization.Get("MenuAudioSchool") + ". " + GetMainMenuItems()[7], true);
-            }
-        }
-
-        // Reproduce la prueba indicada por indice (ver GetAudioSchoolItems):
-        // 0-7 columnas (L/R), 8 frente, 9 fondo, 10 barrido L->R, 11 frente->fondo.
-        private void PlayAudioSchoolTest(int idx)
-        {
-            string s = AudioMap.Select;
-            if (idx >= 0 && idx <= 7)
-            {
-                float pan = Audio.SpatialAudio.PanColumn(idx);
-                _sound.PlaySoundSpatialPan(pan, 0.0f, s);
-            }
-            else if (idx == 8)
-                _sound.PlaySoundSpatialPan(0.0f, 0.0f, s);
-            else if (idx == 9)
-                _sound.PlaySoundSpatialPan(0.0f, 1.0f, s);
-            else if (idx == 10)
-                _sound.PlaySoundSpatialSweepPan(-1.0f, 1.0f, 0.0f, 0.0f, s);
-            else if (idx == 11)
-                _sound.PlaySoundSpatialSweepPan(0.0f, 0.0f, 0.0f, 1.0f, s);
         }
 
         private void HandleOptionsKeys(KeyEventArgs e)
@@ -3256,7 +3175,7 @@ case Engine.QuestType.TimeBomb:
 
             if (_screen == GameScreen.Loading) DrawLoading(g);
             else if (_screen == GameScreen.ProfileInput) DrawProfileInput(g);
-            else if (_screen == GameScreen.MainMenu || _screen == GameScreen.GameSelect || _screen == GameScreen.Options || _screen == GameScreen.BadgesScreen || _screen == GameScreen.RecordsScreen || _screen == GameScreen.TutorialScreen || _screen == GameScreen.QuestRelicScreen || _screen == GameScreen.QuestChallengeScreen || _screen == GameScreen.ProfileSelectScreen || _screen == GameScreen.ZenOptionsScreen || _screen == GameScreen.PauseMenu || _screen == GameScreen.GameOver || _screen == GameScreen.AudioSchool) DrawMenu(g);
+            else if (_screen == GameScreen.MainMenu || _screen == GameScreen.GameSelect || _screen == GameScreen.Options || _screen == GameScreen.BadgesScreen || _screen == GameScreen.RecordsScreen || _screen == GameScreen.TutorialScreen || _screen == GameScreen.QuestRelicScreen || _screen == GameScreen.QuestChallengeScreen || _screen == GameScreen.ProfileSelectScreen || _screen == GameScreen.ZenOptionsScreen || _screen == GameScreen.PauseMenu || _screen == GameScreen.GameOver) DrawMenu(g);
             else if (_screen == GameScreen.Playing) DrawBoard(g);
         }
 
@@ -3908,7 +3827,6 @@ case Engine.QuestType.TimeBomb:
             if (_screen == GameScreen.ZenOptionsScreen) return GetZenOptionsMenuItems();
             if (_screen == GameScreen.PauseMenu) return GetPauseMenuItems();
             if (_screen == GameScreen.GameOver) return GetGameOverItems();
-            if (_screen == GameScreen.AudioSchool) return GetAudioSchoolItems();
             return null;
         }
 
@@ -3930,7 +3848,6 @@ case Engine.QuestType.TimeBomb:
             else if (_screen == GameScreen.ZenOptionsScreen && _zenOptionsIdx != idx) { _zenOptionsIdx = idx; changed = true; }
             else if (_screen == GameScreen.PauseMenu && _pauseIdx != idx) { _pauseIdx = idx; changed = true; }
             else if (_screen == GameScreen.GameOver && _gameOverIdx != idx) { _gameOverIdx = idx; changed = true; }
-            else if (_screen == GameScreen.AudioSchool && _audioSchoolIdx != idx) { _audioSchoolIdx = idx; changed = true; }
 
             if (changed)
             {
@@ -3965,7 +3882,6 @@ case Engine.QuestType.TimeBomb:
                 else if (_screen == GameScreen.ZenOptionsScreen) { _zenOptionsIdx = clickedIdx; HandleZenOptionsKeys(enterKey); }
                 else if (_screen == GameScreen.PauseMenu) { _pauseIdx = clickedIdx; HandlePauseMenuKeys(enterKey); }
                 else if (_screen == GameScreen.GameOver) { _gameOverIdx = clickedIdx; HandleGameOverKeys(enterKey); }
-                else if (_screen == GameScreen.AudioSchool) { _audioSchoolIdx = clickedIdx; HandleAudioSchoolKeys(enterKey); }
             }
         }
 

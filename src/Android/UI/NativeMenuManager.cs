@@ -219,7 +219,6 @@ namespace Bejeweled3Accessible.AndroidApp.UI
                 ShowMainMenu();
             }));
             container.AddView(CreateMenuButton(Localization.Get("MenuOptions"), "", () => ShowOptionsScreen()));
-            container.AddView(CreateMenuButton(Localization.Get("MenuAudioSchool"), "", () => ShowAudioSchoolScreen()));
             container.AddView(CreateMenuButton(Localization.Get("MenuUpdateCheck"), "", () =>
             {
                 _talkBack?.Speak(Localization.Get("UpdateChecking"), true);
@@ -591,30 +590,7 @@ namespace Bejeweled3Accessible.AndroidApp.UI
             _activity.SetContentView(scroll);
         }
 
-        public void ShowAudioSchoolScreen()
-        {
-            _activity.SetDesiredOrientation(false);
-            var scroll = CreateBaseLayout(Localization.Get("MenuAudioSchool"), out var container);
 
-            bool en = Localization.CurrentLanguage == Language.English;
-            Func<string, string, string> L = (es, e) => en ? e : es;
-            string[] cols = { "A", "B", "C", "D", "E", "F", "G", "H" };
-
-            for (int i = 0; i < 8; i++)
-            {
-                int colIdx = i;
-                string text = L(string.Format("Columna {0} (izquierda a derecha)", cols[i]), string.Format("Column {0} (left to right)", cols[i]));
-                container.AddView(CreateMenuButton(text, "", () =>
-                {
-                    float pan = SpatialAudio.PanColumn(colIdx);
-                    _sound?.PlaySoundSpatialPan(pan, 0.0f, AudioMap.Select);
-                }));
-            }
-
-            container.AddView(CreateMenuButton(Localization.Get("OptBack"), "", () => ShowMainMenu()));
-
-            _activity.SetContentView(scroll);
-        }
 
         public void PromptCreateProfile()
         {

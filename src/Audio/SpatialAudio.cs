@@ -2,37 +2,58 @@ using System;
 
 namespace Bejeweled3Accessible.Audio
 {
-    // --- Entornos Acústicos Temáticos de Bejeweled 3 ---
+    // --- Entornos Acústicos Temáticos de Bejeweled 3 (Binaural Room Impulses) ---
     public enum AudioEnvironment
     {
-        CrystalTemple,      // Clásico, Menús, Relicarios (cámara de mármol y cristal)
+        CrystalTemple,      // Clásico, Menús, Relicarios (cámara de mármol y cuarzo)
         UndergroundCavern,  // Mina de Diamantes (caverna profunda de roca)
-        GlacialChamber,     // Tormenta de Hielo (acústica helada con reflejos brillantes)
-        TwilightGarden,     // Mariposas (jardín abierto crepuscular y elevación)
-        Sanctuary,          // Zen (santuario envolvente de meditación)
-        EnergyConduit,      // Relámpago (conducto elemental de alta energía)
+        GlacialChamber,     // Tormenta de Hielo (acústica helada con reflejos cristalinos)
+        TwilightGarden,     // Mariposas (jardín abierto crepuscular y aireado)
+        Sanctuary,          // Zen (santuario meditativo envolvente)
+        EnergyConduit,      // Relámpago (conducto elemental reactivo)
         VictorianSalon      // Poker (salón íntimo de paño y madera noble)
+    }
+
+    public enum AudioObjectClass
+    {
+        BoardGem,           // Gemas del tablero (swap, selección, caída)
+        CascadeMatch,       // Destrucciones y cascadas
+        SpecialGem,         // Creación/activación de Fuego, Estrella, Hipercubo, Supernova
+        AnnouncerVoice,     // Voces arcade del anunciador (centradas)
+        AmbientBed,         // Cama musical y paisajes de naturaleza (Bed Objects directos)
+        UINavigation        // Sonidos de menú y cursor
     }
 
     public struct EnvironmentAcoustics
     {
-        public float ReverbMix;         // dB (-96..0)
-        public float ReverbTime;        // ms (decaimiento)
+        public float ReverbMix;         // dB de envío ambiental (-96..0)
+        public float ReverbTime;        // ms de decaimiento
         public float HighFreqRTRatio;   // ratio de agudos en la reverb (0.1..0.99)
         public float LowPassCutoff;     // corte de agudos por absorción de sala (Hz)
-        public float StereoWidth;       // anchura estéreo del espacio (0.8..1.5)
-        public float PresenceGain;      // dB de realce tímbrico (-6..+6)
-        public float PresenceFreq;      // Hz de frecuencia central de presencia
+        public float StereoWidth;       // anchura estéreo acústica (1.0..1.2)
+        public float PresenceGain;      // dB de realce tímbrico
+        public float PresenceFreq;      // Hz de frecuencia central
     }
 
-    // Modelo de audio espacial unico y generado para este juego: cada efecto
-    // del tablero se coloca con dos parametros derivados de su celda:
-    //   - Pan (L/R): la columna (A..H) se reparte de izquierda a derecha.
-    //   - Profundidad (frente->fondo): la fila; las filas traseras suenan mas
-    //     lejanas (mas quietas, mas opacas y ligeramente mas amplias).
-    // No hay perfiles ni conmutadores: el posicionamiento esta siempre activo
-    // y es el mismo para todo el juego. La musica y las voces se escuchan
-    // centradas y secas.
+    // Estructura de metadatos de Objeto de Audio Espacial (al estilo Dolby Atmos)
+    public struct SpatialAudioObject
+    {
+        public float X;                 // Posición horizontal (-1.0 Izquierda .. +1.0 Derecha)
+        public float Y;                 // Profundidad (0.0 Frente .. 1.0 Fondo)
+        public float Z;                 // Elevación (0.0 Base .. 1.0 Techo)
+        public float DirectPan;         // Paneo estéreo BASS (-0.85 .. +0.85)
+        public float DirectVolume;      // Ganancia directa (0.65 .. 1.0)
+        public float DrrReverbMix;      // Nivel de mezcla de sala desacoplada (dB)
+        public float DrrReverbTime;     // Tiempo de sala (ms)
+        public float DrrHighFreqRatio;  // Ratio de agudos de la sala
+        public AudioObjectClass Category;
+    }
+
+    // Modelo de Audio Espacial Basado en Objetos:
+    // Cada sonido emitido en el tablero es un objeto con posición 3D (X, Y, Z).
+    // La señal directa (Direct Sound) conserva el 100% de su pegada, brillo y
+    // transitorios originales (cero sonido a piedra o carbón). El entorno se
+    // genera mediante un envío de sala desacoplado (DRR - Direct-to-Reverberant Ratio).
     public static class SpatialAudio
     {
         public const float MaxPan = 0.85f;
@@ -51,25 +72,31 @@ namespace Bejeweled3Accessible.Audio
             if (Math.Abs(t) < 0.0001f) return CenterPan;
 
             float sign = Math.Sign(t);
-            // Curva logaritmica: exponente > 1 aplana el centro y empuja los
-            // extremos del tablero (columnas 0 y 7) hacia el paneo maximo,
-            // acentuando la separacion estereo donde el jugador lo percibe.
+            // Curva logarítmica: abre los extremos del tablero (columnas 0 y 7)
+            // acentuando la separación estéreo sin desfases.
             float mag = (float)Math.Pow(Math.Abs(t), 1.4);
             return MaxPan * sign * mag;
         }
 
-        // Pan de una columna del tablero (8 columnas por defecto).
         public static float PanColumn(int col)
         {
             return Pan(col, BoardColumns);
         }
 
-        // Fila -> lejania 0 (frente/cerca) .. 1 (fondo/lejos). fila<0 -> frente.
+        // Fila -> profundidad 0 (frente/cerca) .. 1 (fondo/lejos). fila<0 -> frente.
         public static float DepthForRow(int row)
         {
             if (row < 0) return 0.0f;
             if (row >= BoardRows) row = BoardRows - 1;
             if (row <= 0) return 1.0f;
+            return (float)(BoardRows - 1 - row) / (BoardRows - 1);
+        }
+
+        // Fila -> elevación 0 (suelo) .. 1 (techo/caída).
+        public static float ElevationForRow(int row)
+        {
+            if (row < 0) return 0.0f;
+            if (row >= BoardRows) return 0.0f;
             return (float)(BoardRows - 1 - row) / (BoardRows - 1);
         }
 
@@ -86,29 +113,12 @@ namespace Bejeweled3Accessible.Audio
             return fromPan + (toPan - fromPan) * EaseSweep(progress);
         }
 
-        // Ganancia de volumen por profundidad: frente 1.0, fondo 0.65.
+        // Ganancia de volumen por distancia: frente 1.0, fondo 0.72.
         public static float VolumeForDepth(float depthFar)
         {
             if (depthFar <= 0.0f) return 1.0f;
-            if (depthFar >= 1.0f) return 0.65f;
-            return 1.0f - 0.35f * depthFar;
-        }
-
-        // Corte del paso-bajo de "aire" por profundidad: frente 20 kHz
-        // (transparente), fondo ~6 kHz (opaca la lejania). Exponencial.
-        public static float AirCutoffForDepth(float depthFar)
-        {
-            if (depthFar <= 0.0f) return 20000.0f;
-            if (depthFar >= 1.0f) return 6000.0f;
-            return 20000.0f * (float)Math.Pow(0.3, depthFar);
-        }
-
-        // Anchura estereo por profundidad: frente 1.0 (natural), fondo 1.3.
-        public static float WidthForDepth(float depthFar)
-        {
-            if (depthFar <= 0.0f) return 1.0f;
-            if (depthFar >= 1.0f) return 1.3f;
-            return 1.0f + 0.3f * depthFar;
+            if (depthFar >= 1.0f) return 0.72f;
+            return 1.0f - 0.28f * depthFar;
         }
 
         public static EnvironmentAcoustics GetEnvironmentAcoustics(AudioEnvironment env)
@@ -118,7 +128,7 @@ namespace Bejeweled3Accessible.Audio
                 case AudioEnvironment.UndergroundCavern:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -22.0f,
+                        ReverbMix = -26.0f,
                         ReverbTime = 900.0f,
                         HighFreqRTRatio = 0.40f,
                         LowPassCutoff = 8000.0f,
@@ -129,7 +139,7 @@ namespace Bejeweled3Accessible.Audio
                 case AudioEnvironment.GlacialChamber:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -23.0f,
+                        ReverbMix = -27.0f,
                         ReverbTime = 700.0f,
                         HighFreqRTRatio = 0.85f,
                         LowPassCutoff = 19000.0f,
@@ -140,7 +150,7 @@ namespace Bejeweled3Accessible.Audio
                 case AudioEnvironment.TwilightGarden:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -26.0f,
+                        ReverbMix = -30.0f,
                         ReverbTime = 500.0f,
                         HighFreqRTRatio = 0.70f,
                         LowPassCutoff = 19000.0f,
@@ -151,7 +161,7 @@ namespace Bejeweled3Accessible.Audio
                 case AudioEnvironment.Sanctuary:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -24.0f,
+                        ReverbMix = -28.0f,
                         ReverbTime = 1000.0f,
                         HighFreqRTRatio = 0.65f,
                         LowPassCutoff = 18000.0f,
@@ -162,7 +172,7 @@ namespace Bejeweled3Accessible.Audio
                 case AudioEnvironment.EnergyConduit:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -25.0f,
+                        ReverbMix = -29.0f,
                         ReverbTime = 550.0f,
                         HighFreqRTRatio = 0.80f,
                         LowPassCutoff = 20000.0f,
@@ -173,7 +183,7 @@ namespace Bejeweled3Accessible.Audio
                 case AudioEnvironment.VictorianSalon:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -27.0f,
+                        ReverbMix = -31.0f,
                         ReverbTime = 400.0f,
                         HighFreqRTRatio = 0.40f,
                         LowPassCutoff = 16000.0f,
@@ -185,7 +195,7 @@ namespace Bejeweled3Accessible.Audio
                 default:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -24.0f,
+                        ReverbMix = -28.0f,
                         ReverbTime = 800.0f,
                         HighFreqRTRatio = 0.75f,
                         LowPassCutoff = 20000.0f,
@@ -196,45 +206,33 @@ namespace Bejeweled3Accessible.Audio
             }
         }
 
-        // Elevación por fila: filas superiores (0-2) tienen más brillo de "caída desde el techo",
-        // filas inferiores (6-7) tienen más cuerpo sobre el pedestal de piedra.
-        public static float ElevationTrebleBoost(int row)
-        {
-            if (row < 0 || row >= BoardRows) return 0.0f;
-            if (row <= 2) return (3 - row) * 1.0f; // +1..+3 dB en filas altas
-            return 0.0f;
-        }
-
-        public struct HrtfParameters
-        {
-            public float Pan;             // -0.85 .. +0.85
-            public float Depth;           // 0.0 (frente) .. 1.0 (fondo)
-            public float Volume;          // 1.0 .. 0.65
-            public float AirCutoff;       // 20000 Hz .. 6000 Hz
-            public float StereoWidth;     // Ancho estéreo acústico
-            public float ElevationBoost;  // 0 .. +3 dB
-            public float PresenceGain;    // dB
-            public float PresenceFreq;    // Hz
-        }
-
-        public static HrtfParameters GetHrtfParameters(int col, int row, AudioEnvironment env)
+        // Construcción del objeto de audio espacial con cálculo de DRR desacoplado
+        public static SpatialAudioObject CreateAudioObject(int col, int row, AudioEnvironment env, AudioObjectClass category = AudioObjectClass.BoardGem)
         {
             float pan = (col < 0) ? CenterPan : PanColumn(col);
             float depth = (row < 0) ? 0.0f : DepthForRow(row);
+            float elevation = (row < 0) ? 0.0f : ElevationForRow(row);
             var acoustics = GetEnvironmentAcoustics(env);
-            float finalPan = Math.Max(-1.0f, Math.Min(1.0f, pan * acoustics.StereoWidth));
-            float elevation = (row >= 0) ? ElevationTrebleBoost(row) : 0.0f;
 
-            return new HrtfParameters
+            float directPan = Math.Max(-1.0f, Math.Min(1.0f, pan * acoustics.StereoWidth));
+            float directVol = VolumeForDepth(depth);
+
+            // DRR (Direct-to-Reverberant Ratio): el envío de sala aumenta sutilmente
+            // con la profundidad del objeto (+1 a +3 dB de reflejos en filas de fondo),
+            // mientras que el sonido directo mantiene su ataque 100% brillante.
+            float roomMix = acoustics.ReverbMix + (depth * 2.5f);
+
+            return new SpatialAudioObject
             {
-                Pan = finalPan,
-                Depth = depth,
-                Volume = VolumeForDepth(depth),
-                AirCutoff = AirCutoffForDepth(depth),
-                StereoWidth = acoustics.StereoWidth,
-                ElevationBoost = elevation,
-                PresenceGain = acoustics.PresenceGain + elevation,
-                PresenceFreq = acoustics.PresenceFreq
+                X = (col < 0) ? 0f : ((col - 3.5f) / 3.5f),
+                Y = depth,
+                Z = elevation,
+                DirectPan = directPan,
+                DirectVolume = directVol,
+                DrrReverbMix = roomMix,
+                DrrReverbTime = acoustics.ReverbTime,
+                DrrHighFreqRatio = acoustics.HighFreqRTRatio,
+                Category = category
             };
         }
     }

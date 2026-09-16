@@ -219,14 +219,24 @@ bejeweled3_accessible/
        - *Solución:* 
          1. Se refinó la lista canónica de la Caja de Música a **19 pistas exclusivas**: las 13 composiciones oficiales dentro del módulo `.mo3` (`MainTheme`, `Intro`, `Classic`, `Lightning`, `Zen`, `Butterflies`, `Poker`, `IceStorm`, `QuestTheme`, `QuestBuriedTreasure`, `QuestTakeYourTime`, `QuestTurnByTurn`, `QuestTimeBombs`) y los 6 ambientes acústicos reales (`AmbientCoastal`, `AmbientCrickets`, `AmbientForest`, `AmbientOceanSurf`, `AmbientRainLeaves`, `AmbientWaterfall`). Se eliminaron pistas duplicadas de desarrollo y bonus tracks huérfanos (`RemixMedley`, `FinalTurn`, `GemsOfGlass`).
          2. Se integró la localización dinámica en `Localization.cs` y `MusicMap.GetJukeboxTrackName(key)` tanto en español como en inglés, garantizando que el sintetizador de voz y la interfaz visual anuncien nombres limpios y canónicos (ej. "Modo Clásico", "Tormenta de Hielo", "Lluvia en Hojas") sincronizados con el idioma del juego.
-   21. **Calibración Acústica Sutil y Transparente del Audio Binaural (2026-09-15)**:
-       - *Problema:* El usuario percibía la música como apagada, con pérdida de brillo o "en mono" al aplicar la reverberación temática.
-       - *Causa:* En DirectSound DX8, un nivel de `ReverbMix` entre `-7.5 dB` y `-9.5 dB` introducía un 40% de cola de reverberación difusa que desdibujaba el estéreo directo del master original. Además, el filtro de sala con `-8.0 dB` de corte en agudos apagaba la nitidez de platillos y sintetizadores, y los ambientes de Zen se veían afectados por reverberación artificial de cámara cerrada.
-       - *Solución:* 
-         1. Se calibró `ReverbMix` a niveles profesionales de estudio (`-22.0 dB` a `-27.0 dB`, ~5% wet), logrando que el 95% del sonido sea la señal estéreo directa con un halo tridimensional sutil.
-         2. Se suavizó el filtro de absorción de sala a una atenuación transparente de `-1.0 dB`, preservando al 100% el brillo y detalle de las frecuencias altas.
-         3. Se excluyeron los 6 ambientes naturales de Zen de la reverberación de cámara cerrada, reproduciéndolos con su imagen estéreo 3D original limpia.
-         4. Se optimizó el DSP Mid/Side con verificación estricta de 2 canales y protección contra clipping digital.
+    21. **Calibración Acústica Sutil y Transparente del Audio Binaural (2026-09-15)**:
+        - *Problema:* El usuario percibía la música como apagada, con pérdida de brillo o "en mono" al aplicar la reverberación temática.
+        - *Causa:* En DirectSound DX8, un nivel de `ReverbMix` entre `-7.5 dB` y `-9.5 dB` introducía un 40% de cola de reverberación difusa que desdibujaba el estéreo directo del master original. Además, el filtro de sala con `-8.0 dB` de corte en agudos apagaba la nitidez de platillos y sintetizadores, y los ambientes de Zen se veían afectados por reverberación artificial de cámara cerrada.
+        - *Solución:* 
+          1. Se calibró `ReverbMix` a niveles profesionales de estudio (`-22.0 dB` a `-27.0 dB`, ~5% wet), logrando que el 95% del sonido sea la señal estéreo directa con un halo tridimensional sutil.
+          2. Se suavizó el filtro de absorción de sala a una atenuación transparente de `-1.0 dB`, preservando al 100% el brillo y detalle de las frecuencias altas.
+          3. Se excluyeron los 6 ambientes naturales de Zen de la reverberación de cámara cerrada, reproduciéndolos con su imagen estéreo 3D original limpia.
+          4. Se optimizó el DSP Mid/Side con verificación estricta de 2 canales y protección contra clipping digital.
+
+    22. **Rediseño del Motor de Audio Espacial a Modelo Basado en Objetos (Dolby Atmos-style) y Eliminación de la Escuela de Audio (2026-09-15)**:
+        - *Problema:* 
+          1. El intento previo de simular distancia mediante filtros de paso bajo insertos (`airCutoff` paramétrico) atenuaba severamente las altas frecuencias del impacto de gemas (`gem_hit`), provocando que los sonidos de cristal sonaran opacos, sin pegada o como "carbón puro / piedra".
+          2. La *Escuela de Audio* en el menú principal resultaba redundante, poco práctica y sobrecargaba la navegación para usuarios de lectores de pantalla.
+        - *Solución:*
+          1. **Modelo de Audio Espacial Basado en Objetos**: Se reescribió `SpatialAudio.cs` y `SpatialSfxSource` bajo el principio de audio por objetos (estilo Dolby Atmos). Cada emisor del tablero es un `SpatialAudioObject` posicionado en coordenadas 3D ($X$: columna A-H, $Y$: profundidad/fila, $Z$: elevación de caída) perteneciente a una categoría (`BoardGem`, `CascadeMatch`, `SpecialGem`, `AnnouncerVoice`, `AmbientBed`, `UINavigation`).
+          2. **Preservación Total del Sonido Directo (Direct Sound)**: El canal directo se reproduce en 32-bit float stereo transparente sin ningún filtro ecualizador destructivo ni corte de transitorios (100% de ataque cristalino).
+          3. **DRR Desacoplado (Direct-to-Reverberant Ratio)**: La sensación de espacio y profundidad se logra modulando exclusivamente el envío de sala de reverberación DX8 (`DrrReverbMix`, `DrrReverbTime`, `DrrHighFreqRatio`) en paralelo, sin alterar la señal seca.
+          4. **Eliminación Total de la Escuela de Audio**: Se removieron todas las referencias y pantallas de `AudioSchool` en Windows (`MainWindow.cs`), Android (`GameScreenView.cs`, `NativeMenuManager.cs`), diccionarios de traducción (`Localization.cs`) y la suite de tests (`TestRunner.cs`), manteniendo un menú limpio, rápido y directo.
 
 ---
 
