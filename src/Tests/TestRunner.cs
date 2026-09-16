@@ -1527,15 +1527,22 @@ namespace Bejeweled3Accessible.Tests
             tests.Add(Tuple.Create<string, Action>("Sound: SetEnvironment cambia la sala temática y actualiza la música", () =>
             {
                 string repoRoot = AppDomain.CurrentDomain.BaseDirectory;
-                SoundEngine sound = new SoundEngine(repoRoot);
-                sound.BinauralEnabled = true;
-                Assert.Equal(AudioEnvironment.CrystalTemple, sound.CurrentEnvironment, "Default CrystalTemple");
+                using (SoundEngine sound = new SoundEngine(repoRoot))
+                {
+                    sound.BinauralEnabled = true;
+                    Assert.Equal(AudioEnvironment.CrystalTemple, sound.CurrentEnvironment, "Default CrystalTemple");
 
-                sound.SetEnvironment(AudioEnvironment.UndergroundCavern);
-                Assert.Equal(AudioEnvironment.UndergroundCavern, sound.CurrentEnvironment, "Cambio a UndergroundCavern");
+                    sound.PlayMusic(MusicMap.FileName(MusicMap.Intro));
+                    System.Threading.Thread.Sleep(50);
+                    sound.PlayMusic(MusicMap.FileName(MusicMap.ClassicPart1));
+                    System.Threading.Thread.Sleep(250);
 
-                sound.SetEnvironment(AudioEnvironment.GlacialChamber);
-                Assert.Equal(AudioEnvironment.GlacialChamber, sound.CurrentEnvironment, "Cambio a GlacialChamber");
+                    sound.SetEnvironment(AudioEnvironment.UndergroundCavern);
+                    Assert.Equal(AudioEnvironment.UndergroundCavern, sound.CurrentEnvironment, "Cambio a UndergroundCavern");
+
+                    sound.SetEnvironment(AudioEnvironment.GlacialChamber);
+                    Assert.Equal(AudioEnvironment.GlacialChamber, sound.CurrentEnvironment, "Cambio a GlacialChamber");
+                }
             }));
 
             tests.Add(Tuple.Create<string, Action>("Sound: valores por defecto del motor", () =>

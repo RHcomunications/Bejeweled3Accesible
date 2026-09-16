@@ -198,21 +198,26 @@ bejeweled3_accessible/
       - *Contexto:* Para que la voz en español suene indistinguible en pegada, sonoridad y brillo de las pistas oficiales en inglés de PopCap, se requería aplicar una cadena avanzada de filtros con FFmpeg (ecualización multibanda precisa, compresión rápida `compand`, eco espacial `aecho` y normalización integrada EBU R128 a -8.3 LUFS exacta) y proveer al jugador un selector dual independiente en Opciones para alternar entre locución en español o en inglés a voluntad.
       - *Implementación:* Se integró la opción `Voz del Anunciador: Español / English` (`VoiceLanguage`) en `GameOptions.cs`, `SoundEngine.cs`, `AndroidSoundEngine.cs`, `MainWindow.cs` y vistas de Android, con persistencia en `options.xml`, previsualización inmediata y resolución dinámica en `audio.pac`.
 
-  17. **Corrección de Formato PCM / Estática en Ambientes Zen y Mapeo de Entornos de Quest (2026-09-15)**:
-      - *Problema:* Al cambiar a entornos sonoros en Modo Zen o ciertas misiones de Quest, se generaba un ruido de estática intenso.
-      - *Causa:* Desajuste de tipo de muestra PCM (16-bit int vs 32-bit float) en el DSP de anchura estéreo en `SoundEngine.cs` al aplicar modulación Mid/Side sobre streams que no tenían activado el flag `BASS_SAMPLE_FLOAT`.
-      - *Solución:* Se unificó el procesamiento float en la decodificación y efectos DSP. Además, se asociaron todas las pruebas de Quest a sus entornos acústicos correspondientes (ej. Alquimia -> Templo de Cristal).
+   17. **Corrección de Formato PCM / Estática en Ambientes Zen y Mapeo de Entornos de Quest (2026-09-15)**:
+       - *Problema:* Al cambiar a entornos sonoros en Modo Zen o ciertas misiones de Quest, se generaba un ruido de estática intenso.
+       - *Causa:* Desajuste de tipo de muestra PCM (16-bit int vs 32-bit float) en el DSP de anchura estéreo en `SoundEngine.cs` al aplicar modulación Mid/Side sobre streams que no tenían activado el flag `BASS_SAMPLE_FLOAT`.
+       - *Solución:* Se unificó el procesamiento float en la decodificación y efectos DSP. Además, se asociaron todas las pruebas de Quest a sus entornos acústicos correspondientes (ej. Alquimia -> Templo de Cristal).
 
-  18. **Caja de Música Secreta / Jukebox en Opciones (2026-09-15)**:
-      - *Diseño:* Recompensa in-game en el menú de Opciones que permite al jugador seleccionar libremente entre las 29 pistas de la banda sonora original o mantener la selección "Automática".
-      - *Condición de Desbloqueo:* Requiere demostrar maestría habiendo alcanzado el rango máximo de **Anciano Bejeweliano** (Nivel 131 en `RankSystem`) O haber completado las **40 misiones de Quest** (`CompletedQuestsCount >= 40`).
-      - *Accesibilidad:* Si la opción está bloqueada, reproducir el sonido de error (`AudioMap.Badmove`) y verbalizar las instrucciones de desbloqueo vía síntesis de voz.
+   18. **Caja de Música Secreta / Jukebox en Opciones (2026-09-15)**:
+       - *Diseño:* Recompensa in-game en el menú de Opciones que permite al jugador seleccionar libremente entre las 29 pistas de la banda sonora original o mantener la selección "Automática".
+       - *Condición de Desbloqueo:* Requiere demostrar maestría habiendo alcanzado el rango máximo de **Anciano Bejeweliano** (Nivel 131 en `RankSystem`) O haber completado las **40 misiones de Quest** (`CompletedQuestsCount >= 40`).
+       - *Accesibilidad:* Si la opción está bloqueada, reproducir el sonido de error (`AudioMap.Badmove`) y verbalizar las instrucciones de desbloqueo vía síntesis de voz.
+
+   19. **Persistencia de Efectos de Atmósfera / Audio Binaural tras Crossfade (2026-09-15)**:
+       - *Problema:* Al arrancar el juego con Audio Binaural activado, la música sonaba plana y sin espacialización. Al desactivarlo y volverlo a activar en Opciones, los efectos sí se aplicaban.
+       - *Causa:* En `SoundEngine.FinishMusicSwitch()`, al completar la transición de crossfade entre la pista saliente y la entrante (p. ej. de la pantalla de Carga/Intro al Menú Principal), se invocaba `RemoveMusicAtmosphere()` para limpiar los efectos del canal saliente, pero no se volvían a aplicar (`ApplyMusicAtmosphere(_currentMusicChannel)`) al nuevo canal activo promovido a principal.
+       - *Solución:* Se corrigió `FinishMusicSwitch()` para invocar inmediatamente `ApplyMusicAtmosphere(_currentMusicChannel)` sobre el canal entrante promovido y se parametrizó `RemoveMusicAtmosphere(channel)` para garantizar la limpieza aislada sin interferir con nuevos streams.
 
 ---
 
 ## 🏆 7. Estado del Proyecto y Releases
 
-- **Windows (`main`)**: Release en desarrollo (Caja de Música y mejoras acústicas espaciales 3D). Suite de tests unitarios completa (135/135 tests sin audio, 151/151 totales).
+- **Windows (`main`)**: Release en desarrollo (Caja de Música, corrección de persistencia de atmósfera acústica 3D). Suite de tests unitarios completa (135/135 tests sin audio, 151/151 totales).
 - **Android (`android`)**: **LUZ VERDE PARA CONTINUACIÓN Y DESARROLLO**. Se reactiva el foco de los contribuidores en el port oficial .NET 9 Android con TalkBack nativo, trasladando la madurez, nuevo banco de voces y ajustes de sonido/jugabilidad consolidados en Windows hacia el cliente móvil. Release base actual: `android-v2026.08.27.2`.
 - **Cómo distinguir al distribuir**: tag `v…` + asset `.zip` = Windows; tag `android-v…` + asset `.apk` = Android. El auto-actualizador de cada plataforma entrega el correcto sin que el usuario elija.
-- **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); en Windows build Debug+Release + suite completa (129/129) y zip con exe/PDB Release + `bass.dll` + `bass_fx.dll` (x64) + `bass_fx32.dll` (x86) + `nvdaControllerClient32.dll` + `libopenmpt.dll` + 4 `openmpt-*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (generado por `--pack-audio`, ~14 MB) + `sounds\images\` completa (sin `sounds/*.ogg` ni `music/`). **Regla crítica del nombre del zip:** `Bejeweled3Accesible-<version>.zip` SIN ceros a la izquierda (p.ej. `2026.9.1.0`), porque `Version.ToString()` no rellena; si lleva ceros (`2026.09.01.0`) el updater arma otra URL y da 404. **NUNCA usar `/t:Rebuild`** (ver anecdotario 11). En Android el APK se compila en GitHub Actions (ver anecdotario 7); `gh release create` + `gh release upload`; limpiar `Temp\opencode`.
+- **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); en Windows build Debug+Release + suite completa (151/151) y zip con exe/PDB Release + `bass.dll` + `bass_fx.dll` (x64) + `bass_fx32.dll` (x86) + `nvdaControllerClient32.dll` + `libopenmpt.dll` + 4 `openmpt-*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (generado por `--pack-audio`, ~14 MB) + `sounds\images\` completa (sin `sounds/*.ogg` ni `music/`). **Regla crítica del nombre del zip:** `Bejeweled3Accesible-<version>.zip` SIN ceros a la izquierda (p.ej. `2026.9.1.0`), porque `Version.ToString()` no rellena; si lleva ceros (`2026.09.01.0`) el updater arma otra URL y da 404. **NUNCA usar `/t:Rebuild`** (ver anecdotario 11). En Android el APK se compila en GitHub Actions (ver anecdotario 7); `gh release create` + `gh release upload`; limpiar `Temp\opencode`.

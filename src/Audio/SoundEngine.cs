@@ -1329,7 +1329,7 @@ namespace Bejeweled3Accessible.Audio
             {
                 if (_currentMusicChannel != 0)
                 {
-                    RemoveMusicAtmosphere();
+                    RemoveMusicAtmosphere(_currentMusicChannel);
                     BASS_ChannelStop(_currentMusicChannel);
                     BASS_StreamFree(_currentMusicChannel);
                     _currentMusicChannel = 0;
@@ -1359,6 +1359,7 @@ namespace Bejeweled3Accessible.Audio
                 {
                     _currentMusicFile = _pendingMusicFile;
                 }
+                ApplyMusicAtmosphere(_currentMusicChannel);
             }
             _pendingMusicFile = null;
         }
@@ -1803,16 +1804,20 @@ namespace Bejeweled3Accessible.Audio
             return;
         }
 
-        private void RemoveMusicAtmosphere()
+        private void RemoveMusicAtmosphere(int channel = 0)
         {
             try
             {
-                if (_musicFxChannel != 0)
+                int targetChan = (channel != 0) ? channel : _musicFxChannel;
+                if (targetChan != 0)
                 {
-                    if (_musicReverbFx != 0) { BASS_ChannelRemoveFX(_musicFxChannel, _musicReverbFx); _musicReverbFx = 0; }
-                    if (_musicEqFx != 0) { BASS_ChannelRemoveFX(_musicFxChannel, _musicEqFx); _musicEqFx = 0; }
-                    if (_musicPresenceFx != 0) { BASS_ChannelRemoveFX(_musicFxChannel, _musicPresenceFx); _musicPresenceFx = 0; }
-                    if (_musicDspHandle != 0) { BASS_ChannelRemoveDSP(_musicFxChannel, _musicDspHandle); _musicDspHandle = 0; }
+                    if (_musicReverbFx != 0) { BASS_ChannelRemoveFX(targetChan, _musicReverbFx); _musicReverbFx = 0; }
+                    if (_musicEqFx != 0) { BASS_ChannelRemoveFX(targetChan, _musicEqFx); _musicEqFx = 0; }
+                    if (_musicPresenceFx != 0) { BASS_ChannelRemoveFX(targetChan, _musicPresenceFx); _musicPresenceFx = 0; }
+                    if (_musicDspHandle != 0) { BASS_ChannelRemoveDSP(targetChan, _musicDspHandle); _musicDspHandle = 0; }
+                }
+                if (targetChan == _musicFxChannel || channel == 0)
+                {
                     _musicFxChannel = 0;
                 }
             }
@@ -1909,8 +1914,9 @@ namespace Bejeweled3Accessible.Audio
 
         private void ApplyMusicAtmosphere(int musicHandle)
         {
-            RemoveMusicAtmosphere();
-            if (!_binauralEnabled || musicHandle == 0) return;
+            if (musicHandle == 0) return;
+            RemoveMusicAtmosphere(musicHandle);
+            if (!_binauralEnabled) return;
             try
             {
                 _musicFxChannel = musicHandle;
@@ -2152,6 +2158,7 @@ namespace Bejeweled3Accessible.Audio
                 {
                     if (_currentMusicChannel != 0)
                     {
+                        RemoveMusicAtmosphere(_currentMusicChannel);
                         BASS_ChannelStop(_currentMusicChannel);
                         BASS_StreamFree(_currentMusicChannel);
                         _currentMusicChannel = 0;
