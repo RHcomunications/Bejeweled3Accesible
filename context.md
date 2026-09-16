@@ -2,7 +2,7 @@
 
 **Proyecto:** Bejeweled 3 Accesible (Clon Fiel y Accesible de Bejeweled 3 para Jugadores Ciegos y con Baja Visión)  
 **Repositorio:** `RHcomunications/Bejeweled3Accesible`  
-**Versión Actual:** Multiplataforma (Windows & Android): `v2026.09.07.1`  
+**Versión Actual:** Multiplataforma (Windows: `v2026.09.16.0` & Android: `v2026.09.07.1`)  
 **Tecnología Base:** 
 - **Windows (`main`):** C# (.NET Framework 4.5), Windows Forms, BASS Audio Engine (P/Invoke nativo), libopenmpt (decodificador de módulos .mo3), SAPI 5 / NVDA Controller Client.
 - **Android (`android`):** C# (.NET 9 Android / MAUI), Android Accessibility Framework (`AccessibilityManager`, `AnnounceForAccessibility`), `SoundPool` para efectos de ultra baja latencia y `MediaPlayer` para la banda sonora original completa en MP3.
@@ -246,7 +246,7 @@ bejeweled3_accessible/
 
 ## 🏆 7. Estado del Proyecto y Releases
 
-- **Windows (`main`)**: Release en desarrollo (Caja de Música con pistas auténticas MO3, localización bilingüe, restauración contextual automática, persistencia de atmósfera acústica 3D). Suite de tests unitarios completa (138/138 tests sin audio, 154/154 totales).
+- **Windows (`main`)**: **Release `v2026.09.16.0`**. Motor espacial 3D por objetos (Dolby Atmos-style), ambientes y salas temáticas diferenciadas por modo (DRR desacoplado), Caja de Música (Jukebox) oficial con restauración contextual inteligente, Bed objects puros para música y paisajes Zen, y suite completa (138/138 tests sin audio, 154/154 totales).
 - **Android (`android`)**: **LUZ VERDE PARA CONTINUACIÓN Y DESARROLLO**. Se reactiva el foco de los contribuidores en el port oficial .NET 9 Android con TalkBack nativo, trasladando la madurez, nuevo banco de voces y ajustes de sonido/jugabilidad consolidados en Windows hacia el cliente móvil. Release base actual: `android-v2026.08.27.2`.
 - **Cómo distinguir al distribuir**: tag `v…` + asset `.zip` = Windows; tag `android-v…` + asset `.apk` = Android. El auto-actualizador de cada plataforma entrega el correcto sin que el usuario elija.
 - **Flujo de release:** bump en `AssemblyInfo.cs`, `Localization.cs` (LoadingTitle/AppTitle) y `README.html` (versión + changelog ES/EN); en Windows build Debug+Release + suite completa (153/153) y zip con exe/PDB Release + `bass.dll` + `bass_fx.dll` (x64) + `bass_fx32.dll` (x86) + `nvdaControllerClient32.dll` + `libopenmpt.dll` + 4 `openmpt-*.dll` + `mscorlib.dll` + `norm*.nlp` + `es\` + `README.html` + `audio.pac` (generado por `--pack-audio`, ~14 MB) + `sounds\images\` completa (sin `sounds/*.ogg` ni `music/`). **Regla crítica del nombre del zip:** `Bejeweled3Accesible-<version>.zip` SIN ceros a la izquierda (p.ej. `2026.9.1.0`), porque `Version.ToString()` no rellena; si lleva ceros (`2026.09.01.0`) el updater arma otra URL y da 404. **NUNCA usar `/t:Rebuild`** (ver anecdotario 11). En Android el APK se compila en GitHub Actions (ver anecdotario 7); `gh release create` + `gh release upload`; limpiar `Temp\opencode`.

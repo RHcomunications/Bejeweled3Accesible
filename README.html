@@ -89,7 +89,7 @@
 <body>
 
     <h1>💎 Bejeweled 3 Accesible (Español &amp; English)</h1>
-    <p style="text-align:center;">Versión <strong>2026.09.07.1</strong> · 7 de septiembre de 2026</p>
+    <p style="text-align:center;">Versión <strong>2026.09.16.0</strong> · 16 de septiembre de 2026</p>
 
     <div class="feature-box lang-index" style="text-align:center;">
         <p><a href="#es">🇪🇸 Español</a> &nbsp;·&nbsp; <a href="#en">🇬🇧 English</a></p>
@@ -222,6 +222,15 @@
 
     <h3>📝 Historial de Versiones</h3>
      <ul>
+         <li><strong>2026.09.16.0</strong> — <strong>Audio Espacial Basado en Objetos (Dolby Atmos-style), Salas Temáticas por Modo y Caja de Música (Jukebox) Oficial</strong>:
+           <ul>
+             <li><strong>Motor Espacial por Objetos 3D</strong>: Cada sonido del tablero es un objeto acústico (<code>SpatialAudioObject</code>) con coordenadas tridimensionales ($X, Y, Z$) y canal directo 32-bit float estéreo de alta resolución (100% de ataque cristalino y brillo, sin ecualizadores destructivos).</li>
+             <li><strong>Envío DRR Desacoplado y Entornos Temáticos</strong>: La sensación de espacio y distancia se modela mediante envío paralelo de sala DX8 (Direct-to-Reverberant Ratio), adaptándose dinámicamente a cada modo de juego (Templo de Cristal, Caverna Subterránea, Cámara Glacial, Jardín Crepuscular, Santuario, Conducto de Energía, Salón Victoriano).</li>
+             <li><strong>Caja de Música (Jukebox) Oficial</strong>: 19 pistas canónicas del módulo .MO3 y ambientes Zen con localización bilingüe dinámica y restauración contextual inteligente al conmutar a "Automática" en partida o pausa.</li>
+             <li><strong>Música y Ambientes Zen como Bed Objects Puros</strong>: Reproducción estéreo 100% limpia de estudio, protegida de reverberaciones artificiales.</li>
+             <li><strong>Navegación Ágil</strong>: Eliminación de la obsoleta Escuela de Audio para una navegación más rápida y directa con lectores de pantalla. Suite de 154 pruebas unitarias en verde.</li>
+           </ul>
+         </li>
          <li><strong>2026.09.07.1</strong> — <strong>Paridad Total Multiplataforma (Windows y Android) &amp; Accesibilidad TalkBack Avanzada</strong>: (a) <em>Accesibilidad TalkBack</em>: Resuelta la lectura continua/descontrolada de gemas al deslizar el dedo por el tablero e implementadas acciones nativas personalizadas de TalkBack (<em>Seleccionar gema, Mover arriba, abajo, izquierda, derecha</em>). (b) <em>Paridad de Modos y Mecánicas en Android</em>: Integrados todos los modos de juego (Clásico con fases y desbloqueo de Póker, Zen con respiración y mantras guiados y desbloqueo de Mariposas, Tormenta de Hielo con frentes ascendentes y períodos de gracia, Póker, Mariposas, Mina de Diamantes y Modo Misión/Quest con evaluación de las 40 misiones y relicarios). (c) <em>Voces e Insignias</em>: Paridad en el selector dual de voces PopCap (Español / Inglés) y sistema de insignias/rangos en tiempo real sincronizado.</li>
          <li><strong>2026.09.01.1</strong> — <strong>Hotfix: Remasterización de Locuciones en Español con FFmpeg e Integración Dual</strong>: (a) Se aplicó una cadena de procesamiento profesional con FFmpeg (ecualización paramétrica multibanda PopCap, compresión dinámica de ataque rápido, expansión estéreo con delay de 22/32 ms y normalización EBU R128 a -8.3 LUFS idéntica a la pista en inglés), logrando igualar perfectamente el timbre profundo, brillo y pegada del anunciador original. (b) Selector dual e independiente en Opciones: <em>«Voz del Anunciador: Español / English»</em> con persistencia en <code>options.xml</code> y previsualización de voz instantánea. (c) Paridad y soporte sincronizado en Windows y Android.</li>
          <li><strong>2026.09.01.0</strong> — <strong>Locuciones Oficiales en Español Masterizadas con Acústica PopCap Arcade</strong>: (a) Se integraron las 18 locuciones del anunciador en español (<em>¡Asombroso!, ¡Excelente!, ¡Extraordinario!, ¡Espectacular!, ¡Increíble!, ¡Velocidad Relámpago!, ¡Nivel completado!, ¡Desafío completado!, ¡Prepárate!, ¡Ya!, ¡Tiempo agotado!, Fin de la partida, Bienvenido a Bejeweled</em>, etc.), masterizadas a 44.1 kHz con refuerzo de graves enérgico, presencia cristalina, saturación cálida y reflejo estéreo idéntico a la producción de PopCap Games. (b) Totalmente empaquetadas en <code>audio.pac</code> optimizado y cargadas en memoria dinámicamente con ducking suave sobre la música.</li>
@@ -426,6 +435,15 @@
 
     <h3>📝 Version History</h3>
      <ul>
+         <li><strong>2026.09.16.0</strong> — <strong>Object-Based Spatial Audio (Dolby Atmos Paradigm), Thematic Mode Acoustics &amp; Official Jukebox</strong>:
+           <ul>
+             <li><strong>Object-Based 3D Spatial Audio Engine</strong>: Every board sound is an acoustic object (<code>SpatialAudioObject</code>) in 3D coordinates (X: column, Y: depth, Z: elevation) with a 100% crisp, direct 32-bit float stereo channel (zero destructive EQ filters, preserving full crystal transients and punch).</li>
+             <li><strong>Decoupled DRR &amp; Thematic Mode Rooms</strong>: Depth and distance are modeled via parallel DX8 room sends (Direct-to-Reverberant Ratio), dynamically loading unique acoustics for each mode (Crystal Temple, Underground Cavern, Glacial Chamber, Twilight Garden, Sanctuary, Energy Conduit, Victorian Salon).</li>
+             <li><strong>Official Jukebox</strong>: 19 canonical .MO3 and Zen ambient tracks with dynamic bilingual localization and smart contextual music restoration when switching to "Automatic" in game or pause menu.</li>
+             <li><strong>Pure Bed Music &amp; Ambients</strong>: Studio-grade clean stereo playback free from closed-room reverb distortions.</li>
+             <li><strong>Streamlined Navigation</strong>: Removed legacy Audio School for faster screen-reader navigation. 154/154 test suite green.</li>
+           </ul>
+         </li>
          <li><strong>2026.09.07.1</strong> — <strong>Full Multiplatform Parity (Windows &amp; Android) &amp; Advanced TalkBack Accessibility</strong>: (a) <em>TalkBack Accessibility</em>: Resolved continuous runaway gem reading during slide exploration and implemented native TalkBack custom actions context menu (<em>Select gem, Move up, down, left, right</em>). (b) <em>Android Modes &amp; Mechanics Parity</em>: Integrated all game modes (Classic with stage progression &amp; Poker unlock, Zen with guided breathing &amp; mantras &amp; Butterflies unlock, Ice Storm with rising columns &amp; skull grace periods, Poker, Butterflies, Diamond Mine, and Quest mode with all 40 missions and relic evaluation). (c) <em>Voices &amp; Badges</em>: Multiplatform dual-voice PopCap announcer selector (Spanish / English) and real-time rank and badge system.</li>
          <li><strong>2026.09.01.1</strong> — <strong>Hotfix: FFmpeg-Remastered Spanish Voices &amp; Dual Announcer Selector</strong>: (a) Applied professional DSP pipeline via FFmpeg matching PopCap arcade punch and brightness (multiband parametric EQ, fast-attack compression, stereo widening and EBU R128 normalization to -8.3 LUFS). (b) Independent Announcer Voice toggle in Options: <em>«Announcer Voice: Español / English»</em> with persistent configuration in <code>options.xml</code> and instant voice preview. (c) Multiplatform parity on Windows and Android.</li>
          <li><strong>2026.09.01.0</strong> — <strong>PopCap Arcade-Mastered Spanish Voice Locutions</strong>: (a) Integrated all 18 Spanish announcer voice tracks (<em>¡Asombroso!, ¡Excelente!, ¡Extraordinario!, ¡Espectacular!, ¡Increíble!, ¡Velocidad Relámpago!, ¡Nivel completado!, ¡Desafío completado!, ¡Prepárate!, ¡Ya!, ¡Tiempo agotado!, Fin de la partida, Bienvenido a Bejeweled</em>, etc.), mastered at 44.1 kHz with robust bass enhancement, crisp presence, warm saturation, and arcade stereo spatial reflections faithful to PopCap Games production standards. (b) Fully packaged into optimized <code>audio.pac</code> with seamless dynamic ducking over music.</li>
