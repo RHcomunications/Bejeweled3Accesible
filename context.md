@@ -89,14 +89,21 @@ bejeweled3_accessible/
    - Incluye todas las pistas temáticas de pruebas de Quest (*Buried Treasure*, *Take Your Time*, *Turn by Turn*, *Time Bombs*, *Quest Theme*, *Quest Finale*) y Bonus tracks (*Remix Medley*, *Final Turn*, *Gems of Glass*).
 2. **Voces Auténticas del Locutor de PopCap Games**:
    - Reintegradas todas las locuciones oficiales (*Awesome*, *Excellent*, *Extraordinary*, *Unbelievable*, *Spectacular*, *Welcome to Bejeweled*, *Welcome back*, etc.) para los combos, jugadas especiales y bienvenida.
-3. **Audio Espacial Grid**:
-    - Paneo estéreo simple por columna (A-H); la profundidad por fila (`DepthForRow`) se modela en `SpatialAudio` pero no se aplica (sin sala/rebotes ni EQ de profundidad). Música y locuciones centradas.
-   - Locuciones del narrador y síntesis de voz centradas con *ducking* automático de la música.
- 4. **Paneo estéreo simple por columna y Ducking**:
-     - El render binaural de "objeto en sala" (`GridSpatializer`) se **eliminó** (era demasiado agresivo). Los SFX se panearan en estéreo por columna (A-H) vía `BASS_ATTRIB_PAN`, sin sala/rebotes ni EQ de profundidad. El flag `SoundEngine.BinauralEnabled` (toggle en Opciones) controla únicamente si el paneo por columna está activo; al desactivarlo todo suena centrado.
-     - Paneo logarítmico (`Math.Pow(|t|, 1.4)`) que aplana el centro y abre los extremos A/H al máximo (`±MaxPan`). Con 8 columnas no hay columna central única: las columnas 3 y 4 quedan cerca de 0 en lados opuestos.
-     - `bass_fx.dll` (x64) + `bass_fx32.dll` (x86) se mantienen junto al exe por si se reactiva el pitch en el futuro, pero el pitch de cascada/Relámpago NO los usa (variantes pre-renderizadas con rubberband `gem_hit_p0..p12.ogg` +1 semitono por nivel).
-     - **Ducking (sidechain)** musical en hipercubo y Supernova (la música baja al 30 % y vuelve).
+3. **Audio Espacial Grid y Ambientes Acústicos 3D**:
+   - Paneo estéreo por columna (A-H) con curva logarítmica (`Math.Pow(|t|, 1.4)`) que abre los extremos del tablero (columnas 0 y 7) a `±MaxPan`.
+   - **Simulación Acústica 3D por Modos de Juego (7 Ambientes Temáticos)**:
+     - **Templo de Cristal (`CrystalTemple`)**: Clásico/Menú. Reverb majestuoso de mármol (`ReverbMix = -9.5 dB`, `1600 ms`), realce de agudos cristalinos a 5.5 kHz.
+     - **Caverna Subterránea (`UndergroundCavern`)**: Mina de Diamantes. Reverb cavernoso (`-7.5 dB`, `2200 ms`), filtro de absorción de sala a 4.5 kHz (`-8 dB`) y cuerpo grave a 220 Hz.
+     - **Cámara Glacial (`GlacialChamber`)**: Tormenta de Hielo. Reflejos helados brillantes (`-8.5 dB`, `1200 ms`, ratio agudos `0.95`), realce a 8 kHz y `StereoWidth = 1.40`.
+     - **Jardín Crepuscular (`TwilightGarden`)**: Mariposas. Ambiente abierto y aireado (`-12 dB`, `700 ms`, `StereoWidth = 1.45`).
+     - **Santuario Zen (`Sanctuary`)**: Zen. Catedral meditativa envolvente (`-8.0 dB`, `2500 ms`, `StereoWidth = 1.35`).
+     - **Conducto de Energía (`EnergyConduit`)**: Relámpago. Resonancia ágil de alta energía (`-10 dB`, `900 ms`, presencia a 4 kHz).
+     - **Salón Victoriano (`VictorianSalon`)**: Poker. Acústica íntima y seca de madera/paño (`-14 dB`, `450 ms`, `LowPass = 12 kHz`, `StereoWidth = 1.05`).
+   - **Espacialización Mid/Side en Música**: Procesamiento DSP en tiempo real sobre el push-stream de BASS que ensancha o enfoca la imagen estéreo de la música (`StereoWidth`) en función del espacio temático.
+   - **Gestión Dinámica de Efectos**: Limpieza y reconfiguración sin fugas de memoria (`BASS_ChannelRemoveFX` / `BASS_ChannelRemoveDSP`) al transicionar entre salas y modos de juego.
+4. **Ducking y Voces Centradas**:
+   - Locuciones del narrador y síntesis de voz centradas con *ducking* automático de la música (la música baja al 30% en jugadas clave y recupera volumen suavemente).
+   - `bass_fx.dll` (x64) + `bass_fx32.dll` (x86) presentes para compatibilidad. Variantes pre-renderizadas con rubberband `gem_hit_p0..p12.ogg` (+1 semitono por nivel de cascada).
 
 ---
 

@@ -24,7 +24,7 @@ Ve a la sección de [Releases](../../releases) y descarga el archivo `.zip` de l
    - Mueve el cursor con las **Flechas direccionales** (de A1 a H8); se anunciará la casilla y el color/tipo de gema, y su sonido se oirá a la izquierda o a la derecha según la columna (audio binaural).
    - Intercambia con **W / A / S / D** (arriba / izquierda / abajo / derecha).
    - **R** consulta el estado; **Q** el progreso de la misión; **C** repite la casilla; **H** da una pista.
-5. La música real del juego (módulo `Bejeweled3_suite.mo3`) y los 189 efectos oficiales suenan espacializados; en Opciones puedes elegir entre los perfiles espaciales (Escenario 2D, Clásico Limpio, Simple u Objeto 3D / Atmos).
+5. La música real del juego (módulo `Bejeweled3_suite.mo3`) y los efectos oficiales adoptan la acústica 3D del entorno según el modo (Templo de Cristal, Cavernas, Glaciares, Santuario Zen, etc.) con ensanchamiento estéreo y reverberación temática; en Opciones puedes activar o desactivar el Audio Binaural.
 
 ---
 
@@ -50,4 +50,4 @@ Go to the [Releases](../../releases) tab and download the latest `.zip` (marked 
    - Move the cursor with the **Arrow keys** (A1 to H8); the gem's coordinates, color and valid moves are announced, and its sound is panned left/right by column (binaural audio).
    - Swap with **W / A / S / D** (up / left / down / right).
    - **R** status; **Q** mission progress; **C** repeat cell; **H** hint.
-5. The real game music (MO3 module) and 189 official effects play spatially; in Options pick a spatial profile (Stage 2D, Clean Arcade, Simple or 3D Object / Atmos).
+5. The real game music (MO3 module) and official sound effects adapt to each mode's 3D acoustic environment (Crystal Temple, Caverns, Glacial Chamber, Zen Sanctuary, etc.) with stereo widening and thematic reverberation; toggle Binaural Audio in Options.
