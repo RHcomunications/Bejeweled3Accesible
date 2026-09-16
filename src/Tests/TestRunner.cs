@@ -2116,6 +2116,57 @@ namespace Bejeweled3Accessible.Tests
                 }
             }));
 
+            // ======================= JUKEBOX & OPTIONS =======================
+            tests.Add(Tuple.Create<string, Action>("Jukebox: bloqueada por defecto en perfil nuevo", () =>
+            {
+                GameProgress p = new GameProgress();
+                Assert.Equal(0, p.CompletedQuestsCount, "Debe tener 0 quests completadas");
+                Assert.Equal(1, RankSystem.GetRankLevel(p.TotalScore), "Debe ser rango 1");
+                Assert.False(p.IsJukeboxUnlocked, "La caja de musica debe estar bloqueada por defecto");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Jukebox: desbloqueo al alcanzar rango 131 (Anciano Bejeweliano)", () =>
+            {
+                GameProgress p = new GameProgress();
+                p.TotalScore = 2140000000;
+                Assert.Equal(131, RankSystem.GetRankLevel(p.TotalScore), "Debe alcanzar el rango 131");
+                Assert.True(p.IsJukeboxUnlocked, "La caja de musica debe desbloquearse al ser Anciano Bejeweliano");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Jukebox: desbloqueo al completar las 40 misiones de Quest", () =>
+            {
+                GameProgress p = new GameProgress();
+                Assert.False(p.IsJukeboxUnlocked, "Inicialmente bloqueada");
+                for (int i = 0; i < 40; i++)
+                {
+                    p.QuestMissions[i] = true;
+                }
+                Assert.Equal(40, p.CompletedQuestsCount, "Debe reportar 40 misiones completadas");
+                Assert.True(p.IsJukeboxUnlocked, "La caja de musica debe desbloquearse con 40 misiones de quest");
+            }));
+
+            tests.Add(Tuple.Create<string, Action>("Options: valor por defecto y persistencia de CustomMusicTrack", () =>
+            {
+                string tmp = Path.Combine(Path.GetTempPath(), "bj3_opt_test_" + Guid.NewGuid().ToString("N"));
+                Directory.CreateDirectory(tmp);
+                try
+                {
+                    GameOptions.OverrideDataDirectory = tmp;
+                    GameOptions opt = new GameOptions();
+                    Assert.Equal("Auto", opt.CustomMusicTrack, "El valor por defecto debe ser Auto");
+                    opt.CustomMusicTrack = "03_classic_3";
+                    opt.Save();
+
+                    GameOptions loaded = GameOptions.Load();
+                    Assert.Equal("03_classic_3", loaded.CustomMusicTrack, "Debe persistir y cargar la pista seleccionada");
+                }
+                finally
+                {
+                    GameOptions.OverrideDataDirectory = null;
+                    try { Directory.Delete(tmp, true); } catch { }
+                }
+            }));
+
             return tests;
         }
 

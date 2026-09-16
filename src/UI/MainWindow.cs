@@ -1051,6 +1051,19 @@ namespace Bejeweled3Accessible.UI
         private string[] GetOptionsMenuItems()
         {
             string voiceLangName = (_sound.VoiceLanguage == Language.Spanish) ? "Español" : "English";
+            string musicBoxDisplay;
+            if (_progress != null && _progress.IsJukeboxUnlocked)
+            {
+                string cur = _options.CustomMusicTrack;
+                musicBoxDisplay = (string.IsNullOrEmpty(cur) || cur.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+                    ? Localization.Get("MusicBoxAuto")
+                    : cur;
+            }
+            else
+            {
+                musicBoxDisplay = Localization.Get("MusicBoxLocked");
+            }
+
             return new string[]
             {
                 Localization.Get("OptMusicVol", _sound.MusicVol),
@@ -1059,6 +1072,7 @@ namespace Bejeweled3Accessible.UI
                 Localization.Get("OptVoiceLang", voiceLangName),
                 Localization.Get("OptBinaural", _sound.BinauralEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")),
                 Localization.Get("OptMouse", _mouseEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")),
+                Localization.Get("OptMusicBox", musicBoxDisplay),
                 Localization.Get("OptBack")
             };
         }
@@ -1187,9 +1201,35 @@ namespace Bejeweled3Accessible.UI
                     _sound.PlaySound(AudioMap.Select);
                     _speech.Speak(Localization.Get("OptMouse", _mouseEnabled ? Localization.Get("StateOn") : Localization.Get("StateOff")), true);
                 }
+                else if (_optionsIdx == 6) // Caja de Música (Jukebox)
+                {
+                    CycleMusicBoxTrack(e.KeyCode == Keys.Right ? 1 : -1);
+                }
                 SaveOptionsState();
             }
-            else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Escape)
+            else if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Space)
+            {
+                if (_optionsIdx == 6)
+                {
+                    CycleMusicBoxTrack(1);
+                    SaveOptionsState();
+                }
+                else
+                {
+                    _sound.PlaySound(AudioMap.ButtonPress);
+                    SaveOptionsState();
+                    if (_optionsOriginScreen == GameScreen.PauseMenu)
+                    {
+                        _screen = GameScreen.PauseMenu;
+                        _speech.Speak(GetPauseMenuItems()[_pauseIdx], true);
+                    }
+                    else
+                    {
+                        TransitionToMainMenu();
+                    }
+                }
+            }
+            else if (e.KeyCode == Keys.Escape)
             {
                 _sound.PlaySound(AudioMap.ButtonPress);
                 SaveOptionsState();
@@ -1202,6 +1242,49 @@ namespace Bejeweled3Accessible.UI
                 {
                     TransitionToMainMenu();
                 }
+            }
+        }
+
+        private void CycleMusicBoxTrack(int delta)
+        {
+            if (_progress == null || !_progress.IsJukeboxUnlocked)
+            {
+                _sound.PlaySound(AudioMap.Badmove);
+                _speech.Speak(Localization.Get("MusicBoxLockedHint"), true);
+                return;
+            }
+
+            var tracks = Audio.MusicMap.AllTrackKeys;
+            int curIdx = -1; // -1 = Auto
+            string cur = _options.CustomMusicTrack;
+            if (!string.IsNullOrEmpty(cur) && !cur.Equals("Auto", StringComparison.OrdinalIgnoreCase))
+            {
+                for (int i = 0; i < tracks.Length; i++)
+                {
+                    if (tracks[i].Equals(cur, StringComparison.OrdinalIgnoreCase))
+                    {
+                        curIdx = i;
+                        break;
+                    }
+                }
+            }
+
+            curIdx += delta;
+            if (curIdx >= tracks.Length) curIdx = -1;
+            else if (curIdx < -1) curIdx = tracks.Length - 1;
+
+            if (curIdx == -1)
+            {
+                _options.CustomMusicTrack = "Auto";
+                _speech.Speak(Localization.Get("OptMusicBox", Localization.Get("MusicBoxAuto")), true);
+                _sound.PlayMusic(Audio.MusicMap.FileName(Audio.MusicMap.MainTheme));
+            }
+            else
+            {
+                string selTrack = tracks[curIdx];
+                _options.CustomMusicTrack = selTrack;
+                _speech.Speak(Localization.Get("OptMusicBox", selTrack), true);
+                _sound.PlayMusic(Audio.MusicMap.FileName(selTrack));
             }
         }
 

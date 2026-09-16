@@ -17,6 +17,7 @@ namespace Bejeweled3Accessible.Engine
         public bool ZenBreath { get; set; }
         public bool BinauralEnabled { get; set; }
         public bool MouseEnabled { get; set; }
+        public string CustomMusicTrack { get; set; }
 
         public GameOptions()
         {
@@ -30,6 +31,7 @@ namespace Bejeweled3Accessible.Engine
             ZenBreath = true;
             BinauralEnabled = true;
             MouseEnabled = true;
+            CustomMusicTrack = "Auto";
         }
 
         public static string OverrideDataDirectory { get; set; }

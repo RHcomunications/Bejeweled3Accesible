@@ -36,6 +36,28 @@ namespace Bejeweled3Accessible.Engine
         public bool IsIceStormUnlocked { get { return LightningHighScore >= 100000; } }
         public bool IsDiamondMineUnlocked { get { return QuestRelicCount >= 1; } }
 
+        public int CompletedQuestsCount
+        {
+            get
+            {
+                if (QuestMissions == null) return 0;
+                int count = 0;
+                for (int i = 0; i < QuestMissions.Length && i < 40; i++)
+                {
+                    if (QuestMissions[i]) count++;
+                }
+                return count;
+            }
+        }
+
+        public bool IsJukeboxUnlocked
+        {
+            get
+            {
+                return (RankSystem.GetRankLevel(TotalScore) >= 131) || (CompletedQuestsCount >= 40);
+            }
+        }
+
         public static string OverrideDataDirectory { get; set; }
 
         public GameProgress()
