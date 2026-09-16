@@ -118,79 +118,79 @@ namespace Bejeweled3Accessible.Audio
                 case AudioEnvironment.UndergroundCavern:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -7.5f,
-                        ReverbTime = 2200.0f,
-                        HighFreqRTRatio = 0.30f,
-                        LowPassCutoff = 4500.0f,
-                        StereoWidth = 1.30f,
-                        PresenceGain = 4.0f,
+                        ReverbMix = -22.0f,
+                        ReverbTime = 900.0f,
+                        HighFreqRTRatio = 0.40f,
+                        LowPassCutoff = 8000.0f,
+                        StereoWidth = 1.10f,
+                        PresenceGain = 1.5f,
                         PresenceFreq = 220.0f
                     };
                 case AudioEnvironment.GlacialChamber:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -8.5f,
-                        ReverbTime = 1200.0f,
-                        HighFreqRTRatio = 0.95f,
-                        LowPassCutoff = 18000.0f,
-                        StereoWidth = 1.40f,
-                        PresenceGain = 3.5f,
-                        PresenceFreq = 8000.0f
+                        ReverbMix = -23.0f,
+                        ReverbTime = 700.0f,
+                        HighFreqRTRatio = 0.85f,
+                        LowPassCutoff = 19000.0f,
+                        StereoWidth = 1.12f,
+                        PresenceGain = 1.5f,
+                        PresenceFreq = 7000.0f
                     };
                 case AudioEnvironment.TwilightGarden:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -12.0f,
-                        ReverbTime = 700.0f,
-                        HighFreqRTRatio = 0.65f,
-                        LowPassCutoff = 16000.0f,
-                        StereoWidth = 1.45f,
-                        PresenceGain = 2.0f,
+                        ReverbMix = -26.0f,
+                        ReverbTime = 500.0f,
+                        HighFreqRTRatio = 0.70f,
+                        LowPassCutoff = 19000.0f,
+                        StereoWidth = 1.10f,
+                        PresenceGain = 1.0f,
                         PresenceFreq = 3500.0f
                     };
                 case AudioEnvironment.Sanctuary:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -8.0f,
-                        ReverbTime = 2500.0f,
-                        HighFreqRTRatio = 0.60f,
-                        LowPassCutoff = 15000.0f,
-                        StereoWidth = 1.35f,
-                        PresenceGain = 2.0f,
+                        ReverbMix = -24.0f,
+                        ReverbTime = 1000.0f,
+                        HighFreqRTRatio = 0.65f,
+                        LowPassCutoff = 18000.0f,
+                        StereoWidth = 1.10f,
+                        PresenceGain = 1.0f,
                         PresenceFreq = 1200.0f
                     };
                 case AudioEnvironment.EnergyConduit:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -10.0f,
-                        ReverbTime = 900.0f,
-                        HighFreqRTRatio = 0.85f,
+                        ReverbMix = -25.0f,
+                        ReverbTime = 550.0f,
+                        HighFreqRTRatio = 0.80f,
                         LowPassCutoff = 20000.0f,
-                        StereoWidth = 1.25f,
-                        PresenceGain = 4.0f,
+                        StereoWidth = 1.08f,
+                        PresenceGain = 1.5f,
                         PresenceFreq = 4000.0f
                     };
                 case AudioEnvironment.VictorianSalon:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -14.0f,
-                        ReverbTime = 450.0f,
-                        HighFreqRTRatio = 0.35f,
-                        LowPassCutoff = 12000.0f,
-                        StereoWidth = 1.05f,
-                        PresenceGain = 1.5f,
+                        ReverbMix = -27.0f,
+                        ReverbTime = 400.0f,
+                        HighFreqRTRatio = 0.40f,
+                        LowPassCutoff = 16000.0f,
+                        StereoWidth = 1.04f,
+                        PresenceGain = 0.8f,
                         PresenceFreq = 1800.0f
                     };
                 case AudioEnvironment.CrystalTemple:
                 default:
                     return new EnvironmentAcoustics
                     {
-                        ReverbMix = -9.5f,
-                        ReverbTime = 1600.0f,
+                        ReverbMix = -24.0f,
+                        ReverbTime = 800.0f,
                         HighFreqRTRatio = 0.75f,
                         LowPassCutoff = 20000.0f,
-                        StereoWidth = 1.20f,
-                        PresenceGain = 2.5f,
+                        StereoWidth = 1.08f,
+                        PresenceGain = 1.0f,
                         PresenceFreq = 5500.0f
                     };
             }

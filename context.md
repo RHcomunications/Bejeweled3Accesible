@@ -91,16 +91,17 @@ bejeweled3_accessible/
    - Reintegradas todas las locuciones oficiales (*Awesome*, *Excellent*, *Extraordinary*, *Unbelievable*, *Spectacular*, *Welcome to Bejeweled*, *Welcome back*, etc.) para los combos, jugadas especiales y bienvenida.
 3. **Audio Espacial Grid y Ambientes Acústicos 3D**:
    - Paneo estéreo por columna (A-H) con curva logarítmica (`Math.Pow(|t|, 1.4)`) que abre los extremos del tablero (columnas 0 y 7) a `±MaxPan`.
-   - **Simulación Acústica 3D por Modos de Juego (7 Ambientes Temáticos)**:
-     - **Templo de Cristal (`CrystalTemple`)**: Clásico/Menú. Reverb majestuoso de mármol (`ReverbMix = -9.5 dB`, `1600 ms`), realce de agudos cristalinos a 5.5 kHz.
-     - **Caverna Subterránea (`UndergroundCavern`)**: Mina de Diamantes. Reverb cavernoso (`-7.5 dB`, `2200 ms`), filtro de absorción de sala a 4.5 kHz (`-8 dB`) y cuerpo grave a 220 Hz.
-     - **Cámara Glacial (`GlacialChamber`)**: Tormenta de Hielo. Reflejos helados brillantes (`-8.5 dB`, `1200 ms`, ratio agudos `0.95`), realce a 8 kHz y `StereoWidth = 1.40`.
-     - **Jardín Crepuscular (`TwilightGarden`)**: Mariposas. Ambiente abierto y aireado (`-12 dB`, `700 ms`, `StereoWidth = 1.45`).
-     - **Santuario Zen (`Sanctuary`)**: Zen. Catedral meditativa envolvente (`-8.0 dB`, `2500 ms`, `StereoWidth = 1.35`).
-     - **Conducto de Energía (`EnergyConduit`)**: Relámpago. Resonancia ágil de alta energía (`-10 dB`, `900 ms`, presencia a 4 kHz).
-     - **Salón Victoriano (`VictorianSalon`)**: Poker. Acústica íntima y seca de madera/paño (`-14 dB`, `450 ms`, `LowPass = 12 kHz`, `StereoWidth = 1.05`).
-   - **Espacialización Mid/Side en Música**: Procesamiento DSP en tiempo real sobre el push-stream de BASS que ensancha o enfoca la imagen estéreo de la música (`StereoWidth`) en función del espacio temático.
-   - **Gestión Dinámica de Efectos**: Limpieza y reconfiguración sin fugas de memoria (`BASS_ChannelRemoveFX` / `BASS_ChannelRemoveDSP`) al transicionar entre salas y modos de juego.
+    - **Simulación Acústica 3D por Modos de Juego (7 Ambientes Temáticos Calibrados)**:
+      - **Templo de Cristal (`CrystalTemple`)**: Clásico/Menú. Reverb sutil de mármol (`ReverbMix = -24.0 dB`, `800 ms`), realce de presencia a 5.5 kHz y `StereoWidth = 1.08`.
+      - **Caverna Subterránea (`UndergroundCavern`)**: Mina de Diamantes. Reverb cavernoso moderado (`-22.0 dB`, `900 ms`), calidez acústica a 8 kHz y cuerpo grave a 220 Hz (`StereoWidth = 1.10`).
+      - **Cámara Glacial (`GlacialChamber`)**: Tormenta de Hielo. Reflejos helados transparentes (`-23.0 dB`, `700 ms`, ratio agudos `0.85`), brillo a 7 kHz y `StereoWidth = 1.12`.
+      - **Jardín Crepuscular (`TwilightGarden`)**: Mariposas. Ambiente abierto y aireado (`-26.0 dB`, `500 ms`, `StereoWidth = 1.10`).
+      - **Santuario Zen (`Sanctuary`)**: Zen. Sala meditativa suave y envolvente (`-24.0 dB`, `1000 ms`, `StereoWidth = 1.10`).
+      - **Conducto de Energía (`EnergyConduit`)**: Relámpago. Resonancia ágil de alta energía (`-25.0 dB`, `550 ms`, presencia a 4 kHz, `StereoWidth = 1.08`).
+      - **Salón Victoriano (`VictorianSalon`)**: Poker. Acústica íntima y seca (`-27.0 dB`, `400 ms`, `StereoWidth = 1.04`).
+    - **Protección de Ambientes de Naturaleza y Alta Definición Estéreo**: Las grabaciones de campo de Zen (costa, bosque, grillos, lluvia, cascada, oleaje) se reproducen en su formato estéreo nativo 100% puro sin reverb de sala cerrada. Para la música, la atenuación de absorción de sala es ultra suave (`-1.0 dB`) preservando toda la fidelidad y brillo de los agudos.
+    - **Espacialización Mid/Side en Música**: Procesamiento DSP en tiempo real sobre el push-stream de BASS que ensancha o enfoca la imagen estéreo de la música (`StereoWidth`) en función del espacio temático sin distorsión ni clipping.
+    - **Gestión Dinámica de Efectos**: Limpieza y reconfiguración sin fugas de memoria (`BASS_ChannelRemoveFX` / `BASS_ChannelRemoveDSP`) al transicionar entre salas y modos de juego.
 4. **Ducking y Voces Centradas**:
    - Locuciones del narrador y síntesis de voz centradas con *ducking* automático de la música (la música baja al 30% en jugadas clave y recupera volumen suavemente).
    - `bass_fx.dll` (x64) + `bass_fx32.dll` (x86) presentes para compatibilidad. Variantes pre-renderizadas con rubberband `gem_hit_p0..p12.ogg` (+1 semitono por nivel de cascada).
@@ -218,6 +219,14 @@ bejeweled3_accessible/
        - *Solución:* 
          1. Se refinó la lista canónica de la Caja de Música a **19 pistas exclusivas**: las 13 composiciones oficiales dentro del módulo `.mo3` (`MainTheme`, `Intro`, `Classic`, `Lightning`, `Zen`, `Butterflies`, `Poker`, `IceStorm`, `QuestTheme`, `QuestBuriedTreasure`, `QuestTakeYourTime`, `QuestTurnByTurn`, `QuestTimeBombs`) y los 6 ambientes acústicos reales (`AmbientCoastal`, `AmbientCrickets`, `AmbientForest`, `AmbientOceanSurf`, `AmbientRainLeaves`, `AmbientWaterfall`). Se eliminaron pistas duplicadas de desarrollo y bonus tracks huérfanos (`RemixMedley`, `FinalTurn`, `GemsOfGlass`).
          2. Se integró la localización dinámica en `Localization.cs` y `MusicMap.GetJukeboxTrackName(key)` tanto en español como en inglés, garantizando que el sintetizador de voz y la interfaz visual anuncien nombres limpios y canónicos (ej. "Modo Clásico", "Tormenta de Hielo", "Lluvia en Hojas") sincronizados con el idioma del juego.
+   21. **Calibración Acústica Sutil y Transparente del Audio Binaural (2026-09-15)**:
+       - *Problema:* El usuario percibía la música como apagada, con pérdida de brillo o "en mono" al aplicar la reverberación temática.
+       - *Causa:* En DirectSound DX8, un nivel de `ReverbMix` entre `-7.5 dB` y `-9.5 dB` introducía un 40% de cola de reverberación difusa que desdibujaba el estéreo directo del master original. Además, el filtro de sala con `-8.0 dB` de corte en agudos apagaba la nitidez de platillos y sintetizadores, y los ambientes de Zen se veían afectados por reverberación artificial de cámara cerrada.
+       - *Solución:* 
+         1. Se calibró `ReverbMix` a niveles profesionales de estudio (`-22.0 dB` a `-27.0 dB`, ~5% wet), logrando que el 95% del sonido sea la señal estéreo directa con un halo tridimensional sutil.
+         2. Se suavizó el filtro de absorción de sala a una atenuación transparente de `-1.0 dB`, preservando al 100% el brillo y detalle de las frecuencias altas.
+         3. Se excluyeron los 6 ambientes naturales de Zen de la reverberación de cámara cerrada, reproduciéndolos con su imagen estéreo 3D original limpia.
+         4. Se optimizó el DSP Mid/Side con verificación estricta de 2 canales y protección contra clipping digital.
 
 ---
 

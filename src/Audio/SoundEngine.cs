@@ -1561,11 +1561,14 @@ namespace Bejeweled3Accessible.Audio
                     return 0;
                 }
 
-                // Fade-in starts from silence. La pista se espacializa como
-                // ambiente (GridSpatializer) para que acompane al juego con
-                // envoltura estereo y aire, en lugar de sonar plana y centrada.
+                // Fade-in starts from silence.
                 BASS_ChannelSetAttribute(handle, BASS_ATTRIB_VOL, 0.0f);
-                AttachMusicSpatializer(handle);
+                // Las pistas ambientales de naturaleza (24-29) son grabaciones de campo
+                // estereo reales al aire libre: no se les aplica reverb de sala cerrada.
+                if (MusicMap.OrderForFile(musicFileName) >= 0)
+                {
+                    AttachMusicSpatializer(handle);
+                }
                 BASS_ChannelPlay(handle, true);
 
                 pin = pinned;
@@ -1837,6 +1840,7 @@ namespace Bejeweled3Accessible.Audio
                 bool isFloat = true;
                 if (BASS_ChannelGetInfo(handle, out info))
                 {
+                    if (info.chans != 2) return;
                     if ((info.flags & (int)BASS_SAMPLE_FLOAT) == 0)
                     {
                         isFloat = false;
@@ -1919,10 +1923,16 @@ namespace Bejeweled3Accessible.Audio
             if (!_binauralEnabled) return;
             try
             {
+                // Si la pista activa es un ambiente de naturaleza, no se le aplica reverb de sala
+                if (!string.IsNullOrEmpty(_currentMusicFile) && MusicMap.OrderForFile(_currentMusicFile) < 0)
+                {
+                    return;
+                }
+
                 _musicFxChannel = musicHandle;
                 var acoustics = SpatialAudio.GetEnvironmentAcoustics(CurrentEnvironment);
 
-                // 1. Reverb temático envolvente calibrado
+                // 1. Reverb temático envolvente sutil y calibrado
                 int rv = BASS_ChannelSetFX(musicHandle, BASS_FX_DX8_REVERB, 1);
                 if (rv != 0)
                 {
@@ -1935,7 +1945,7 @@ namespace Bejeweled3Accessible.Audio
                     _musicReverbFx = rv;
                 }
 
-                // 2. Filtro de absorción acústica de sala
+                // 2. Filtro suave de absorción acústica de sala (atenuación transparente)
                 if (acoustics.LowPassCutoff < 19000f)
                 {
                     int eqFx = BASS_ChannelSetFX(musicHandle, BASS_FX_DX8_PARAMEQ, 2);
@@ -1944,8 +1954,8 @@ namespace Bejeweled3Accessible.Audio
                         BassDx8Parameq eq = new BassDx8Parameq
                         {
                             fCenter = acoustics.LowPassCutoff,
-                            fBandwidth = 3.0f,
-                            fGain = -8.0f
+                            fBandwidth = 1.5f,
+                            fGain = -1.0f
                         };
                         SetFxParams(eqFx, eq);
                         _musicEqFx = eqFx;
@@ -1961,7 +1971,7 @@ namespace Bejeweled3Accessible.Audio
                         BassDx8Parameq pres = new BassDx8Parameq
                         {
                             fCenter = acoustics.PresenceFreq,
-                            fBandwidth = 2.0f,
+                            fBandwidth = 1.5f,
                             fGain = acoustics.PresenceGain
                         };
                         SetFxParams(presFx, pres);
