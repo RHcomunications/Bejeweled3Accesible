@@ -1836,6 +1836,7 @@ namespace Bejeweled3Accessible.UI
                             _sound.SetEnvironment(AudioEnvironment.GlacialChamber);
                             _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestTurnByTurn));
                             break;
+                        case Engine.QuestType.Alchemy:
                         default:
                             _sound.SetEnvironment(AudioEnvironment.CrystalTemple);
                             _sound.PlayMusic(MusicMap.FileName(MusicMap.QuestTakeYourTime));
